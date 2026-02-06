@@ -64,8 +64,13 @@ function renderFlashlightUI() {
             // Strobe speed slider (hidden by default)
             '<div id="flStrobeSlider" class="hidden w-full max-w-xs mt-4">' +
                 '<label class="text-xs text-slate-400 uppercase block mb-1 text-center">Strobe Speed</label>' +
-                '<input type="range" id="flStrobeSpeed" min="50" max="500" value="200" oninput="updateStrobeSpeed()" class="w-full" style="min-height:44px;">' +
+                '<input type="range" id="flStrobeSpeed" min="50" max="500" value="200" oninput="updateStrobeSpeed()" class="w-full fl-range-slider" style="min-height:44px;">' +
                 '<div class="flex justify-between text-[10px] text-slate-500"><span>Fast</span><span>Slow</span></div>' +
+            '</div>' +
+            // Seizure warning (hidden by default, shown briefly on strobe activation)
+            '<div id="flSeizureWarning" class="hidden w-full max-w-xs mt-4 bg-red-500/10 border border-red-400/30 rounded-lg p-3 text-center transition-opacity duration-500">' +
+                '<p class="text-xs text-red-400 font-bold"><i class="fas fa-exclamation-triangle mr-1"></i>Photosensitive Seizure Warning</p>' +
+                '<p class="text-[10px] text-red-400/80 mt-1">Strobe lights may trigger seizures in photosensitive individuals.</p>' +
             '</div>' +
         '</div>';
 }
@@ -194,6 +199,17 @@ function toggleStrobe() {
     if (slider) slider.classList.remove('hidden');
     var status = document.getElementById('flStatus');
     if (status) { status.textContent = 'Strobe Mode'; status.className = 'text-sm font-bold text-dot-yellow mb-8'; }
+
+    // Show seizure warning briefly
+    var warn = document.getElementById('flSeizureWarning');
+    if (warn) {
+        warn.classList.remove('hidden');
+        warn.style.opacity = '1';
+        setTimeout(function() {
+            warn.style.opacity = '0';
+            setTimeout(function() { warn.classList.add('hidden'); warn.style.opacity = '1'; }, 500);
+        }, 4000);
+    }
 
     initTorch(function() { startStrobe(); });
 }

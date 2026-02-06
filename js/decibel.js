@@ -15,7 +15,8 @@ var dbState = {
     min: Infinity,
     max: -Infinity,
     sum: 0,
-    count: 0
+    count: 0,
+    lastFrameTime: 0
 };
 
 function openDecibel() {
@@ -81,12 +82,14 @@ function renderDecibelUI() {
                     '</div>' +
                 '</div>' +
                 // Buttons
-                '<div class="flex gap-3">' +
+                '<div class="flex gap-3 mb-4">' +
                     '<button id="dbStartBtn" onclick="startDecibel()" class="flex-1 py-4 bg-dot-blue text-white font-bold rounded-lg text-sm" style="min-height:48px;">' +
                         '<i class="fas fa-microphone mr-2"></i>Start Monitoring</button>' +
                     '<button onclick="resetDecibelStats()" class="px-4 py-4 bg-slate-100 text-slate-500 font-bold rounded-lg text-sm" style="min-height:48px;">' +
                         '<i class="fas fa-undo"></i></button>' +
                 '</div>' +
+                // Disclaimer
+                '<p class="text-[10px] text-slate-400 text-center"><i class="fas fa-info-circle mr-1"></i>Measurements are approximate \u2014 uncalibrated mic</p>' +
             '</div>' +
         '</div>';
 }
@@ -133,8 +136,15 @@ function startDecibel() {
         });
 }
 
-function monitorDecibel() {
+function monitorDecibel(timestamp) {
     if (!dbState.monitoring || !dbState.analyser) return;
+
+    // Throttle to ~20fps (50ms between frames)
+    if (timestamp && timestamp - dbState.lastFrameTime < 50) {
+        dbState.animFrame = requestAnimationFrame(monitorDecibel);
+        return;
+    }
+    dbState.lastFrameTime = timestamp || 0;
 
     var bufLen = dbState.analyser.fftSize;
     var dataArray = new Float32Array(bufLen);

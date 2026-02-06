@@ -13,7 +13,9 @@ var qrState = {
     animFrame: null,
     scanning: false,
     lastResult: null,
-    history: []
+    history: [],
+    torchOn: false,
+    torchTrack: null
 };
 
 function openQR() {
@@ -41,7 +43,26 @@ function closeQR() {
     overlay.classList.add('hidden');
     var strip = document.getElementById('emergencyStrip');
     if (strip) strip.classList.remove('hidden');
+    // Turn off torch if on
+    if (qrState.torchOn) toggleQRTorch();
     stopQRCamera();
+}
+
+function toggleQRTorch() {
+    var track = qrState.torchTrack;
+    if (!track) return;
+    var caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (!caps.torch) return;
+
+    qrState.torchOn = !qrState.torchOn;
+    track.applyConstraints({ advanced: [{ torch: qrState.torchOn }] }).catch(function() {});
+
+    var btn = document.getElementById('qrTorchBtn');
+    if (btn) {
+        btn.className = qrState.torchOn
+            ? 'w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-dot-yellow'
+            : 'w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white/60';
+    }
 }
 
 function renderQRUI() {
@@ -73,13 +94,18 @@ function renderQRUI() {
                 '<div id="qrResultActions"></div>' +
             '</div>' +
         '</div>' +
-        // History
-        '<div class="bg-slate-50 border-t border-slate-200 shrink-0" style="max-height:160px;overflow-y:auto;padding-bottom:max(env(safe-area-inset-bottom),8px);">' +
-            '<div class="px-4 py-2 flex items-center justify-between">' +
-                '<span class="text-[10px] text-slate-400 uppercase font-bold">Scan History</span>' +
-                '<button onclick="clearQRHistory()" class="text-[10px] text-slate-400 font-bold">Clear</button>' +
+        // History (collapsed by default)
+        '<div class="bg-slate-50 border-t border-slate-200 shrink-0" style="padding-bottom:max(env(safe-area-inset-bottom),8px);">' +
+            '<div class="px-4 py-2 flex items-center justify-between cursor-pointer" onclick="toggleQRHistory()">' +
+                '<span class="text-[10px] text-slate-400 uppercase font-bold"><i class="fas fa-history mr-1"></i>Scan History (' + qrState.history.length + ')</span>' +
+                '<div class="flex items-center gap-2">' +
+                    '<button onclick="event.stopPropagation();clearQRHistory();" class="text-[10px] text-slate-400 font-bold">Clear</button>' +
+                    '<i id="qrHistoryChevron" class="fas fa-chevron-up text-slate-400 text-[10px] transition-transform duration-200"></i>' +
+                '</div>' +
             '</div>' +
-            '<div id="qrHistory">' + renderQRHistory() + '</div>' +
+            '<div id="qrHistoryList" class="hidden" style="max-height:140px;overflow-y:auto;">' +
+                '<div id="qrHistory">' + renderQRHistory() + '</div>' +
+            '</div>' +
         '</div>';
 }
 
@@ -87,6 +113,7 @@ function startQRCamera() {
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
         .then(function(stream) {
             qrState.stream = stream;
+            qrState.torchTrack = stream.getVideoTracks()[0] || null;
             qrState.video = document.getElementById('qrVideo');
             qrState.canvas = document.getElementById('qrCanvas');
             if (!qrState.video || !qrState.canvas) return;
@@ -224,6 +251,16 @@ function renderQRHistory() {
     return html;
 }
 
+function toggleQRHistory() {
+    var list = document.getElementById('qrHistoryList');
+    var chevron = document.getElementById('qrHistoryChevron');
+    if (!list) return;
+    list.classList.toggle('hidden');
+    if (chevron) {
+        chevron.style.transform = list.classList.contains('hidden') ? '' : 'rotate(180deg)';
+    }
+}
+
 function clearQRHistory() {
     qrState.history = [];
     try { sessionStorage.removeItem('qrScanHistory'); } catch (e) {}
@@ -251,6 +288,8 @@ function stopQRCamera() {
     qrState.canvas = null;
     qrState.ctx = null;
     qrState.lastResult = null;
+    qrState.torchOn = false;
+    qrState.torchTrack = null;
 }
 
 function escapeHtml(str) {

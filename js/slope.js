@@ -180,22 +180,68 @@ function resultRowSlope(label, value) {
 }
 
 function buildSlopeDiagram(deg) {
-    // Clamp for visual display (max 45 degrees for readability)
+    // Get current input values for axis labels
+    var riseEl = document.getElementById('slopeRise');
+    var runEl = document.getElementById('slopeRun');
+    var riseVal = riseEl ? parseFloat(riseEl.value) : 0;
+    var runVal = runEl ? parseFloat(runEl.value) : 0;
+    var hasValues = !isNaN(riseVal) && !isNaN(runVal) && (riseVal > 0 || runVal > 0);
+
+    // SVG-based diagram with grid, axis values, and baseline
+    var svgW = 260, svgH = 150;
+    var pad = { top: 10, right: 50, bottom: 30, left: 10 };
+    var plotW = svgW - pad.left - pad.right;
+    var plotH = svgH - pad.top - pad.bottom;
+
+    // Triangle geometry
     var clampedDeg = Math.min(deg, 45);
     var tanVal = Math.tan(clampedDeg * Math.PI / 180);
-    var baseW = 200;
-    var riseH = Math.round(baseW * tanVal);
-    if (riseH < 2) riseH = 2;
-    if (riseH > 110) riseH = 110;
+    var triH = Math.round(plotH * Math.min(tanVal, 1));
+    if (deg > 0 && triH < 4) triH = 4;
 
-    return '<div style="position:relative;width:' + baseW + 'px;height:' + riseH + 'px;">' +
-        // Triangle using CSS borders
-        '<div style="width:0;height:0;border-left:' + baseW + 'px solid #1e3a5f;border-top:' + riseH + 'px solid transparent;position:absolute;bottom:0;left:0;"></div>' +
-        // Run label
-        '<span style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:10px;color:#64748b;font-weight:bold;">RUN</span>' +
-        // Rise label
-        '<span style="position:absolute;right:-30px;top:50%;transform:translateY(-50%);font-size:10px;color:#64748b;font-weight:bold;">RISE</span>' +
-        // Angle arc indicator
-        '<span style="position:absolute;bottom:2px;left:30px;font-size:10px;color:#ea580c;font-weight:bold;">' + deg.toFixed(1) + '\u00B0</span>' +
-    '</div>';
+    var bx = pad.left;                   // baseline left
+    var by = pad.top + plotH;             // baseline y (bottom)
+    var ex = pad.left + plotW;            // baseline right
+    var ty = by - triH;                   // triangle top y
+
+    // Grid lines (horizontal)
+    var gridLines = '';
+    var gridCount = 4;
+    for (var g = 0; g <= gridCount; g++) {
+        var gy = pad.top + (plotH / gridCount) * g;
+        gridLines += '<line x1="' + bx + '" y1="' + gy + '" x2="' + ex + '" y2="' + gy + '" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4,3"/>';
+    }
+
+    // Rise label with actual value
+    var riseLabel = hasValues ? Math.abs(riseVal).toFixed(1) + ' ft' : 'RISE';
+    // Run label with actual value
+    var runLabel = hasValues ? Math.abs(runVal).toFixed(1) + ' ft' : 'RUN';
+
+    return '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" style="width:100%;max-width:280px;height:auto;">' +
+        // Grid lines
+        gridLines +
+        // Baseline (heavy)
+        '<line x1="' + bx + '" y1="' + by + '" x2="' + ex + '" y2="' + by + '" stroke="#94a3b8" stroke-width="2"/>' +
+        // Triangle fill
+        '<polygon points="' + bx + ',' + by + ' ' + ex + ',' + by + ' ' + ex + ',' + ty + '" fill="#1e3a5f" opacity="0.15"/>' +
+        // Triangle edges
+        '<line x1="' + bx + '" y1="' + by + '" x2="' + ex + '" y2="' + by + '" stroke="#1e3a5f" stroke-width="2"/>' +
+        '<line x1="' + ex + '" y1="' + by + '" x2="' + ex + '" y2="' + ty + '" stroke="#1e3a5f" stroke-width="2"/>' +
+        '<line x1="' + bx + '" y1="' + by + '" x2="' + ex + '" y2="' + ty + '" stroke="#ea580c" stroke-width="2.5"/>' +
+        // Right-angle indicator
+        '<polyline points="' + (ex - 10) + ',' + by + ' ' + (ex - 10) + ',' + (by - 10) + ' ' + ex + ',' + (by - 10) + '" fill="none" stroke="#94a3b8" stroke-width="1"/>' +
+        // Angle arc at bottom-left
+        (deg > 0.5 ? '<path d="M' + (bx + 28) + ',' + by + ' A28,28 0 0,0 ' +
+            (bx + 28 * Math.cos(clampedDeg * Math.PI / 180)).toFixed(1) + ',' +
+            (by - 28 * Math.sin(clampedDeg * Math.PI / 180)).toFixed(1) + '" fill="none" stroke="#ea580c" stroke-width="1.5"/>' : '') +
+        // Degree label
+        '<text x="' + (bx + 34) + '" y="' + (by - 6) + '" font-size="11" fill="#ea580c" font-weight="bold">' + deg.toFixed(1) + '\u00B0</text>' +
+        // Run label (bottom center)
+        '<text x="' + ((bx + ex) / 2) + '" y="' + (by + 18) + '" text-anchor="middle" font-size="10" fill="#64748b" font-weight="bold">' + runLabel + '</text>' +
+        // Rise label (right side, vertical midpoint)
+        '<text x="' + (ex + 6) + '" y="' + ((by + ty) / 2 + 4) + '" font-size="10" fill="#64748b" font-weight="bold">' + riseLabel + '</text>' +
+        // Baseline indicator arrows
+        '<polygon points="' + bx + ',' + (by + 3) + ' ' + (bx + 5) + ',' + (by + 6) + ' ' + (bx + 5) + ',' + by + '" fill="#94a3b8"/>' +
+        '<polygon points="' + ex + ',' + (by + 3) + ' ' + (ex - 5) + ',' + (by + 6) + ' ' + (ex - 5) + ',' + by + '" fill="#94a3b8"/>' +
+    '</svg>';
 }

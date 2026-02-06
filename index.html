@@ -104,16 +104,47 @@
         .tools-carousel-track.paused {
             animation-play-state: paused;
         }
+        /* Flashlight strobe slider - DOT theme */
+        .fl-range-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        .fl-range-slider::-webkit-slider-runnable-track {
+            height: 6px;
+            background: #334155;
+            border-radius: 3px;
+        }
+        .fl-range-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #1e3a5f;
+            border: 3px solid #f59e0b;
+            margin-top: -9px;
+        }
+        .fl-range-slider::-moz-range-track {
+            height: 6px;
+            background: #334155;
+            border-radius: 3px;
+            border: none;
+        }
+        .fl-range-slider::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #1e3a5f;
+            border: 3px solid #f59e0b;
+        }
         .tools-carousel-wrapper {
-            overflow-x: auto;
+            overflow: hidden;
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
         .tools-carousel-wrapper::-webkit-scrollbar {
             display: none;
-        }
-        .tools-carousel-wrapper .tool-btn {
-            scroll-snap-align: center;
         }
     </style>
 </head>
@@ -255,89 +286,89 @@
         <!-- FIELD TOOLS (auto-scrolling carousel) -->
         <section class="px-4 mb-4">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Field Tools</p>
-            <div id="toolsCarousel" class="tools-carousel-wrapper" style="scroll-snap-type: x mandatory;">
+            <div id="toolsCarousel" class="tools-carousel-wrapper">
                 <div id="toolsTrack" class="tools-carousel-track">
                     <!-- Set 1 -->
-                    <button onclick="openCompass()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <button onclick="openCompass()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
                         <i class="fas fa-compass text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Compass</span>
+                        <span class="text-xs text-slate-500">Compass</span>
                     </button>
-                    <button onclick="openMeasure()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <button onclick="openMeasure()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
                         <i class="fas fa-ruler text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Measure</span>
+                        <span class="text-xs text-slate-500">Measure</span>
                     </button>
-                    <button onclick="openMapsOverlay()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <button onclick="openMapsOverlay()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
                         <i class="fas fa-map text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Maps</span>
+                        <span class="text-xs text-slate-500">Maps</span>
                     </button>
-                    <button onclick="openCalc()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <button onclick="openCalc()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
                         <i class="fas fa-calculator text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Calc</span>
+                        <span class="text-xs text-slate-500">Calc</span>
                     </button>
-                    <button onclick="openSlope()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <button onclick="openSlope()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
                         <i class="fas fa-road text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Slope</span>
+                        <span class="text-xs text-slate-500">Slope</span>
                     </button>
-                    <button onclick="openLevel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <button onclick="openLevel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
                         <i class="fas fa-ruler-horizontal text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Level</span>
+                        <span class="text-xs text-slate-500">Level</span>
                     </button>
-                    <button onclick="openDecibel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <button onclick="openDecibel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
                         <i class="fas fa-volume-high text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">dB Meter</span>
+                        <span class="text-xs text-slate-500">dB Meter</span>
                     </button>
-                    <button onclick="openTimer()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <button onclick="openTimer()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
                         <i class="fas fa-stopwatch text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Timer</span>
+                        <span class="text-xs text-slate-500">Timer</span>
                     </button>
-                    <button onclick="openFlashlight()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <button onclick="openFlashlight()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
                         <i class="fas fa-lightbulb text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Light</span>
+                        <span class="text-xs text-slate-500">Light</span>
                     </button>
-                    <button onclick="openQR()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <button onclick="openQR()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
                         <i class="fas fa-qrcode text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">QR Scan</span>
+                        <span class="text-xs text-slate-500">QR Scan</span>
                     </button>
                     <!-- Set 2 (duplicate for seamless loop) -->
-                    <button onclick="openCompass()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                    <button onclick="openCompass()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
                         <i class="fas fa-compass text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Compass</span>
+                        <span class="text-xs text-slate-500">Compass</span>
                     </button>
-                    <button onclick="openMeasure()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                    <button onclick="openMeasure()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
                         <i class="fas fa-ruler text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Measure</span>
+                        <span class="text-xs text-slate-500">Measure</span>
                     </button>
-                    <button onclick="openMapsOverlay()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                    <button onclick="openMapsOverlay()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
                         <i class="fas fa-map text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Maps</span>
+                        <span class="text-xs text-slate-500">Maps</span>
                     </button>
-                    <button onclick="openCalc()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                    <button onclick="openCalc()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
                         <i class="fas fa-calculator text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Calc</span>
+                        <span class="text-xs text-slate-500">Calc</span>
                     </button>
-                    <button onclick="openSlope()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                    <button onclick="openSlope()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
                         <i class="fas fa-road text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Slope</span>
+                        <span class="text-xs text-slate-500">Slope</span>
                     </button>
-                    <button onclick="openLevel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                    <button onclick="openLevel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
                         <i class="fas fa-ruler-horizontal text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Level</span>
+                        <span class="text-xs text-slate-500">Level</span>
                     </button>
-                    <button onclick="openDecibel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                    <button onclick="openDecibel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
                         <i class="fas fa-volume-high text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">dB Meter</span>
+                        <span class="text-xs text-slate-500">dB Meter</span>
                     </button>
-                    <button onclick="openTimer()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                    <button onclick="openTimer()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
                         <i class="fas fa-stopwatch text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Timer</span>
+                        <span class="text-xs text-slate-500">Timer</span>
                     </button>
-                    <button onclick="openFlashlight()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                    <button onclick="openFlashlight()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
                         <i class="fas fa-lightbulb text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">Light</span>
+                        <span class="text-xs text-slate-500">Light</span>
                     </button>
-                    <button onclick="openQR()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                    <button onclick="openQR()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
                         <i class="fas fa-qrcode text-dot-blue"></i>
-                        <span class="text-[10px] text-slate-500">QR Scan</span>
+                        <span class="text-xs text-slate-500">QR Scan</span>
                     </button>
                 </div>
             </div>
@@ -358,7 +389,6 @@
                     if (resumeTimer) clearTimeout(resumeTimer);
                     resumeTimer = setTimeout(function() {
                         track.classList.remove('paused');
-                        carousel.scrollLeft = 0;
                     }, 3000);
                 }
 
@@ -696,7 +726,9 @@
                 <i class="fas fa-times text-lg"></i>
             </button>
             <span class="text-white font-bold text-sm">QR Scanner</span>
-            <div class="w-11"></div>
+            <button id="qrTorchBtn" onclick="toggleQRTorch()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white/60">
+                <i class="fas fa-bolt text-lg"></i>
+            </button>
         </div>
         <!-- Content -->
         <div id="qrContent" class="flex-1 flex flex-col overflow-hidden"></div>
