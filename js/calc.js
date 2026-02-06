@@ -294,67 +294,124 @@ function clearAreaVol() {
 }
 
 // ============ CONVERTER TAB ============
+// Grid-based pair picker with live conversion card.
+// All 8 pairs visible as large tappable buttons (44px+).
 
 var converterPairs = [
-    { label: 'Feet \u2194 Meters', from: 'ft', to: 'm', fwd: function(v){return v*0.3048;}, rev: function(v){return v/0.3048;} },
-    { label: 'Inches \u2194 Millimeters', from: 'in', to: 'mm', fwd: function(v){return v*25.4;}, rev: function(v){return v/25.4;} },
-    { label: 'Sq Feet \u2194 Sq Meters', from: 'sq ft', to: 'sq m', fwd: function(v){return v*0.092903;}, rev: function(v){return v/0.092903;} },
-    { label: 'Cu Yards \u2194 Cu Meters', from: 'cu yd', to: 'cu m', fwd: function(v){return v*0.764555;}, rev: function(v){return v/0.764555;} },
-    { label: 'Pounds \u2194 Kilograms', from: 'lb', to: 'kg', fwd: function(v){return v*0.453592;}, rev: function(v){return v/0.453592;} },
-    { label: 'PSI \u2194 MPa', from: 'psi', to: 'MPa', fwd: function(v){return v*0.00689476;}, rev: function(v){return v/0.00689476;} },
-    { label: 'Gallons \u2194 Liters', from: 'gal', to: 'L', fwd: function(v){return v*3.78541;}, rev: function(v){return v/3.78541;} },
-    { label: 'Fahrenheit \u2194 Celsius', from: '\u00B0F', to: '\u00B0C', fwd: function(v){return (v-32)*5/9;}, rev: function(v){return v*9/5+32;} }
+    { label: 'ft \u2194 m', name: 'Length', icon: 'fa-ruler', from: 'ft', to: 'm', fwd: function(v){return v*0.3048;}, rev: function(v){return v/0.3048;} },
+    { label: 'in \u2194 mm', name: 'Inches', icon: 'fa-ruler-horizontal', from: 'in', to: 'mm', fwd: function(v){return v*25.4;}, rev: function(v){return v/25.4;} },
+    { label: 'sq ft \u2194 sq m', name: 'Area', icon: 'fa-vector-square', from: 'sq ft', to: 'sq m', fwd: function(v){return v*0.092903;}, rev: function(v){return v/0.092903;} },
+    { label: 'cu yd \u2194 cu m', name: 'Volume', icon: 'fa-cube', from: 'cu yd', to: 'cu m', fwd: function(v){return v*0.764555;}, rev: function(v){return v/0.764555;} },
+    { label: 'lb \u2194 kg', name: 'Weight', icon: 'fa-weight-hanging', from: 'lb', to: 'kg', fwd: function(v){return v*0.453592;}, rev: function(v){return v/0.453592;} },
+    { label: 'PSI \u2194 MPa', name: 'Pressure', icon: 'fa-gauge-high', from: 'psi', to: 'MPa', fwd: function(v){return v*0.00689476;}, rev: function(v){return v/0.00689476;} },
+    { label: 'gal \u2194 L', name: 'Liquid', icon: 'fa-droplet', from: 'gal', to: 'L', fwd: function(v){return v*3.78541;}, rev: function(v){return v/3.78541;} },
+    { label: '\u00B0F \u2194 \u00B0C', name: 'Temp', icon: 'fa-temperature-half', from: '\u00B0F', to: '\u00B0C', fwd: function(v){return (v-32)*5/9;}, rev: function(v){return v*9/5+32;} }
 ];
 
-function renderConverterTab() {
-    var opts = '';
-    for (var i = 0; i < converterPairs.length; i++) {
-        opts += '<option value="' + i + '">' + converterPairs[i].label + '</option>';
-    }
-
-    return '<div class="bg-white rounded-lg border border-slate-200 p-4">' +
-        '<div class="mb-4"><label class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1 block">Conversion</label>' +
-        '<select id="convType" onchange="doConvert()" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;">' + opts + '</select></div>' +
-        '<div class="mb-4"><label class="text-xs text-slate-500 uppercase mb-1 block" id="convFromLabel">Value</label>' +
-        '<input type="number" id="convInput" oninput="doConvert()" placeholder="0" step="any" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold text-lg" style="min-height:44px;"></div>' +
-        '<div class="flex items-center justify-center my-3"><button onclick="swapConvert()" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400"><i class="fas fa-arrows-rotate"></i></button></div>' +
-        '<div id="convResult" class="text-center py-4">' +
-            '<p class="text-3xl font-bold text-slate-800">--</p>' +
-            '<p class="text-xs text-slate-500 mt-1" id="convToLabel"></p></div>' +
-    '</div>';
-}
-
+var convSelectedIdx = -1;
 var convReversed = false;
 
+function renderConverterTab() {
+    // 2×4 grid of all conversion pairs
+    var html = '<div class="grid grid-cols-2 gap-2 mb-4">';
+    for (var i = 0; i < converterPairs.length; i++) {
+        var p = converterPairs[i];
+        var sel = i === convSelectedIdx;
+        html += '<button onclick="selectConvPair(' + i + ')" class="flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ' +
+            (sel ? 'border-dot-blue bg-dot-blue/10' : 'border-slate-200 bg-white active:bg-slate-50') + '" style="min-height:52px;">' +
+            '<i class="fas ' + p.icon + ' text-lg ' + (sel ? 'text-dot-blue' : 'text-slate-400') + '"></i>' +
+            '<div>' +
+                '<p class="text-sm font-bold ' + (sel ? 'text-dot-blue' : 'text-slate-700') + '">' + p.label + '</p>' +
+                '<p class="text-[10px] ' + (sel ? 'text-dot-blue/70' : 'text-slate-400') + '">' + p.name + '</p>' +
+            '</div>' +
+        '</button>';
+    }
+    html += '</div>';
+
+    // Conversion card (shown when a pair is selected)
+    if (convSelectedIdx >= 0) {
+        var pair = converterPairs[convSelectedIdx];
+        var fromUnit = convReversed ? pair.to : pair.from;
+        var toUnit = convReversed ? pair.from : pair.to;
+
+        html += '<div class="bg-white rounded-lg border border-slate-200 p-4">' +
+            '<div class="flex items-center justify-between mb-3">' +
+                '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider">' + fromUnit + ' \u2192 ' + toUnit + '</p>' +
+                '<button onclick="clearConv()" class="text-xs text-slate-400 font-bold"><i class="fas fa-undo mr-1"></i>Clear</button>' +
+            '</div>' +
+            '<div class="flex items-center gap-2 mb-3">' +
+                '<div class="flex-1">' +
+                    '<input type="number" id="convInput" oninput="doConvert()" placeholder="Enter ' + fromUnit + '" step="any" ' +
+                    'class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold text-lg" style="min-height:44px;">' +
+                '</div>' +
+                '<button onclick="swapConvert()" class="w-11 h-11 min-w-[44px] min-h-[44px] bg-dot-blue rounded-full flex items-center justify-center text-white shadow-sm active:bg-dot-navy">' +
+                    '<i class="fas fa-arrows-rotate"></i></button>' +
+            '</div>' +
+            '<div id="convResult" class="text-center py-4 bg-slate-50 rounded-lg">' +
+                '<p class="text-3xl font-bold text-slate-300">--</p>' +
+                '<p class="text-sm text-slate-400 mt-1 font-medium">' + toUnit + '</p>' +
+            '</div>' +
+        '</div>';
+    } else {
+        html += '<div class="text-center py-8">' +
+            '<i class="fas fa-arrow-pointer text-2xl text-slate-300 mb-2 block"></i>' +
+            '<p class="text-sm text-slate-400">Tap a conversion above</p>' +
+        '</div>';
+    }
+
+    return html;
+}
+
+function selectConvPair(idx) {
+    if (idx === convSelectedIdx) return;
+    convSelectedIdx = idx;
+    convReversed = false;
+    renderCalcUI();
+    setTimeout(function() {
+        var input = document.getElementById('convInput');
+        if (input) input.focus();
+    }, 50);
+}
+
 function doConvert() {
-    var sel = document.getElementById('convType');
+    if (convSelectedIdx < 0) return;
     var input = document.getElementById('convInput');
     var resEl = document.getElementById('convResult');
-    if (!sel || !input || !resEl) return;
+    if (!input || !resEl) return;
 
-    var idx = parseInt(sel.value);
-    var pair = converterPairs[idx];
+    var pair = converterPairs[convSelectedIdx];
     var val = parseFloat(input.value);
-
-    var fromLabel = document.getElementById('convFromLabel');
-    var toLabel = document.getElementById('convToLabel');
-
-    var fromUnit = convReversed ? pair.to : pair.from;
     var toUnit = convReversed ? pair.from : pair.to;
-    if (fromLabel) fromLabel.textContent = 'Value (' + fromUnit + ')';
 
-    if (isNaN(val)) {
-        resEl.innerHTML = '<p class="text-3xl font-bold text-slate-800">--</p><p class="text-xs text-slate-500 mt-1">' + toUnit + '</p>';
+    if (isNaN(val) || input.value.trim() === '') {
+        resEl.innerHTML = '<p class="text-3xl font-bold text-slate-300">--</p>' +
+            '<p class="text-sm text-slate-400 mt-1 font-medium">' + toUnit + '</p>';
         return;
     }
 
     var result = convReversed ? pair.rev(val) : pair.fwd(val);
-    resEl.innerHTML = '<p class="text-3xl font-bold text-slate-800">' + formatConvResult(result) + '</p>' +
-        '<p class="text-xs text-slate-500 mt-1">' + toUnit + '</p>';
+    resEl.innerHTML = '<p class="text-3xl font-bold text-dot-blue">' + formatConvResult(result) + '</p>' +
+        '<p class="text-sm text-slate-500 mt-1 font-medium">' + toUnit + '</p>';
 }
 
 function swapConvert() {
+    var input = document.getElementById('convInput');
+    var savedVal = input ? input.value : '';
     convReversed = !convReversed;
+    renderCalcUI();
+    setTimeout(function() {
+        var inp = document.getElementById('convInput');
+        if (inp) {
+            inp.value = savedVal;
+            inp.focus();
+            doConvert();
+        }
+    }, 50);
+}
+
+function clearConv() {
+    var input = document.getElementById('convInput');
+    if (input) { input.value = ''; input.focus(); }
     doConvert();
 }
 
