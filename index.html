@@ -90,20 +90,6 @@
         .hide-scrollbar::-webkit-scrollbar {
             display: none;
         }
-        /* Field Tools auto-scrolling carousel */
-        @keyframes toolsScroll {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-50%); }
-        }
-        .tools-carousel-track {
-            display: flex;
-            gap: 12px;
-            width: max-content;
-            animation: toolsScroll 35s linear infinite;
-        }
-        .tools-carousel-track.paused {
-            animation-play-state: paused;
-        }
         /* Flashlight strobe slider - DOT theme */
         .fl-range-slider {
             -webkit-appearance: none;
@@ -137,14 +123,6 @@
             border-radius: 50%;
             background: #1e3a5f;
             border: 3px solid #f59e0b;
-        }
-        .tools-carousel-wrapper {
-            overflow: hidden;
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        .tools-carousel-wrapper::-webkit-scrollbar {
-            display: none;
         }
     </style>
 </head>
@@ -283,120 +261,27 @@
             <!-- Content rendered by updateReportStatus() -->
         </section>
 
-        <!-- FIELD TOOLS (auto-scrolling carousel) -->
+        <!-- FIELD TOOLS (popup grid) -->
         <section class="px-4 mb-4">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Field Tools</p>
-            <div id="toolsCarousel" class="tools-carousel-wrapper">
-                <div id="toolsTrack" class="tools-carousel-track">
-                    <!-- Set 1 -->
-                    <button onclick="openCompass()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                        <i class="fas fa-compass text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Compass</span>
-                    </button>
-                    <button onclick="openMeasure()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                        <i class="fas fa-ruler text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Measure</span>
-                    </button>
-                    <button onclick="openMapsOverlay()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                        <i class="fas fa-map text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Maps</span>
-                    </button>
-                    <button onclick="openCalc()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                        <i class="fas fa-calculator text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Calc</span>
-                    </button>
-                    <button onclick="openSlope()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                        <i class="fas fa-road text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Slope</span>
-                    </button>
-                    <button onclick="openLevel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                        <i class="fas fa-ruler-horizontal text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Level</span>
-                    </button>
-                    <button onclick="openDecibel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                        <i class="fas fa-volume-high text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">dB Meter</span>
-                    </button>
-                    <button onclick="openTimer()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                        <i class="fas fa-stopwatch text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Timer</span>
-                    </button>
-                    <button onclick="openFlashlight()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                        <i class="fas fa-lightbulb text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Light</span>
-                    </button>
-                    <button onclick="openQR()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                        <i class="fas fa-qrcode text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">QR Scan</span>
-                    </button>
-                    <!-- Set 2 (duplicate for seamless loop) -->
-                    <button onclick="openCompass()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
-                        <i class="fas fa-compass text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Compass</span>
-                    </button>
-                    <button onclick="openMeasure()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
-                        <i class="fas fa-ruler text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Measure</span>
-                    </button>
-                    <button onclick="openMapsOverlay()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
-                        <i class="fas fa-map text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Maps</span>
-                    </button>
-                    <button onclick="openCalc()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
-                        <i class="fas fa-calculator text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Calc</span>
-                    </button>
-                    <button onclick="openSlope()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
-                        <i class="fas fa-road text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Slope</span>
-                    </button>
-                    <button onclick="openLevel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
-                        <i class="fas fa-ruler-horizontal text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Level</span>
-                    </button>
-                    <button onclick="openDecibel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
-                        <i class="fas fa-volume-high text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">dB Meter</span>
-                    </button>
-                    <button onclick="openTimer()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
-                        <i class="fas fa-stopwatch text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Timer</span>
-                    </button>
-                    <button onclick="openFlashlight()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
-                        <i class="fas fa-lightbulb text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">Light</span>
-                    </button>
-                    <button onclick="openQR()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
-                        <i class="fas fa-qrcode text-dot-blue"></i>
-                        <span class="text-xs text-slate-500">QR Scan</span>
-                    </button>
-                </div>
-            </div>
+            <button onclick="openFieldToolsModal()" class="w-full bg-white border border-slate-200 rounded-lg py-3 px-4 flex items-center gap-3 active:bg-slate-50 transition-colors">
+                <i class="fas fa-screwdriver-wrench text-dot-blue"></i>
+                <span class="font-semibold text-slate-700 flex-1 text-left">Field Tools</span>
+                <span class="text-xs text-slate-400">10 tools</span>
+                <i class="fas fa-chevron-right text-slate-400 text-xs"></i>
+            </button>
         </section>
         <script>
-            (function() {
-                var carousel = document.getElementById('toolsCarousel');
-                var track = document.getElementById('toolsTrack');
-                if (!carousel || !track) return;
-                var resumeTimer = null;
-
-                function pauseCarousel() {
-                    track.classList.add('paused');
-                    if (resumeTimer) clearTimeout(resumeTimer);
-                }
-
-                function scheduleResume() {
-                    if (resumeTimer) clearTimeout(resumeTimer);
-                    resumeTimer = setTimeout(function() {
-                        track.classList.remove('paused');
-                    }, 3000);
-                }
-
-                carousel.addEventListener('touchstart', pauseCarousel, { passive: true });
-                carousel.addEventListener('pointerdown', pauseCarousel);
-                carousel.addEventListener('touchend', scheduleResume, { passive: true });
-                carousel.addEventListener('pointerup', scheduleResume);
-            })();
+            function openFieldToolsModal() {
+                document.getElementById('fieldToolsModal').classList.remove('hidden');
+            }
+            function closeFieldToolsModal() {
+                document.getElementById('fieldToolsModal').classList.add('hidden');
+            }
+            function fieldToolAction(fn) {
+                closeFieldToolsModal();
+                fn();
+            }
         </script>
 
         <!-- REPORT ARCHIVES -->
@@ -497,6 +382,24 @@
             <div id="photoLogPanel" class="hidden bg-white p-4 mt-1 rounded-b-lg">
                 <img src="./assets/airender.webp" alt="Photo Log Map preview" class="w-full h-48 object-cover rounded-lg mb-3">
                 <p class="text-sm text-slate-500">Track every photo taken on site with GPS location and camera direction. See exactly where and what your team documented.</p>
+                <div class="mt-3 space-y-2">
+                    <div class="flex items-center gap-3 bg-slate-50 rounded-lg p-3">
+                        <i class="fas fa-route text-dot-blue text-lg w-6 text-center shrink-0"></i>
+                        <span class="text-sm text-slate-600">GPS path tracking &mdash; breadcrumb trail of your movement on the map</span>
+                    </div>
+                    <div class="flex items-center gap-3 bg-slate-50 rounded-lg p-3">
+                        <i class="fas fa-camera text-dot-blue text-lg w-6 text-center shrink-0"></i>
+                        <span class="text-sm text-slate-600">Photos automatically timestamped and geolocated</span>
+                    </div>
+                    <div class="flex items-center gap-3 bg-slate-50 rounded-lg p-3">
+                        <i class="fas fa-compass text-dot-blue text-lg w-6 text-center shrink-0"></i>
+                        <span class="text-sm text-slate-600">Camera direction captured via device compass at time of photo</span>
+                    </div>
+                    <div class="flex items-center gap-3 bg-slate-50 rounded-lg p-3">
+                        <i class="fas fa-map-pin text-dot-blue text-lg w-6 text-center shrink-0"></i>
+                        <span class="text-sm text-slate-600">See exactly where each photo was taken and what direction it was facing</span>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -545,6 +448,61 @@
                     <i class="fas fa-cog"></i>
                     Manage Projects
                 </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Field Tools Modal -->
+    <div id="fieldToolsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center" onclick="closeFieldToolsModal()">
+        <div class="absolute inset-0 bg-black/50"></div>
+        <div class="relative bg-white rounded-xl max-w-sm w-full mx-4 overflow-hidden" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 class="font-bold text-slate-800">Field Tools</h3>
+                <button onclick="closeFieldToolsModal()" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4 grid grid-cols-2 gap-3">
+                <button onclick="fieldToolAction(openCompass)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
+                    <i class="fas fa-compass text-dot-blue text-xl"></i>
+                    <span class="text-sm font-medium text-slate-700">Compass</span>
+                </button>
+                <button onclick="fieldToolAction(openMeasure)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
+                    <i class="fas fa-ruler text-dot-blue text-xl"></i>
+                    <span class="text-sm font-medium text-slate-700">Measure</span>
+                </button>
+                <button onclick="fieldToolAction(openMapsOverlay)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
+                    <i class="fas fa-map text-dot-blue text-xl"></i>
+                    <span class="text-sm font-medium text-slate-700">Maps</span>
+                </button>
+                <button onclick="fieldToolAction(openCalc)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
+                    <i class="fas fa-calculator text-dot-blue text-xl"></i>
+                    <span class="text-sm font-medium text-slate-700">Calc</span>
+                </button>
+                <button onclick="fieldToolAction(openSlope)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
+                    <i class="fas fa-road text-dot-blue text-xl"></i>
+                    <span class="text-sm font-medium text-slate-700">Slope</span>
+                </button>
+                <button onclick="fieldToolAction(openLevel)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
+                    <i class="fas fa-ruler-horizontal text-dot-blue text-xl"></i>
+                    <span class="text-sm font-medium text-slate-700">Level</span>
+                </button>
+                <button onclick="fieldToolAction(openDecibel)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
+                    <i class="fas fa-volume-high text-dot-blue text-xl"></i>
+                    <span class="text-sm font-medium text-slate-700">dB Meter</span>
+                </button>
+                <button onclick="fieldToolAction(openTimer)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
+                    <i class="fas fa-stopwatch text-dot-blue text-xl"></i>
+                    <span class="text-sm font-medium text-slate-700">Timer</span>
+                </button>
+                <button onclick="fieldToolAction(openFlashlight)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
+                    <i class="fas fa-lightbulb text-dot-blue text-xl"></i>
+                    <span class="text-sm font-medium text-slate-700">Light</span>
+                </button>
+                <button onclick="fieldToolAction(openQR)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
+                    <i class="fas fa-qrcode text-dot-blue text-xl"></i>
+                    <span class="text-sm font-medium text-slate-700">QR Scan</span>
+                </button>
             </div>
         </div>
     </div>

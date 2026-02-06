@@ -7,7 +7,8 @@
 
 var calcState = {
     activeTab: 'feetinch',
-    areaMode: 'area' // 'area' or 'volume'
+    areaMode: 'area', // 'area' or 'volume'
+    feetInchReversed: false // false = ft-in→decimal, true = decimal→ft-in
 };
 
 function openCalc() {
@@ -67,36 +68,79 @@ function renderCalcUI() {
 // ============ FEET-INCH TAB ============
 
 function renderFeetInchTab() {
+    var reversed = calcState.feetInchReversed;
     var fractions = ['0','1/16','1/8','3/16','1/4','5/16','3/8','7/16','1/2','9/16','5/8','11/16','3/4','13/16','7/8','15/16'];
     var opts = '';
     for (var i = 0; i < fractions.length; i++) {
         opts += '<option value="' + fractions[i] + '">' + fractions[i] + '</option>';
     }
 
-    return '<div class="bg-white rounded-lg border border-slate-200 p-4 mb-4">' +
-        '<div class="flex items-center justify-between mb-3">' +
-            '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider">Feet &amp; Inches Input</p>' +
-            '<button onclick="clearFeetInch()" class="text-xs text-slate-400 font-bold"><i class="fas fa-undo mr-1"></i>Clear</button>' +
-        '</div>' +
-        '<div class="flex gap-2 mb-3">' +
-            '<div class="flex-1"><label class="text-xs text-slate-500 uppercase mb-1 block">Feet</label>' +
-            '<input type="number" id="calcFeet" oninput="calcFeetInch()" placeholder="0" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
-            '<div class="flex-1"><label class="text-xs text-slate-500 uppercase mb-1 block">Inches</label>' +
-            '<input type="number" id="calcInches" oninput="calcFeetInch()" placeholder="0" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
-            '<div class="flex-1"><label class="text-xs text-slate-500 uppercase mb-1 block">Fraction</label>' +
-            '<select id="calcFraction" onchange="calcFeetInch()" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;">' + opts + '</select></div>' +
-        '</div>' +
-        '<div id="feetInchResults" class="space-y-2"></div>' +
-    '</div>' +
-    '<div class="bg-white rounded-lg border border-slate-200 p-4">' +
-        '<div class="flex items-center justify-between mb-3">' +
-            '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider">Decimal Feet Input</p>' +
-            '<button onclick="clearDecFeet()" class="text-xs text-slate-400 font-bold"><i class="fas fa-undo mr-1"></i>Clear</button>' +
-        '</div>' +
-        '<div class="mb-3"><label class="text-xs text-slate-500 uppercase mb-1 block">Decimal Feet</label>' +
-        '<input type="number" id="calcDecFeet" oninput="calcDecimalFeet()" placeholder="0.000" step="0.001" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
-        '<div id="decFeetResults" class="space-y-2"></div>' +
+    // Mode selector buttons (Converter-style)
+    var html = '<div class="grid grid-cols-2 gap-2 mb-4">' +
+        '<button onclick="toggleFeetInchMode(false)" class="flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ' +
+            (!reversed ? 'border-dot-blue bg-dot-blue/10' : 'border-slate-200 bg-white active:bg-slate-50') + '" style="min-height:52px;">' +
+            '<i class="fas fa-ruler text-lg ' + (!reversed ? 'text-dot-blue' : 'text-slate-400') + '"></i>' +
+            '<div>' +
+                '<p class="text-sm font-bold ' + (!reversed ? 'text-dot-blue' : 'text-slate-700') + '">Feet-Inches</p>' +
+                '<p class="text-[10px] ' + (!reversed ? 'text-dot-blue/70' : 'text-slate-400') + '">To Decimal</p>' +
+            '</div>' +
+        '</button>' +
+        '<button onclick="toggleFeetInchMode(true)" class="flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ' +
+            (reversed ? 'border-dot-blue bg-dot-blue/10' : 'border-slate-200 bg-white active:bg-slate-50') + '" style="min-height:52px;">' +
+            '<i class="fas fa-arrows-rotate text-lg ' + (reversed ? 'text-dot-blue' : 'text-slate-400') + '"></i>' +
+            '<div>' +
+                '<p class="text-sm font-bold ' + (reversed ? 'text-dot-blue' : 'text-slate-700') + '">Decimal Feet</p>' +
+                '<p class="text-[10px] ' + (reversed ? 'text-dot-blue/70' : 'text-slate-400') + '">To Feet-Inches</p>' +
+            '</div>' +
+        '</button>' +
     '</div>';
+
+    // Input card
+    html += '<div class="bg-white rounded-lg border border-slate-200 p-4">';
+    html += '<div class="flex items-center justify-between mb-3">' +
+        '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider">' +
+            (reversed ? 'Decimal Feet \u2192 Feet-Inches' : 'Feet-Inches \u2192 Decimal') + '</p>' +
+        '<button onclick="clearFeetInch()" class="text-xs text-slate-400 font-bold"><i class="fas fa-undo mr-1"></i>Clear</button>' +
+    '</div>';
+
+    if (!reversed) {
+        // Feet + Inches + Fraction input
+        html += '<div class="flex gap-2 mb-3">' +
+            '<div class="flex-1"><label class="text-xs text-slate-500 uppercase mb-1 block">Feet</label>' +
+            '<input type="number" id="calcFeet" oninput="calcFeetInch()" placeholder="0" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold text-lg" style="min-height:52px;"></div>' +
+            '<div class="flex-1"><label class="text-xs text-slate-500 uppercase mb-1 block">Inches</label>' +
+            '<input type="number" id="calcInches" oninput="calcFeetInch()" placeholder="0" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold text-lg" style="min-height:52px;"></div>' +
+            '<div class="flex-1"><label class="text-xs text-slate-500 uppercase mb-1 block">Fraction</label>' +
+            '<select id="calcFraction" onchange="calcFeetInch()" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold text-lg" style="min-height:52px;">' + opts + '</select></div>' +
+        '</div>';
+    } else {
+        // Single decimal feet input
+        html += '<div class="mb-3">' +
+            '<input type="number" id="calcDecFeet" oninput="calcDecimalFeet()" placeholder="Enter decimal feet" step="any" ' +
+            'class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold text-lg" style="min-height:52px;">' +
+        '</div>';
+    }
+
+    // Result display (Converter-style centered)
+    html += '<div id="feetInchResult" class="text-center py-4 bg-slate-50 rounded-lg">' +
+        '<p class="text-3xl font-bold text-slate-300">--</p>' +
+        '<p class="text-sm text-slate-400 mt-1 font-medium">' + (reversed ? 'feet-inches' : 'decimal feet') + '</p>' +
+    '</div>';
+
+    // Secondary results
+    html += '<div id="feetInchSecondary" class="mt-3 space-y-1"></div>';
+
+    html += '</div>';
+    return html;
+}
+
+function toggleFeetInchMode(reversed) {
+    calcState.feetInchReversed = reversed;
+    renderCalcUI();
+    setTimeout(function() {
+        var input = document.getElementById(reversed ? 'calcDecFeet' : 'calcFeet');
+        if (input) input.focus();
+    }, 50);
 }
 
 function calcFeetInch() {
@@ -110,12 +154,25 @@ function calcFeetInch() {
     var meters = decFeet * 0.3048;
     var cm = meters * 100;
 
-    var el = document.getElementById('feetInchResults');
-    if (!el) return;
-    el.innerHTML = resultRow('Decimal Feet', decFeet.toFixed(4) + ' ft') +
-        resultRow('Decimal Inches', totalInches.toFixed(4) + '"') +
-        resultRow('Meters', meters.toFixed(4) + ' m') +
-        resultRow('Centimeters', cm.toFixed(2) + ' cm');
+    var resEl = document.getElementById('feetInchResult');
+    var secEl = document.getElementById('feetInchSecondary');
+    if (!resEl) return;
+
+    if (ft === 0 && inc === 0 && frac === 0) {
+        resEl.innerHTML = '<p class="text-3xl font-bold text-slate-300">--</p>' +
+            '<p class="text-sm text-slate-400 mt-1 font-medium">decimal feet</p>';
+        if (secEl) secEl.innerHTML = '';
+        return;
+    }
+
+    resEl.innerHTML = '<p class="text-3xl font-bold text-dot-blue">' + decFeet.toFixed(4) + ' ft</p>' +
+        '<p class="text-sm text-slate-500 mt-1 font-medium">decimal feet</p>';
+
+    if (secEl) {
+        secEl.innerHTML = resultRow('Decimal Inches', totalInches.toFixed(4) + '"') +
+            resultRow('Meters', meters.toFixed(4) + ' m') +
+            resultRow('Centimeters', cm.toFixed(2) + ' cm');
+    }
 }
 
 function calcDecimalFeet() {
@@ -133,12 +190,26 @@ function calcDecimalFeet() {
 
     var meters = dec * 0.3048;
 
-    var el = document.getElementById('decFeetResults');
-    if (!el) return;
-    el.innerHTML = resultRow('Feet-Inches', display) +
-        resultRow('Decimal Inches', totalInches.toFixed(4) + '"') +
-        resultRow('Meters', meters.toFixed(4) + ' m') +
-        resultRow('Centimeters', (meters * 100).toFixed(2) + ' cm');
+    var resEl = document.getElementById('feetInchResult');
+    var secEl = document.getElementById('feetInchSecondary');
+    if (!resEl) return;
+
+    var input = document.getElementById('calcDecFeet');
+    if (!input || input.value.trim() === '') {
+        resEl.innerHTML = '<p class="text-3xl font-bold text-slate-300">--</p>' +
+            '<p class="text-sm text-slate-400 mt-1 font-medium">feet-inches</p>';
+        if (secEl) secEl.innerHTML = '';
+        return;
+    }
+
+    resEl.innerHTML = '<p class="text-3xl font-bold text-dot-blue">' + display + '</p>' +
+        '<p class="text-sm text-slate-500 mt-1 font-medium">feet-inches</p>';
+
+    if (secEl) {
+        secEl.innerHTML = resultRow('Decimal Inches', totalInches.toFixed(4) + '"') +
+            resultRow('Meters', meters.toFixed(4) + ' m') +
+            resultRow('Centimeters', (meters * 100).toFixed(2) + ' cm');
+    }
 }
 
 function parseFraction(str) {
@@ -152,7 +223,6 @@ function toNearestFraction(val) {
     var sixteenths = Math.round(val * 16);
     if (sixteenths === 0) return '0';
     if (sixteenths === 16) return '0'; // rolled over
-    // Simplify
     var num = sixteenths;
     var den = 16;
     while (num % 2 === 0 && den > 1) { num /= 2; den /= 2; }
@@ -162,20 +232,36 @@ function toNearestFraction(val) {
 function resultRow(label, value) {
     return '<div class="flex justify-between items-center py-2 border-b border-slate-100">' +
         '<span class="text-xs text-slate-500 uppercase">' + label + '</span>' +
-        '<span class="text-xl font-bold text-slate-800">' + value + '</span></div>';
+        '<span class="text-sm font-bold text-slate-700">' + value + '</span></div>';
 }
 
 // ============ AREA/VOLUME TAB ============
 
 function renderAreaVolTab() {
     var areaActive = calcState.areaMode === 'area';
-    return '<div class="flex gap-2 mb-4">' +
-        '<button onclick="setAreaMode(\'area\')" class="flex-1 py-3 rounded-lg font-bold text-sm ' +
-            (areaActive ? 'bg-dot-blue text-white' : 'bg-slate-100 text-slate-500') + '" style="min-height:44px;">Area</button>' +
-        '<button onclick="setAreaMode(\'volume\')" class="flex-1 py-3 rounded-lg font-bold text-sm ' +
-            (!areaActive ? 'bg-dot-blue text-white' : 'bg-slate-100 text-slate-500') + '" style="min-height:44px;">Volume</button>' +
-    '</div>' +
-    '<div class="bg-white rounded-lg border border-slate-200 p-4 mb-4">' +
+
+    // Mode selector buttons (Converter-style)
+    var html = '<div class="grid grid-cols-2 gap-2 mb-4">' +
+        '<button onclick="setAreaMode(\'area\')" class="flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ' +
+            (areaActive ? 'border-dot-blue bg-dot-blue/10' : 'border-slate-200 bg-white active:bg-slate-50') + '" style="min-height:52px;">' +
+            '<i class="fas fa-vector-square text-lg ' + (areaActive ? 'text-dot-blue' : 'text-slate-400') + '"></i>' +
+            '<div>' +
+                '<p class="text-sm font-bold ' + (areaActive ? 'text-dot-blue' : 'text-slate-700') + '">Area</p>' +
+                '<p class="text-[10px] ' + (areaActive ? 'text-dot-blue/70' : 'text-slate-400') + '">L \u00D7 W</p>' +
+            '</div>' +
+        '</button>' +
+        '<button onclick="setAreaMode(\'volume\')" class="flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ' +
+            (!areaActive ? 'border-dot-blue bg-dot-blue/10' : 'border-slate-200 bg-white active:bg-slate-50') + '" style="min-height:52px;">' +
+            '<i class="fas fa-cube text-lg ' + (!areaActive ? 'text-dot-blue' : 'text-slate-400') + '"></i>' +
+            '<div>' +
+                '<p class="text-sm font-bold ' + (!areaActive ? 'text-dot-blue' : 'text-slate-700') + '">Volume</p>' +
+                '<p class="text-[10px] ' + (!areaActive ? 'text-dot-blue/70' : 'text-slate-400') + '">L \u00D7 W \u00D7 D</p>' +
+            '</div>' +
+        '</button>' +
+    '</div>';
+
+    // Dimensions card
+    html += '<div class="bg-white rounded-lg border border-slate-200 p-4 mb-4">' +
         '<div class="flex items-center justify-between mb-3">' +
             '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider">Dimensions</p>' +
             '<button onclick="clearAreaVol()" class="text-xs text-slate-400 font-bold"><i class="fas fa-undo mr-1"></i>Clear</button>' +
@@ -185,31 +271,48 @@ function renderAreaVolTab() {
             dimInput('Width', 'avWidth', 'calcAreaVol()') +
             (calcState.areaMode === 'volume' ? dimInput('Depth', 'avDepth', 'calcAreaVol()') : '') +
         '</div>' +
-    '</div>' +
-    '<div id="areaVolResults" class="bg-white rounded-lg border border-slate-200 p-4 mb-4"><p class="text-sm text-slate-400 text-center">Enter dimensions to calculate</p></div>' +
-    (calcState.areaMode === 'volume' ?
-        '<div class="bg-white rounded-lg border border-slate-200 p-4">' +
+    '</div>';
+
+    // Result display (Converter-style centered)
+    html += '<div id="areaVolResults" class="bg-white rounded-lg border border-slate-200 p-4 mb-4">' +
+        '<div class="text-center py-4 bg-slate-50 rounded-lg">' +
+            '<p class="text-3xl font-bold text-slate-300">--</p>' +
+            '<p class="text-sm text-slate-400 mt-1 font-medium">' + (areaActive ? 'square feet' : 'cubic feet') + '</p>' +
+        '</div>' +
+        '<div id="areaVolSecondary" class="mt-3 space-y-1"></div>' +
+    '</div>';
+
+    // Concrete Calculator (Volume mode only)
+    if (calcState.areaMode === 'volume') {
+        html += '<div class="bg-white rounded-lg border border-slate-200 p-4">' +
             '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3"><i class="fas fa-cube mr-1"></i> Concrete Calculator</p>' +
             '<div class="space-y-3">' +
-                dimInput('Length', 'concLength') +
-                dimInput('Width', 'concWidth') +
+                dimInput('Length', 'concLength', 'calcConcrete()') +
+                dimInput('Width', 'concWidth', 'calcConcrete()') +
                 '<div><label class="text-xs text-slate-500 uppercase mb-1 block">Depth (inches)</label>' +
-                '<input type="number" id="concDepthIn" placeholder="4" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
+                '<input type="number" id="concDepthIn" oninput="calcConcrete()" placeholder="4" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold text-lg" style="min-height:52px;"></div>' +
             '</div>' +
-            '<label class="flex items-center gap-2 mt-3 cursor-pointer"><input type="checkbox" id="concWaste" checked class="w-5 h-5 rounded">' +
+            '<label class="flex items-center gap-2 mt-3 cursor-pointer"><input type="checkbox" id="concWaste" checked onchange="calcConcrete()" class="w-5 h-5 rounded">' +
                 '<span class="text-xs text-slate-500">Include 10% waste factor</span></label>' +
-            '<button onclick="calcConcrete()" class="w-full py-3 bg-dot-orange text-white font-bold rounded-lg text-sm mt-3" style="min-height:44px;"><i class="fas fa-calculator mr-2"></i>Concrete Yards</button>' +
-            '<div id="concreteResults" class="mt-3"></div>' +
-        '</div>' : '');
+            '<div id="concreteResults" class="mt-3">' +
+                '<div class="text-center py-4 bg-slate-50 rounded-lg">' +
+                    '<p class="text-3xl font-bold text-slate-300">--</p>' +
+                    '<p class="text-sm text-slate-400 mt-1 font-medium">cubic yards</p>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    }
+
+    return html;
 }
 
 function dimInput(label, id, oninputFn) {
     var handler = oninputFn ? ' oninput="' + oninputFn + '"' : '';
     return '<div class="flex gap-2">' +
         '<div class="flex-1"><label class="text-xs text-slate-500 uppercase mb-1 block">' + label + ' (ft)</label>' +
-        '<input type="number" id="' + id + 'Ft" placeholder="0"' + handler + ' class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
+        '<input type="number" id="' + id + 'Ft" placeholder="0"' + handler + ' class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold text-lg" style="min-height:52px;"></div>' +
         '<div class="w-20"><label class="text-xs text-slate-500 uppercase mb-1 block">In</label>' +
-        '<input type="number" id="' + id + 'In" placeholder="0"' + handler + ' class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
+        '<input type="number" id="' + id + 'In" placeholder="0"' + handler + ' class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold text-lg" style="min-height:52px;"></div>' +
     '</div>';
 }
 
@@ -230,23 +333,41 @@ function calcAreaVol() {
     var el = document.getElementById('areaVolResults');
     if (!el) return;
 
+    if (l === 0 && w === 0) {
+        el.innerHTML = '<div class="text-center py-4 bg-slate-50 rounded-lg">' +
+            '<p class="text-3xl font-bold text-slate-300">--</p>' +
+            '<p class="text-sm text-slate-400 mt-1 font-medium">' + (calcState.areaMode === 'area' ? 'square feet' : 'cubic feet') + '</p>' +
+        '</div><div id="areaVolSecondary" class="mt-3 space-y-1"></div>';
+        return;
+    }
+
     if (calcState.areaMode === 'area') {
         var sqft = l * w;
         var sqyd = sqft / 9;
         var acres = sqft / 43560;
         var sqm = sqft * 0.092903;
-        el.innerHTML = resultRow('Square Feet', numberFmt(sqft) + ' sq ft') +
+        el.innerHTML = '<div class="text-center py-4 bg-slate-50 rounded-lg">' +
+            '<p class="text-3xl font-bold text-dot-blue">' + numberFmt(sqft) + ' sq ft</p>' +
+            '<p class="text-sm text-slate-500 mt-1 font-medium">square feet</p>' +
+        '</div>' +
+        '<div id="areaVolSecondary" class="mt-3 space-y-1">' +
             resultRow('Square Yards', numberFmt(sqyd) + ' sq yd') +
             resultRow('Acres', acres.toFixed(4)) +
-            resultRow('Square Meters', numberFmt(sqm) + ' sq m');
+            resultRow('Square Meters', numberFmt(sqm) + ' sq m') +
+        '</div>';
     } else {
         var d = getDimValue('avDepth');
         var cuft = l * w * d;
         var cuyd = cuft / 27;
         var cum = cuft * 0.0283168;
-        el.innerHTML = resultRow('Cubic Feet', numberFmt(cuft) + ' cu ft') +
+        el.innerHTML = '<div class="text-center py-4 bg-slate-50 rounded-lg">' +
+            '<p class="text-3xl font-bold text-dot-blue">' + numberFmt(cuft) + ' cu ft</p>' +
+            '<p class="text-sm text-slate-500 mt-1 font-medium">cubic feet</p>' +
+        '</div>' +
+        '<div id="areaVolSecondary" class="mt-3 space-y-1">' +
             resultRow('Cubic Yards', numberFmt(cuyd) + ' cu yd') +
-            resultRow('Cubic Meters', numberFmt(cum) + ' cu m');
+            resultRow('Cubic Meters', numberFmt(cum) + ' cu m') +
+        '</div>';
     }
 }
 
@@ -262,12 +383,25 @@ function calcConcrete() {
 
     var el = document.getElementById('concreteResults');
     if (!el) return;
-    el.innerHTML = resultRow('Volume', numberFmt(cuft) + ' cu ft') +
+
+    if (l === 0 && w === 0 && depthIn === 0) {
+        el.innerHTML = '<div class="text-center py-4 bg-slate-50 rounded-lg">' +
+            '<p class="text-3xl font-bold text-slate-300">--</p>' +
+            '<p class="text-sm text-slate-400 mt-1 font-medium">cubic yards</p>' +
+        '</div>';
+        return;
+    }
+
+    var orderYd = Math.ceil(total * 2) / 2;
+    el.innerHTML = '<div class="text-center py-4 bg-slate-50 rounded-lg">' +
+        '<p class="text-3xl font-bold text-dot-blue">' + orderYd + ' yd\u00B3</p>' +
+        '<p class="text-sm text-slate-500 mt-1 font-medium">order quantity (nearest \u00BD yard)</p>' +
+    '</div>' +
+    '<div class="mt-3 space-y-1">' +
+        resultRow('Volume', numberFmt(cuft) + ' cu ft') +
         resultRow('Cubic Yards', cuyd.toFixed(2) + ' yd\u00B3') +
         (waste ? resultRow('With 10% Waste', total.toFixed(2) + ' yd\u00B3') : '') +
-        '<div class="mt-2 p-3 bg-dot-blue/10 rounded-lg text-center">' +
-            '<span class="text-2xl font-bold text-dot-blue">Order: ' + Math.ceil(total * 2) / 2 + ' yd\u00B3</span>' +
-            '<p class="text-xs text-slate-500 mt-1">Rounded up to nearest \u00BD yard</p></div>';
+    '</div>';
 }
 
 function numberFmt(n) {
@@ -275,22 +409,32 @@ function numberFmt(n) {
 }
 
 function clearFeetInch() {
-    var ids = ['calcFeet', 'calcInches'];
-    for (var i = 0; i < ids.length; i++) { var el = document.getElementById(ids[i]); if (el) el.value = ''; }
-    var sel = document.getElementById('calcFraction'); if (sel) sel.selectedIndex = 0;
-    var res = document.getElementById('feetInchResults'); if (res) res.innerHTML = '';
-}
-
-function clearDecFeet() {
-    var el = document.getElementById('calcDecFeet'); if (el) el.value = '';
-    var res = document.getElementById('decFeetResults'); if (res) res.innerHTML = '';
+    if (calcState.feetInchReversed) {
+        var el = document.getElementById('calcDecFeet'); if (el) { el.value = ''; el.focus(); }
+        calcDecimalFeet();
+    } else {
+        var ids = ['calcFeet', 'calcInches'];
+        for (var i = 0; i < ids.length; i++) { var el = document.getElementById(ids[i]); if (el) el.value = ''; }
+        var sel = document.getElementById('calcFraction'); if (sel) sel.selectedIndex = 0;
+        var resEl = document.getElementById('feetInchResult');
+        if (resEl) resEl.innerHTML = '<p class="text-3xl font-bold text-slate-300">--</p>' +
+            '<p class="text-sm text-slate-400 mt-1 font-medium">decimal feet</p>';
+        var secEl = document.getElementById('feetInchSecondary'); if (secEl) secEl.innerHTML = '';
+        var ft = document.getElementById('calcFeet'); if (ft) ft.focus();
+    }
 }
 
 function clearAreaVol() {
     var ids = ['avLengthFt','avLengthIn','avWidthFt','avWidthIn','avDepthFt','avDepthIn'];
     for (var i = 0; i < ids.length; i++) { var el = document.getElementById(ids[i]); if (el) el.value = ''; }
     var res = document.getElementById('areaVolResults');
-    if (res) res.innerHTML = '<p class="text-sm text-slate-400 text-center">Enter dimensions to calculate</p>';
+    if (res) {
+        var unit = calcState.areaMode === 'area' ? 'square feet' : 'cubic feet';
+        res.innerHTML = '<div class="text-center py-4 bg-slate-50 rounded-lg">' +
+            '<p class="text-3xl font-bold text-slate-300">--</p>' +
+            '<p class="text-sm text-slate-400 mt-1 font-medium">' + unit + '</p>' +
+        '</div><div id="areaVolSecondary" class="mt-3 space-y-1"></div>';
+    }
 }
 
 // ============ CONVERTER TAB ============
