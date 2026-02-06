@@ -79,6 +79,13 @@
             border: 1px solid #1e3a5f;
             pointer-events: none;
         }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
@@ -138,56 +145,59 @@
             </div>
         </header>
 
-        <!-- WEATHER STATUS CARD -->
+        <!-- CONDITIONS BAR -->
         <section class="px-4 mb-4">
-            <div class="bg-white border-l-4 border-dot-blue p-4 cursor-pointer" onclick="togglePanel('weatherDetailsPanel', this)">
-                <div class="flex items-center justify-between mb-3">
+            <div class="flex">
+                <!-- Weather Half -->
+                <div class="flex-1 bg-white border-l-4 border-dot-blue p-3 cursor-pointer" onclick="togglePanel('weatherDetailsPanel', this)">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-1.5">
+                            <i class="fas fa-cloud-sun text-dot-blue text-xs"></i>
+                            <span class="text-[10px] font-bold text-dot-blue uppercase tracking-wider">Weather</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="syncWeatherBtn" onclick="event.stopPropagation(); syncWeather()" class="text-[10px] text-dot-blue font-bold flex items-center gap-1 hover:text-dot-navy transition-colors">
+                                <i id="syncIcon" class="fas fa-sync-alt text-[8px]"></i>
+                                SYNC
+                            </button>
+                            <i class="fas fa-chevron-down text-slate-400 text-[10px] transition-transform duration-200"></i>
+                        </div>
+                    </div>
                     <div class="flex items-center gap-2">
-                        <i class="fas fa-cloud-sun text-dot-blue"></i>
-                        <span class="text-xs font-bold text-dot-blue uppercase tracking-wider">Weather Conditions</span>
+                        <i id="condBarWeatherIcon" class="fas fa-sun text-xl text-dot-yellow"></i>
+                        <div>
+                            <p id="condBarTemp" class="text-lg font-bold text-slate-800 leading-tight">--°</p>
+                            <p id="weatherCondition" class="text-[10px] text-slate-500">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Drone Half -->
+                <div class="flex-1 bg-white border-l border-slate-200 p-3 cursor-pointer" onclick="togglePanel('droneOpsPanel', this)">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-1.5">
+                            <i class="fas fa-helicopter text-dot-orange text-xs"></i>
+                            <span class="text-[10px] font-bold text-dot-orange uppercase tracking-wider">Drone Ops</span>
+                        </div>
+                        <i class="fas fa-chevron-down text-slate-400 text-[10px] transition-transform duration-200"></i>
                     </div>
                     <div class="flex items-center gap-3">
-                        <button id="syncWeatherBtn" onclick="event.stopPropagation(); syncWeather()" class="text-xs text-dot-blue font-bold flex items-center gap-1 hover:text-dot-navy transition-colors">
-                            <i id="syncIcon" class="fas fa-sync-alt text-[10px]"></i>
-                            SYNC
-                        </button>
-                        <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
-                    </div>
-                </div>
-                <div class="grid grid-cols-4 gap-3">
-                    <div class="text-center">
-                        <i id="weatherIcon" class="fas fa-sun text-2xl text-dot-yellow mb-1"></i>
-                        <p id="weatherCondition" class="text-xs font-medium text-slate-600">Loading...</p>
-                    </div>
-                    <div class="text-center border-l border-slate-200">
-                        <p class="text-lg font-bold text-slate-800" id="weatherTempHigh">--°</p>
-                        <p class="text-[10px] text-slate-400 uppercase">High</p>
-                    </div>
-                    <div class="text-center border-l border-slate-200">
-                        <p class="text-lg font-bold text-slate-800" id="weatherTempLow">--°</p>
-                        <p class="text-[10px] text-slate-400 uppercase">Low</p>
-                    </div>
-                    <div class="text-center border-l border-slate-200">
-                        <p class="text-lg font-bold text-slate-800" id="weatherPrecipVal">0.00"</p>
-                        <p class="text-[10px] text-slate-400 uppercase">Precip</p>
+                        <div>
+                            <p class="text-[10px] text-slate-400 uppercase">Wind</p>
+                            <p id="condBarWind" class="text-sm font-bold text-slate-800">-- mph</p>
+                        </div>
+                        <div class="border-l border-slate-200 pl-3">
+                            <p class="text-[10px] text-slate-400 uppercase">Gusts</p>
+                            <p id="condBarGusts" class="text-sm font-bold text-slate-800">-- mph</p>
+                        </div>
+                        <div class="ml-auto">
+                            <span id="condBarFlightStatus" class="text-[10px] font-bold px-2 py-1 rounded bg-slate-200 text-slate-500">--</span>
+                        </div>
                     </div>
                 </div>
             </div>
+            <!-- Expandable Panels -->
             <div id="weatherDetailsPanel" class="hidden bg-white rounded-xl p-4 mt-1">
                 <p class="text-sm text-slate-500">Weather details loading...</p>
-            </div>
-        </section>
-
-        <!-- DRONE OPS CARD -->
-        <section class="px-4 mb-4">
-            <div class="bg-white border-l-4 border-dot-orange p-4 cursor-pointer" onclick="togglePanel('droneOpsPanel', this)">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-helicopter text-dot-orange"></i>
-                        <span class="text-xs font-bold text-dot-orange uppercase tracking-wider">Drone Operations</span>
-                    </div>
-                    <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
-                </div>
             </div>
             <div id="droneOpsPanel" class="hidden bg-white rounded-xl p-4 mt-1">
                 <p class="text-sm text-slate-500">Drone operations info loading...</p>
@@ -209,6 +219,33 @@
             <!-- Content rendered by updateReportStatus() -->
         </section>
 
+        <!-- QUICK TOOLS -->
+        <section class="px-4 mb-4">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Quick Tools</p>
+            <div class="flex gap-2 overflow-x-auto hide-scrollbar">
+                <button class="flex-shrink-0 flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <i class="fas fa-compass text-dot-blue"></i>
+                    <span class="text-[10px] text-slate-500">Compass</span>
+                </button>
+                <button class="flex-shrink-0 flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <i class="fas fa-ruler text-dot-blue"></i>
+                    <span class="text-[10px] text-slate-500">Measure</span>
+                </button>
+                <button class="flex-shrink-0 flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <i class="fas fa-location-dot text-dot-blue"></i>
+                    <span class="text-[10px] text-slate-500">GPS</span>
+                </button>
+                <button class="flex-shrink-0 flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <i class="fas fa-sun text-dot-orange"></i>
+                    <span class="text-[10px] text-slate-500">Sun Calc</span>
+                </button>
+                <button class="flex-shrink-0 flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <i class="fas fa-camera text-dot-blue"></i>
+                    <span class="text-[10px] text-slate-500">Photos</span>
+                </button>
+            </div>
+        </section>
+
         <!-- REPORT ARCHIVES -->
         <section class="px-4 mb-4">
             <a href="archives.html" class="block bg-white border-l-4 border-dot-slate p-4 hover:bg-slate-50 transition-colors">
@@ -226,14 +263,8 @@
         </section>
 
         <!-- FOOTER -->
-        <footer class="mt-auto bg-dot-navy text-center py-3">
-            <p class="text-[10px] text-slate-500 uppercase tracking-widest">
-                <i class="fas fa-shield-alt mr-1"></i>
-                DOT Compliant Field Documentation System
-            </p>
-            <div class="text-center text-gray-600 text-xs mt-2">
-                <a href="admin-debug.html" class="hover:text-gray-400">Debug Tools</a>
-            </div>
+        <footer class="mt-auto py-2 text-center">
+            <a href="admin-debug.html" class="text-xs text-gray-400 hover:text-gray-600">Debug Tools</a>
         </footer>
     </div>
 
@@ -293,6 +324,22 @@
     <script>
         function togglePanel(panelId, trigger) {
             var panel = document.getElementById(panelId);
+
+            // Mutual exclusion for conditions bar panels
+            var mutualPanels = { weatherDetailsPanel: 'droneOpsPanel', droneOpsPanel: 'weatherDetailsPanel' };
+            if (mutualPanels[panelId]) {
+                var otherPanel = document.getElementById(mutualPanels[panelId]);
+                if (otherPanel && !otherPanel.classList.contains('hidden')) {
+                    otherPanel.classList.add('hidden');
+                    // Reset the other panel's trigger chevron
+                    var otherTrigger = document.querySelector('[onclick*="' + mutualPanels[panelId] + '"]');
+                    if (otherTrigger) {
+                        var otherChevron = otherTrigger.querySelector('.fa-chevron-down');
+                        if (otherChevron) otherChevron.style.transform = '';
+                    }
+                }
+            }
+
             panel.classList.toggle('hidden');
             var chevron = trigger ? trigger.querySelector('.fa-chevron-down') : null;
             if (chevron) {

@@ -172,7 +172,7 @@ function updateActiveProjectCard() {
 
     if (project) {
         section.innerHTML = `
-            <div class="bg-white border-l-4 border-safety-green p-4">
+            <div class="bg-white border-l-4 border-safety-green p-4 shadow-sm">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3 min-w-0 flex-1">
                         <div class="w-10 h-10 bg-safety-green flex items-center justify-center shrink-0">
@@ -180,7 +180,7 @@ function updateActiveProjectCard() {
                         </div>
                         <div class="min-w-0">
                             <p class="text-[10px] font-bold text-safety-green uppercase tracking-wider">Active Project</p>
-                            <p class="font-bold text-slate-800 truncate">${escapeHtml(project.projectName)}</p>
+                            <p class="font-bold text-lg text-slate-800 truncate">${escapeHtml(project.projectName)}</p>
                             ${project.noabProjectNo ? `<p class="text-xs text-slate-500">#${escapeHtml(project.noabProjectNo)}</p>` : ''}
                         </div>
                     </div>
@@ -192,7 +192,7 @@ function updateActiveProjectCard() {
         `;
     } else {
         section.innerHTML = `
-            <a href="projects.html" class="block bg-white border-2 border-dashed border-dot-orange p-4 hover:bg-orange-50 transition-colors">
+            <a href="projects.html" class="block bg-orange-50 border-2 border-dashed border-dot-orange p-4 shadow-sm hover:bg-orange-100 transition-colors">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-dot-orange/10 border-2 border-dot-orange flex items-center justify-center shrink-0">
                         <i class="fas fa-exclamation text-dot-orange"></i>
@@ -485,7 +485,7 @@ async function syncWeather() {
         // Check if offline first
         if (!navigator.onLine) {
             document.getElementById('weatherCondition').textContent = 'Offline';
-            document.getElementById('weatherIcon').className = 'fas fa-wifi-slash text-2xl text-yellow-500 mb-1';
+            document.getElementById('condBarWeatherIcon').className = 'fas fa-wifi-slash text-xl text-yellow-500';
             syncIcon.classList.remove('fa-spin');
             return;
         }
@@ -506,7 +506,7 @@ async function syncWeather() {
                 // Permission not granted - show message, don't prompt
                 console.log('[Weather] Location permission not granted, skipping weather sync');
                 document.getElementById('weatherCondition').textContent = 'Location needed';
-                document.getElementById('weatherIcon').className = 'fas fa-location-dot text-2xl text-slate-400 mb-1';
+                document.getElementById('condBarWeatherIcon').className = 'fas fa-location-dot text-xl text-slate-400';
                 syncIcon.classList.remove('fa-spin');
                 return;
             }
@@ -532,7 +532,7 @@ async function syncWeather() {
             if (browserPermissionState !== 'granted') {
                 console.log('[Weather] Browser permission not granted, skipping weather sync');
                 document.getElementById('weatherCondition').textContent = 'Location needed';
-                document.getElementById('weatherIcon').className = 'fas fa-location-dot text-2xl text-slate-400 mb-1';
+                document.getElementById('condBarWeatherIcon').className = 'fas fa-location-dot text-xl text-slate-400';
                 syncIcon.classList.remove('fa-spin');
                 return;
             }
@@ -556,10 +556,10 @@ async function syncWeather() {
                     // Permission denied - clear cached permission status
                     clearCachedLocation();
                     document.getElementById('weatherCondition').textContent = 'Location blocked';
-                    document.getElementById('weatherIcon').className = 'fas fa-location-crosshairs text-2xl text-red-500 mb-1';
+                    document.getElementById('condBarWeatherIcon').className = 'fas fa-location-crosshairs text-xl text-red-500';
                 } else {
                     document.getElementById('weatherCondition').textContent = 'GPS unavailable';
-                    document.getElementById('weatherIcon').className = 'fas fa-location-crosshairs text-2xl text-yellow-500 mb-1';
+                    document.getElementById('condBarWeatherIcon').className = 'fas fa-location-crosshairs text-xl text-yellow-500';
                 }
                 syncIcon.classList.remove('fa-spin');
                 return;
@@ -599,12 +599,10 @@ async function syncWeather() {
         const lowTemp = Math.round(data.daily.temperature_2m_min[0]);
         const precip = data.daily.precipitation_sum[0].toFixed(2);
 
-        // Update UI
+        // Update conditions bar UI
         document.getElementById('weatherCondition').textContent = weatherInfo.text;
-        document.getElementById('weatherTempHigh').textContent = `${highTemp}°`;
-        document.getElementById('weatherTempLow').textContent = `${lowTemp}°`;
-        document.getElementById('weatherPrecipVal').textContent = `${precip}"`;
-        document.getElementById('weatherIcon').className = `fas ${weatherInfo.icon} text-2xl ${weatherInfo.color} mb-1`;
+        document.getElementById('condBarTemp').textContent = `${highTemp}°`;
+        document.getElementById('condBarWeatherIcon').className = `fas ${weatherInfo.icon} text-xl ${weatherInfo.color}`;
 
         // Cache extended weather data for detail panels
         var currentHour = new Date().getHours();
@@ -623,15 +621,55 @@ async function syncWeather() {
             sunset: data.daily ? data.daily.sunset[0] : null
         };
         console.log('[Weather] Extended data cached:', weatherDataCache);
+        updateConditionsBar();
     } catch (error) {
         console.error('Weather sync failed:', error);
         document.getElementById('weatherCondition').textContent = 'Sync failed';
-        document.getElementById('weatherIcon').className = 'fas fa-exclamation-triangle text-2xl text-yellow-500 mb-1';
+        document.getElementById('condBarWeatherIcon').className = 'fas fa-exclamation-triangle text-xl text-yellow-500';
     }
 
     const updatedSyncIcon = document.getElementById('syncIcon');
     if (updatedSyncIcon) {
         updatedSyncIcon.classList.remove('fa-spin');
+    }
+}
+
+// ============ CONDITIONS BAR ============
+function updateConditionsBar() {
+    if (!weatherDataCache) return;
+
+    var windEl = document.getElementById('condBarWind');
+    var gustsEl = document.getElementById('condBarGusts');
+    var statusEl = document.getElementById('condBarFlightStatus');
+
+    if (windEl) windEl.textContent = (weatherDataCache.windSpeed !== null ? weatherDataCache.windSpeed + ' mph' : '-- mph');
+    if (gustsEl) gustsEl.textContent = (weatherDataCache.windGusts !== null ? weatherDataCache.windGusts + ' mph' : '-- mph');
+
+    if (statusEl) {
+        var gusts = weatherDataCache.windGusts;
+        if (gusts === null) {
+            statusEl.textContent = '--';
+            statusEl.className = 'text-[10px] font-bold px-2 py-1 rounded bg-slate-200 text-slate-500';
+        } else if (gusts < 20) {
+            statusEl.textContent = 'FLY';
+            statusEl.className = 'text-[10px] font-bold px-2 py-1 rounded bg-safety-green text-white';
+        } else if (gusts <= 25) {
+            statusEl.textContent = 'CAUTION';
+            statusEl.className = 'text-[10px] font-bold px-2 py-1 rounded bg-dot-orange text-white';
+        } else {
+            statusEl.textContent = 'NO FLY';
+            statusEl.className = 'text-[10px] font-bold px-2 py-1 rounded bg-red-600 text-white';
+        }
+
+        // Refine with daylight check if sunrise data available
+        if (sunriseSunsetCache) {
+            var now = new Date();
+            var withinWindow = now >= sunriseSunsetCache.sunrise && now <= sunriseSunsetCache.sunset;
+            if (!withinWindow) {
+                statusEl.textContent = 'NO FLY';
+                statusEl.className = 'text-[10px] font-bold px-2 py-1 rounded bg-red-600 text-white';
+            }
+        }
     }
 }
 
@@ -773,6 +811,9 @@ async function loadDroneOpsPanel() {
 
     // Fetch sunrise/sunset (cached — won't call twice)
     var ssData = await fetchSunriseSunset(loc.lat, loc.lng);
+
+    // Refine conditions bar flight status now that sunrise data is available
+    updateConditionsBar();
 
     // Fetch elevation and declination in parallel
     var elevationFt = '--';
