@@ -31,6 +31,8 @@
     <script src="./js/api-keys.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -236,6 +238,10 @@
                     <i class="fas fa-ruler text-dot-blue"></i>
                     <span class="text-[10px] text-slate-500">Measure</span>
                 </button>
+                <button onclick="openMapsOverlay()" class="flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <i class="fas fa-map text-dot-blue"></i>
+                    <span class="text-[10px] text-slate-500">Maps</span>
+                </button>
             </div>
         </section>
 
@@ -261,6 +267,7 @@
         </footer>
     </div>
 
+    <script src="./js/maps.js"></script>
     <script src="./js/index.js"></script>
 
     <!-- Project Picker Modal -->
@@ -306,6 +313,33 @@
     </div>
     <div id="emergencyPanel" class="hidden fixed bottom-12 left-0 right-0 z-[100] bg-white text-gray-900 rounded-t-xl shadow-lg p-4">
         <p class="text-sm text-slate-500">Emergency info loading...</p>
+    </div>
+
+    <!-- Maps Overlay -->
+    <div id="mapsOverlay" class="hidden fixed inset-0 z-50 bg-white flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeMapsOverlay()" class="w-8 h-8 flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <div class="flex flex-col items-center">
+                <span id="mapTitle" class="text-white font-bold text-sm">Weather Radar</span>
+                <div class="flex items-center gap-1.5 mt-1">
+                    <div id="mapDot-0" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                    <div id="mapDot-1" class="w-1.5 h-1.5 rounded-full bg-white/40"></div>
+                    <div id="mapDot-2" class="w-1.5 h-1.5 rounded-full bg-white/40"></div>
+                </div>
+            </div>
+            <div class="w-8"></div>
+        </div>
+        <!-- Map Container -->
+        <div id="mapContainer" class="flex-1"></div>
+        <!-- Bottom Tabs -->
+        <div class="flex border-t border-slate-200 shrink-0" style="padding-bottom: env(safe-area-inset-bottom);">
+            <button id="mapTab-weather" onclick="switchMap('weather')" class="flex-1 py-2.5 text-xs font-bold text-white bg-dot-blue transition-colors">Weather</button>
+            <button id="mapTab-airspace" onclick="switchMap('airspace')" class="flex-1 py-2.5 text-xs font-bold text-dot-blue bg-white hover:bg-slate-50 transition-colors">Airspace</button>
+            <button id="mapTab-satellite" onclick="switchMap('satellite')" class="flex-1 py-2.5 text-xs font-bold text-dot-blue bg-white hover:bg-slate-50 transition-colors">Satellite</button>
+        </div>
     </div>
 
     <!-- Initialize PWA features -->
