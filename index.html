@@ -163,18 +163,20 @@
                             <i class="fas fa-chevron-down text-slate-400 text-[10px] transition-transform duration-200"></i>
                         </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <i id="condBarWeatherIcon" class="fas fa-sun text-xl text-dot-yellow"></i>
-                        <div>
-                            <p id="condBarTemp" class="text-lg font-bold text-slate-800 leading-tight">--°</p>
-                            <p id="weatherCondition" class="text-[10px] text-slate-500">Loading...</p>
-                            <p id="condBarTempLow" class="text-[10px] text-slate-400">L: --°</p>
+                    <div class="flex items-center gap-3 mt-1">
+                        <div class="text-center">
+                            <i id="condBarWeatherIcon" class="fas fa-sun text-2xl text-dot-yellow"></i>
+                            <p id="weatherCondition" class="text-[10px] text-slate-500 mt-0.5">Loading...</p>
                         </div>
-                    </div>
-                    <div class="flex items-center gap-1 mt-1">
-                        <i class="fas fa-droplet text-blue-400 text-[10px]"></i>
-                        <span id="condBarPrecip" class="text-[10px] text-slate-400">0.00"</span>
-                        <span class="text-[10px] text-slate-400 uppercase">Precip</span>
+                        <div class="flex-1">
+                            <p id="condBarTemp" class="text-lg font-bold text-slate-800 leading-tight">--°</p>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <span id="condBarTempLow" class="text-[10px] text-slate-400">L: --°</span>
+                                <span class="text-slate-300">|</span>
+                                <i class="fas fa-droplet text-blue-400 text-[8px]"></i>
+                                <span id="condBarPrecip" class="text-[10px] text-slate-400">0.00"</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <!-- Drone Half -->

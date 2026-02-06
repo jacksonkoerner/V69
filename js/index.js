@@ -485,7 +485,7 @@ async function syncWeather() {
         // Check if offline first
         if (!navigator.onLine) {
             document.getElementById('weatherCondition').textContent = 'Offline';
-            document.getElementById('condBarWeatherIcon').className = 'fas fa-wifi-slash text-xl text-yellow-500';
+            document.getElementById('condBarWeatherIcon').className = 'fas fa-wifi-slash text-2xl text-yellow-500';
             syncIcon.classList.remove('fa-spin');
             return;
         }
@@ -506,7 +506,7 @@ async function syncWeather() {
                 // Permission not granted - show message, don't prompt
                 console.log('[Weather] Location permission not granted, skipping weather sync');
                 document.getElementById('weatherCondition').textContent = 'Location needed';
-                document.getElementById('condBarWeatherIcon').className = 'fas fa-location-dot text-xl text-slate-400';
+                document.getElementById('condBarWeatherIcon').className = 'fas fa-location-dot text-2xl text-slate-400';
                 syncIcon.classList.remove('fa-spin');
                 return;
             }
@@ -532,7 +532,7 @@ async function syncWeather() {
             if (browserPermissionState !== 'granted') {
                 console.log('[Weather] Browser permission not granted, skipping weather sync');
                 document.getElementById('weatherCondition').textContent = 'Location needed';
-                document.getElementById('condBarWeatherIcon').className = 'fas fa-location-dot text-xl text-slate-400';
+                document.getElementById('condBarWeatherIcon').className = 'fas fa-location-dot text-2xl text-slate-400';
                 syncIcon.classList.remove('fa-spin');
                 return;
             }
@@ -556,10 +556,10 @@ async function syncWeather() {
                     // Permission denied - clear cached permission status
                     clearCachedLocation();
                     document.getElementById('weatherCondition').textContent = 'Location blocked';
-                    document.getElementById('condBarWeatherIcon').className = 'fas fa-location-crosshairs text-xl text-red-500';
+                    document.getElementById('condBarWeatherIcon').className = 'fas fa-location-crosshairs text-2xl text-red-500';
                 } else {
                     document.getElementById('weatherCondition').textContent = 'GPS unavailable';
-                    document.getElementById('condBarWeatherIcon').className = 'fas fa-location-crosshairs text-xl text-yellow-500';
+                    document.getElementById('condBarWeatherIcon').className = 'fas fa-location-crosshairs text-2xl text-yellow-500';
                 }
                 syncIcon.classList.remove('fa-spin');
                 return;
@@ -604,7 +604,7 @@ async function syncWeather() {
         document.getElementById('condBarTemp').textContent = `${highTemp}°`;
         document.getElementById('condBarTempLow').textContent = `L: ${lowTemp}°`;
         document.getElementById('condBarPrecip').textContent = `${precip}"`;
-        document.getElementById('condBarWeatherIcon').className = `fas ${weatherInfo.icon} text-xl ${weatherInfo.color}`;
+        document.getElementById('condBarWeatherIcon').className = `fas ${weatherInfo.icon} text-2xl ${weatherInfo.color}`;
 
         // Cache extended weather data for detail panels
         var currentHour = new Date().getHours();
@@ -627,7 +627,7 @@ async function syncWeather() {
     } catch (error) {
         console.error('Weather sync failed:', error);
         document.getElementById('weatherCondition').textContent = 'Sync failed';
-        document.getElementById('condBarWeatherIcon').className = 'fas fa-exclamation-triangle text-xl text-yellow-500';
+        document.getElementById('condBarWeatherIcon').className = 'fas fa-exclamation-triangle text-2xl text-yellow-500';
     }
 
     const updatedSyncIcon = document.getElementById('syncIcon');
