@@ -124,6 +124,28 @@
             background: #1e3a5f;
             border: 3px solid #f59e0b;
         }
+        /* Field Tools auto-scrolling carousel */
+        @keyframes toolsScroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .tools-carousel-track {
+            display: flex;
+            gap: 12px;
+            width: max-content;
+            animation: toolsScroll 35s linear infinite;
+        }
+        .tools-carousel-track.paused {
+            animation-play-state: paused;
+        }
+        .tools-carousel-wrapper {
+            overflow: hidden;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .tools-carousel-wrapper::-webkit-scrollbar {
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
@@ -261,15 +283,95 @@
             <!-- Content rendered by updateReportStatus() -->
         </section>
 
-        <!-- FIELD TOOLS (popup grid) -->
+        <!-- FIELD TOOLS (auto-scrolling carousel → taps open modal grid) -->
         <section class="px-4 mb-4">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Field Tools</p>
-            <button onclick="openFieldToolsModal()" class="w-full bg-white border border-slate-200 rounded-lg py-3 px-4 flex items-center gap-3 active:bg-slate-50 transition-colors">
-                <i class="fas fa-screwdriver-wrench text-dot-blue"></i>
-                <span class="font-semibold text-slate-700 flex-1 text-left">Field Tools</span>
-                <span class="text-xs text-slate-400">10 tools</span>
-                <i class="fas fa-chevron-right text-slate-400 text-xs"></i>
-            </button>
+            <div id="toolsCarousel" class="tools-carousel-wrapper cursor-pointer" onclick="openFieldToolsModal()">
+                <div id="toolsTrack" class="tools-carousel-track">
+                    <!-- Set 1 -->
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200">
+                        <i class="fas fa-compass text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Compass</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200">
+                        <i class="fas fa-ruler text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Measure</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200">
+                        <i class="fas fa-map text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Maps</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200">
+                        <i class="fas fa-calculator text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Calc</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200">
+                        <i class="fas fa-road text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Slope</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200">
+                        <i class="fas fa-ruler-horizontal text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Level</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200">
+                        <i class="fas fa-volume-high text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">dB Meter</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200">
+                        <i class="fas fa-stopwatch text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Timer</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200">
+                        <i class="fas fa-lightbulb text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Light</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200">
+                        <i class="fas fa-qrcode text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">QR Scan</span>
+                    </div>
+                    <!-- Set 2 (duplicate for seamless loop) -->
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
+                        <i class="fas fa-compass text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Compass</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
+                        <i class="fas fa-ruler text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Measure</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
+                        <i class="fas fa-map text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Maps</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
+                        <i class="fas fa-calculator text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Calc</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
+                        <i class="fas fa-road text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Slope</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
+                        <i class="fas fa-ruler-horizontal text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Level</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
+                        <i class="fas fa-volume-high text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">dB Meter</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
+                        <i class="fas fa-stopwatch text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Timer</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
+                        <i class="fas fa-lightbulb text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Light</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
+                        <i class="fas fa-qrcode text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">QR Scan</span>
+                    </div>
+                </div>
+            </div>
         </section>
         <script>
             function openFieldToolsModal() {
@@ -282,6 +384,29 @@
                 closeFieldToolsModal();
                 fn();
             }
+            (function() {
+                var carousel = document.getElementById('toolsCarousel');
+                var track = document.getElementById('toolsTrack');
+                if (!carousel || !track) return;
+                var resumeTimer = null;
+
+                function pauseCarousel() {
+                    track.classList.add('paused');
+                    if (resumeTimer) clearTimeout(resumeTimer);
+                }
+
+                function scheduleResume() {
+                    if (resumeTimer) clearTimeout(resumeTimer);
+                    resumeTimer = setTimeout(function() {
+                        track.classList.remove('paused');
+                    }, 3000);
+                }
+
+                carousel.addEventListener('touchstart', pauseCarousel, { passive: true });
+                carousel.addEventListener('pointerdown', pauseCarousel);
+                carousel.addEventListener('touchend', scheduleResume, { passive: true });
+                carousel.addEventListener('pointerup', scheduleResume);
+            })();
         </script>
 
         <!-- REPORT ARCHIVES -->
