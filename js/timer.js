@@ -86,7 +86,7 @@ function renderStopwatchUI() {
 
     var html = '<div class="flex-1 flex flex-col p-4">' +
         '<div class="text-center py-8">' +
-            '<p id="swDisplay" class="text-4xl font-bold font-mono text-slate-800">' + display + '</p>' +
+            '<p id="swDisplay" class="text-6xl font-bold font-mono text-slate-800">' + display + '</p>' +
         '</div>' +
         '<div class="flex gap-3 mb-4">';
 
@@ -106,19 +106,15 @@ function renderStopwatchUI() {
 
     html += '</div>';
 
-    // Laps list
-    if (timerState.swLaps.length > 0) {
-        html += '<div class="flex-1 overflow-y-auto bg-white rounded-lg border border-slate-200">' +
-            '<div class="px-3 py-2 border-b border-slate-100 flex text-[10px] text-slate-400 uppercase font-bold">' +
-                '<span class="w-10">Lap</span><span class="flex-1">Lap Time</span><span class="flex-1 text-right">Total</span></div>';
-        for (var i = timerState.swLaps.length - 1; i >= 0; i--) {
-            html += '<div class="px-3 py-2 border-b border-slate-50 flex text-sm">' +
-                '<span class="w-10 text-slate-400 font-bold">' + (i + 1) + '</span>' +
-                '<span class="flex-1 font-mono font-bold text-slate-800">' + formatTime(timerState.swLaps[i].lap, false) + '</span>' +
-                '<span class="flex-1 text-right font-mono text-slate-500">' + formatTime(timerState.swLaps[i].total, false) + '</span></div>';
-        }
-        html += '</div>';
+    // Laps list (always render container so swLap can append)
+    html += '<div id="swLapList" class="flex-1 overflow-y-auto bg-white rounded-lg border border-slate-200 ' + (timerState.swLaps.length === 0 ? 'hidden' : '') + '">' +
+        '<div class="px-3 py-2 border-b border-slate-100 flex text-[10px] text-slate-400 uppercase font-bold">' +
+            '<span class="w-10">Lap</span><span class="flex-1">Lap Time</span><span class="flex-1 text-right">Total</span></div>' +
+        '<div id="swLapRows">';
+    for (var i = timerState.swLaps.length - 1; i >= 0; i--) {
+        html += swLapRow(i);
     }
+    html += '</div></div>';
 
     html += '</div>';
     return html;
@@ -144,22 +140,23 @@ function swStop() {
     renderTimerUI();
 }
 
+function swLapRow(i) {
+    return '<div class="px-3 py-2 border-b border-slate-50 flex text-sm">' +
+        '<span class="w-10 text-slate-400 font-bold">' + (i + 1) + '</span>' +
+        '<span class="flex-1 font-mono font-bold text-slate-800">' + formatTime(timerState.swLaps[i].lap, false) + '</span>' +
+        '<span class="flex-1 text-right font-mono text-slate-500">' + formatTime(timerState.swLaps[i].total, false) + '</span></div>';
+}
+
 function swLap() {
     var total = timerState.swElapsed + (Date.now() - timerState.swStartTime);
     var prevTotal = timerState.swLaps.length > 0 ? timerState.swLaps[timerState.swLaps.length - 1].total : 0;
     timerState.swLaps.push({ lap: total - prevTotal, total: total });
-    renderTimerUI();
-    // Restart the interval display since renderTimerUI rebuilds DOM
-    if (timerState.swRunning) {
-        clearInterval(timerState.swInterval);
-        timerState.swInterval = setInterval(function() {
-            var el = document.getElementById('swDisplay');
-            if (el) {
-                var elapsed = timerState.swElapsed + (Date.now() - timerState.swStartTime);
-                el.textContent = formatTime(elapsed, true);
-            }
-        }, 50);
-    }
+
+    // Append new lap row to DOM instead of full re-render
+    var list = document.getElementById('swLapList');
+    var rows = document.getElementById('swLapRows');
+    if (list) list.classList.remove('hidden');
+    if (rows) rows.insertAdjacentHTML('afterbegin', swLapRow(timerState.swLaps.length - 1));
 }
 
 function swReset() {
@@ -179,7 +176,7 @@ function renderCountdownUI() {
         // Show countdown
         var display = formatTime(timerState.tmRemaining, false);
         html += '<div id="tmBg" class="text-center py-8">' +
-            '<p id="tmDisplay" class="text-4xl font-bold font-mono text-slate-800">' + display + '</p>' +
+            '<p id="tmDisplay" class="text-6xl font-bold font-mono text-slate-800">' + display + '</p>' +
         '</div>';
         html += '<div class="flex gap-3 mb-4">';
         if (timerState.tmRunning) {

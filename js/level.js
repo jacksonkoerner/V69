@@ -50,7 +50,31 @@ function switchLevelMode(mode) {
     levelState.mode = mode;
     levelState.locked = false;
     levelState.lockedAngle = null;
-    renderLevelUI();
+
+    // Toggle visibility instead of re-rendering
+    var bubbleView = document.getElementById('lvBubbleView');
+    var incView = document.getElementById('lvIncView');
+    var bubbleBtn = document.getElementById('lvBubbleBtn');
+    var incBtn = document.getElementById('lvIncBtn');
+
+    if (bubbleView && incView) {
+        if (mode === 'bubble') {
+            bubbleView.classList.remove('hidden');
+            incView.classList.add('hidden');
+        } else {
+            bubbleView.classList.add('hidden');
+            incView.classList.remove('hidden');
+        }
+    }
+    if (bubbleBtn) bubbleBtn.className = 'flex-1 py-3 rounded-lg font-bold text-sm ' + (mode === 'bubble' ? 'bg-dot-blue text-white' : 'bg-slate-100 text-slate-500');
+    if (incBtn) incBtn.className = 'flex-1 py-3 rounded-lg font-bold text-sm ' + (mode === 'inclinometer' ? 'bg-dot-blue text-white' : 'bg-slate-100 text-slate-500');
+
+    // Reset lock button if switching to inclinometer
+    var lockBtn = document.getElementById('lockBtn');
+    if (lockBtn) {
+        lockBtn.innerHTML = '<i class="fas fa-lock-open mr-2"></i>Tap to Lock';
+        lockBtn.className = 'mt-6 px-8 py-3 border-2 border-slate-500 text-slate-400 font-bold rounded-lg text-sm';
+    }
 }
 
 function startLevel() {
@@ -149,56 +173,47 @@ function renderLevelUI() {
 
     // Mode toggle buttons
     var html = '<div class="flex gap-2 p-4 pb-0">' +
-        '<button onclick="switchLevelMode(\'bubble\')" class="flex-1 py-3 rounded-lg font-bold text-sm ' +
+        '<button id="lvBubbleBtn" onclick="switchLevelMode(\'bubble\')" class="flex-1 py-3 rounded-lg font-bold text-sm ' +
             (isBubble ? 'bg-dot-blue text-white' : 'bg-slate-100 text-slate-500') + '" style="min-height:44px;">' +
             '<i class="fas fa-bullseye mr-2"></i>Bubble Level</button>' +
-        '<button onclick="switchLevelMode(\'inclinometer\')" class="flex-1 py-3 rounded-lg font-bold text-sm ' +
+        '<button id="lvIncBtn" onclick="switchLevelMode(\'inclinometer\')" class="flex-1 py-3 rounded-lg font-bold text-sm ' +
             (!isBubble ? 'bg-dot-blue text-white' : 'bg-slate-100 text-slate-500') + '" style="min-height:44px;">' +
             '<i class="fas fa-gauge-high mr-2"></i>Inclinometer</button>' +
     '</div>';
 
-    if (isBubble) {
-        html += '<div class="flex-1 flex flex-col items-center justify-center p-4">' +
-            // Bubble level area
-            '<div id="bubbleArea" class="relative bg-slate-800 rounded-full" style="width:260px;height:260px;">' +
-                // Outer ring
-                '<div class="absolute inset-0 rounded-full border-4 border-slate-600"></div>' +
-                // Center crosshair - horizontal
-                '<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-px bg-slate-600"></div>' +
-                // Center crosshair - vertical
-                '<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-20 bg-slate-600"></div>' +
-                // Center target circle
-                '<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 border-slate-600"></div>' +
-                // Bubble (moves via transform)
-                '<div id="levelBubble" class="absolute w-10 h-10 rounded-full shadow-lg" style="top:50%;left:50%;margin-left:-20px;margin-top:-20px;background:#16a34a;transition:transform 0.1s ease-out;transform:translate(0px,0px);"></div>' +
+    // Pre-render BOTH views, toggle visibility
+    // Bubble Level view
+    html += '<div id="lvBubbleView" class="flex-1 flex flex-col items-center justify-center p-4' + (isBubble ? '' : ' hidden') + '">' +
+        '<div id="bubbleArea" class="relative bg-slate-800 rounded-full" style="width:260px;height:260px;">' +
+            '<div class="absolute inset-0 rounded-full border-4 border-slate-600"></div>' +
+            '<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-px bg-slate-600"></div>' +
+            '<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-20 bg-slate-600"></div>' +
+            '<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 border-slate-600"></div>' +
+            '<div id="levelBubble" class="absolute w-10 h-10 rounded-full shadow-lg" style="top:50%;left:50%;margin-left:-20px;margin-top:-20px;background:#16a34a;transition:transform 0.1s ease-out;transform:translate(0px,0px);"></div>' +
+        '</div>' +
+        '<div class="mt-6 text-center">' +
+            '<p id="levelStatus" class="text-2xl font-bold text-safety-green">LEVEL</p>' +
+            '<div class="flex gap-6 mt-2">' +
+                '<div class="text-center"><p class="text-xs text-slate-500 uppercase">X-Axis</p>' +
+                    '<p id="levelX" class="text-lg font-bold text-white font-mono">0.0\u00B0</p></div>' +
+                '<div class="text-center"><p class="text-xs text-slate-500 uppercase">Y-Axis</p>' +
+                    '<p id="levelY" class="text-lg font-bold text-white font-mono">0.0\u00B0</p></div>' +
             '</div>' +
-            // Status text
-            '<div class="mt-6 text-center">' +
-                '<p id="levelStatus" class="text-2xl font-bold text-safety-green">LEVEL</p>' +
-                '<div class="flex gap-6 mt-2">' +
-                    '<div class="text-center"><p class="text-xs text-slate-500 uppercase">X-Axis</p>' +
-                        '<p id="levelX" class="text-lg font-bold text-white font-mono">0.0\u00B0</p></div>' +
-                    '<div class="text-center"><p class="text-xs text-slate-500 uppercase">Y-Axis</p>' +
-                        '<p id="levelY" class="text-lg font-bold text-white font-mono">0.0\u00B0</p></div>' +
-                '</div>' +
-            '</div>' +
-        '</div>';
-    } else {
-        html += '<div class="flex-1 flex flex-col items-center justify-center p-4">' +
-            // Gauge arc
-            '<div id="gaugeArea" class="relative" style="width:280px;height:160px;">' +
-                buildGaugeArc(0) +
-            '</div>' +
-            // Large degree readout
-            '<div class="mt-4 text-center">' +
-                '<p id="inclineDeg" class="text-5xl font-bold text-white font-mono">0.0\u00B0</p>' +
-                '<p id="inclineGrade" class="text-xl text-slate-400 mt-1 font-medium">0.0% grade</p>' +
-            '</div>' +
-            // Lock button
-            '<button onclick="toggleLevelLock()" id="lockBtn" class="mt-6 px-8 py-3 border-2 border-slate-500 text-slate-400 font-bold rounded-lg text-sm" style="min-height:44px;">' +
-                '<i class="fas fa-lock-open mr-2"></i>Hold to Lock</button>' +
-        '</div>';
-    }
+        '</div>' +
+    '</div>';
+
+    // Inclinometer view
+    html += '<div id="lvIncView" class="flex-1 flex flex-col items-center justify-center p-4' + (!isBubble ? '' : ' hidden') + '">' +
+        '<div id="gaugeArea" class="relative" style="width:280px;height:160px;">' +
+            buildGaugeArc(0) +
+        '</div>' +
+        '<div class="mt-4 text-center">' +
+            '<p id="inclineDeg" class="text-5xl font-bold text-white font-mono">0.0\u00B0</p>' +
+            '<p id="inclineGrade" class="text-xl text-slate-400 mt-1 font-medium">0.0% grade</p>' +
+        '</div>' +
+        '<button onclick="toggleLevelLock()" id="lockBtn" class="mt-6 px-8 py-3 border-2 border-slate-500 text-slate-400 font-bold rounded-lg text-sm" style="min-height:44px;">' +
+            '<i class="fas fa-lock-open mr-2"></i>Tap to Lock</button>' +
+    '</div>';
 
     content.innerHTML = html;
 }
@@ -331,7 +346,7 @@ function toggleLevelLock() {
         btn.innerHTML = '<i class="fas fa-lock mr-2"></i>Locked \u2014 Tap to Unlock';
         btn.className = 'mt-6 px-8 py-3 bg-dot-orange border-2 border-dot-orange text-white font-bold rounded-lg text-sm';
     } else {
-        btn.innerHTML = '<i class="fas fa-lock-open mr-2"></i>Hold to Lock';
+        btn.innerHTML = '<i class="fas fa-lock-open mr-2"></i>Tap to Lock';
         btn.className = 'mt-6 px-8 py-3 border-2 border-slate-500 text-slate-400 font-bold rounded-lg text-sm';
     }
 }

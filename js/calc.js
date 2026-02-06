@@ -74,7 +74,10 @@ function renderFeetInchTab() {
     }
 
     return '<div class="bg-white rounded-lg border border-slate-200 p-4 mb-4">' +
-        '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3">Feet &amp; Inches Input</p>' +
+        '<div class="flex items-center justify-between mb-3">' +
+            '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider">Feet &amp; Inches Input</p>' +
+            '<button onclick="clearFeetInch()" class="text-xs text-slate-400 font-bold"><i class="fas fa-undo mr-1"></i>Clear</button>' +
+        '</div>' +
         '<div class="flex gap-2 mb-3">' +
             '<div class="flex-1"><label class="text-xs text-slate-500 uppercase mb-1 block">Feet</label>' +
             '<input type="number" id="calcFeet" oninput="calcFeetInch()" placeholder="0" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
@@ -86,7 +89,10 @@ function renderFeetInchTab() {
         '<div id="feetInchResults" class="space-y-2"></div>' +
     '</div>' +
     '<div class="bg-white rounded-lg border border-slate-200 p-4">' +
-        '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3">Decimal Feet Input</p>' +
+        '<div class="flex items-center justify-between mb-3">' +
+            '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider">Decimal Feet Input</p>' +
+            '<button onclick="clearDecFeet()" class="text-xs text-slate-400 font-bold"><i class="fas fa-undo mr-1"></i>Clear</button>' +
+        '</div>' +
         '<div class="mb-3"><label class="text-xs text-slate-500 uppercase mb-1 block">Decimal Feet</label>' +
         '<input type="number" id="calcDecFeet" oninput="calcDecimalFeet()" placeholder="0.000" step="0.001" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
         '<div id="decFeetResults" class="space-y-2"></div>' +
@@ -170,17 +176,17 @@ function renderAreaVolTab() {
             (!areaActive ? 'bg-dot-blue text-white' : 'bg-slate-100 text-slate-500') + '" style="min-height:44px;">Volume</button>' +
     '</div>' +
     '<div class="bg-white rounded-lg border border-slate-200 p-4 mb-4">' +
-        '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3">Dimensions</p>' +
-        '<div class="space-y-3">' +
-            dimInput('Length', 'avLength') +
-            dimInput('Width', 'avWidth') +
-            (calcState.areaMode === 'volume' ? dimInput('Depth', 'avDepth') : '') +
+        '<div class="flex items-center justify-between mb-3">' +
+            '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider">Dimensions</p>' +
+            '<button onclick="clearAreaVol()" class="text-xs text-slate-400 font-bold"><i class="fas fa-undo mr-1"></i>Clear</button>' +
         '</div>' +
-        '<div class="flex gap-2 mt-3">' +
-            '<button onclick="calcAreaVol()" class="flex-1 py-3 bg-dot-blue text-white font-bold rounded-lg text-sm" style="min-height:44px;"><i class="fas fa-calculator mr-2"></i>Calculate</button>' +
+        '<div class="space-y-3">' +
+            dimInput('Length', 'avLength', 'calcAreaVol()') +
+            dimInput('Width', 'avWidth', 'calcAreaVol()') +
+            (calcState.areaMode === 'volume' ? dimInput('Depth', 'avDepth', 'calcAreaVol()') : '') +
         '</div>' +
     '</div>' +
-    '<div id="areaVolResults" class="bg-white rounded-lg border border-slate-200 p-4 mb-4"><p class="text-sm text-slate-400 text-center">Enter dimensions and tap Calculate</p></div>' +
+    '<div id="areaVolResults" class="bg-white rounded-lg border border-slate-200 p-4 mb-4"><p class="text-sm text-slate-400 text-center">Enter dimensions to calculate</p></div>' +
     (calcState.areaMode === 'volume' ?
         '<div class="bg-white rounded-lg border border-slate-200 p-4">' +
             '<p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3"><i class="fas fa-cube mr-1"></i> Concrete Calculator</p>' +
@@ -197,12 +203,13 @@ function renderAreaVolTab() {
         '</div>' : '');
 }
 
-function dimInput(label, id) {
+function dimInput(label, id, oninputFn) {
+    var handler = oninputFn ? ' oninput="' + oninputFn + '"' : '';
     return '<div class="flex gap-2">' +
         '<div class="flex-1"><label class="text-xs text-slate-500 uppercase mb-1 block">' + label + ' (ft)</label>' +
-        '<input type="number" id="' + id + 'Ft" placeholder="0" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
+        '<input type="number" id="' + id + 'Ft" placeholder="0"' + handler + ' class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
         '<div class="w-20"><label class="text-xs text-slate-500 uppercase mb-1 block">In</label>' +
-        '<input type="number" id="' + id + 'In" placeholder="0" class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
+        '<input type="number" id="' + id + 'In" placeholder="0"' + handler + ' class="w-full bg-slate-50 rounded-lg p-3 text-slate-800 font-bold" style="min-height:44px;"></div>' +
     '</div>';
 }
 
@@ -265,6 +272,25 @@ function calcConcrete() {
 
 function numberFmt(n) {
     return n < 10 ? n.toFixed(2) : n < 1000 ? n.toFixed(1) : Math.round(n).toLocaleString();
+}
+
+function clearFeetInch() {
+    var ids = ['calcFeet', 'calcInches'];
+    for (var i = 0; i < ids.length; i++) { var el = document.getElementById(ids[i]); if (el) el.value = ''; }
+    var sel = document.getElementById('calcFraction'); if (sel) sel.selectedIndex = 0;
+    var res = document.getElementById('feetInchResults'); if (res) res.innerHTML = '';
+}
+
+function clearDecFeet() {
+    var el = document.getElementById('calcDecFeet'); if (el) el.value = '';
+    var res = document.getElementById('decFeetResults'); if (res) res.innerHTML = '';
+}
+
+function clearAreaVol() {
+    var ids = ['avLengthFt','avLengthIn','avWidthFt','avWidthIn','avDepthFt','avDepthIn'];
+    for (var i = 0; i < ids.length; i++) { var el = document.getElementById(ids[i]); if (el) el.value = ''; }
+    var res = document.getElementById('areaVolResults');
+    if (res) res.innerHTML = '<p class="text-sm text-slate-400 text-center">Enter dimensions to calculate</p>';
 }
 
 // ============ CONVERTER TAB ============

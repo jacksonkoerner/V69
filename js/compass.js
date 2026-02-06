@@ -9,7 +9,9 @@ var compassState = {
     active: false,
     heading: null,
     handler: null,
-    permissionGranted: false
+    permissionGranted: false,
+    sensorTimeout: null,
+    sensorReceived: false
 };
 
 function openCompass() {
@@ -97,11 +99,11 @@ function startCompass() {
                 '<div class="absolute left-1/2 bottom-3" style="transform:translateX(-50%);">' +
                     '<div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:24px solid #94a3b8;"></div>' +
                 '</div>' +
-                // Cardinal labels
-                '<span class="absolute top-8 left-1/2 -translate-x-1/2 text-red-500 font-bold text-xl">N</span>' +
-                '<span class="absolute bottom-8 left-1/2 -translate-x-1/2 text-slate-400 font-bold text-lg">S</span>' +
-                '<span class="absolute left-8 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">W</span>' +
-                '<span class="absolute right-8 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">E</span>' +
+                // Cardinal labels (counter-rotated to stay upright)
+                '<span id="cardN" class="absolute top-8 left-1/2 -translate-x-1/2 text-red-500 font-bold text-xl" style="transition:transform 0.1s ease-out;">N</span>' +
+                '<span id="cardS" class="absolute bottom-8 left-1/2 -translate-x-1/2 text-slate-400 font-bold text-lg" style="transition:transform 0.1s ease-out;">S</span>' +
+                '<span id="cardW" class="absolute left-8 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg" style="transition:transform 0.1s ease-out;">W</span>' +
+                '<span id="cardE" class="absolute right-8 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg" style="transition:transform 0.1s ease-out;">E</span>' +
                 // Center dot
                 '<div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow"></div>' +
             '</div>' +
@@ -131,6 +133,22 @@ function startCompass() {
     };
 
     window.addEventListener('deviceorientation', compassState.handler, true);
+
+    // Sensor timeout — show fallback after 5 seconds if no data received
+    compassState.sensorReceived = false;
+    compassState.sensorTimeout = setTimeout(function() {
+        if (!compassState.sensorReceived && compassState.active) {
+            var display = document.getElementById('compassDisplay');
+            if (display) {
+                display.innerHTML =
+                    '<div class="flex flex-col items-center justify-center h-full gap-4 p-8">' +
+                        '<i class="fas fa-compass text-5xl text-red-400"></i>' +
+                        '<p class="text-slate-400 text-sm text-center">Orientation sensor not available on this device.</p>' +
+                        '<p class="text-slate-500 text-xs text-center">Compass requires a device with a magnetometer (most phones and tablets).</p>' +
+                    '</div>';
+            }
+        }
+    }, 5000);
 }
 
 function stopCompass() {
@@ -139,14 +157,32 @@ function stopCompass() {
         window.removeEventListener('deviceorientation', compassState.handler, true);
         compassState.handler = null;
     }
+    if (compassState.sensorTimeout) {
+        clearTimeout(compassState.sensorTimeout);
+        compassState.sensorTimeout = null;
+    }
 }
 
 function updateCompassUI(heading) {
+    compassState.sensorReceived = true;
+
     var rose = document.getElementById('compassRose');
     if (rose) {
         rose.style.transform = 'rotate(' + (-heading) + 'deg)';
         rose.style.transition = 'transform 0.1s ease-out';
     }
+
+    // Counter-rotate cardinal labels so they stay upright
+    var labels = ['cardN', 'cardS', 'cardW', 'cardE'];
+    for (var i = 0; i < labels.length; i++) {
+        var el = document.getElementById(labels[i]);
+        if (el) el.style.transform = 'translateX(-50%) rotate(' + heading + 'deg)';
+    }
+    // W and E use translateY instead of translateX
+    var wEl = document.getElementById('cardW');
+    if (wEl) wEl.style.transform = 'translateY(-50%) rotate(' + heading + 'deg)';
+    var eEl = document.getElementById('cardE');
+    if (eEl) eEl.style.transform = 'translateY(-50%) rotate(' + heading + 'deg)';
 
     var headingEl = document.getElementById('compassHeading');
     if (headingEl) headingEl.textContent = heading + '\u00B0';

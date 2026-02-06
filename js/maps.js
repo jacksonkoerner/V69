@@ -66,18 +66,27 @@ function switchMap(type) {
     var wrapper = document.getElementById('mapContainer');
     if (!wrapper) return;
 
+    // Loading spinner HTML
+    var spinner = '<div id="mapSpinner" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;z-index:10;">' +
+        '<div style="text-align:center;">' +
+            '<i class="fas fa-circle-notch fa-spin text-3xl text-dot-blue"></i>' +
+            '<p style="margin-top:12px;font-size:12px;color:#64748b;font-weight:bold;">Loading map\u2026</p>' +
+        '</div></div>';
+
     if (type === 'weather') {
-        // Windy.com iframe — no Leaflet needed
-        wrapper.innerHTML = '<iframe src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=default&metricTemp=%C2%B0F&metricWind=mph&zoom=9&overlay=radar&product=radar&level=surface&lat=' + lat + '&lon=' + lng + '" style="width:100%;height:100%;border:none;" allowfullscreen></iframe>';
+        wrapper.innerHTML = spinner + '<iframe src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=default&metricTemp=%C2%B0F&metricWind=mph&zoom=9&overlay=radar&product=radar&level=surface&lat=' + lat + '&lon=' + lng + '" style="width:100%;height:100%;border:none;" allowfullscreen onload="hideMapSpinner()"></iframe>';
     } else if (type === 'airspace') {
-        // FAA UAS Facility Map iframe — no Leaflet needed
-        wrapper.innerHTML = '<iframe src="https://faa.maps.arcgis.com/apps/webappviewer/index.html?id=9c2e4f7b9c264f9c96f8d8e89eb0ceb3&center=' + lng + ',' + lat + '&level=12" style="width:100%;height:100%;border:none;" allowfullscreen></iframe>';
+        wrapper.innerHTML = spinner + '<iframe src="https://faa.maps.arcgis.com/apps/webappviewer/index.html?id=9c2e4f7b9c264f9c96f8d8e89eb0ceb3&center=' + lng + ',' + lat + '&level=12" style="width:100%;height:100%;border:none;" allowfullscreen onload="hideMapSpinner()"></iframe>';
     } else if (type === 'satellite') {
-        // Leaflet + Esri World Imagery
-        wrapper.innerHTML = '<div id="mapView" style="width:100%;height:100%;"></div>';
+        wrapper.innerHTML = spinner + '<div id="mapView" style="width:100%;height:100%;"></div>';
         var container = document.getElementById('mapView');
         createSatelliteMap(container, lat, lng);
     }
+}
+
+function hideMapSpinner() {
+    var spinner = document.getElementById('mapSpinner');
+    if (spinner) spinner.remove();
 }
 
 function updateMapTabs(activeType) {
@@ -133,10 +142,13 @@ function addUserMarker(map, lat, lng) {
 function createSatelliteMap(container, lat, lng) {
     var map = L.map(container).setView([lat, lng], 15);
 
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    var tileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: '&copy; Esri',
         maxZoom: 19
     }).addTo(map);
+
+    // Hide spinner once initial tiles have loaded
+    tileLayer.on('load', function() { hideMapSpinner(); });
 
     addUserMarker(map, lat, lng);
     mapsState.currentMap = map;
