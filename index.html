@@ -447,22 +447,26 @@
             })();
         </script>
 
-        <!-- PHOTO LOG MAP (Coming Soon) -->
+        <!-- PHOTO LOG MAP (In Development) -->
         <section class="px-4 mb-4">
-            <div class="bg-white border-l-4 border-slate-400 p-4">
-                <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 bg-slate-400 flex items-center justify-center shrink-0">
+            <div class="bg-white border-l-4 border-dot-blue p-4 cursor-pointer" onclick="togglePanel('photoLogPanel', this)">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-dot-blue flex items-center justify-center shrink-0">
                         <i class="fas fa-map-location-dot text-white"></i>
                     </div>
                     <div class="flex-1">
                         <div class="flex items-center gap-2">
-                            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Photo Log Map</p>
-                            <span class="bg-dot-orange text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full leading-none">COMING SOON</span>
+                            <p class="text-xs font-bold text-dot-blue uppercase tracking-wider">Photo Log Map</p>
+                            <span class="bg-dot-blue text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full leading-none">IN DEVELOPMENT</span>
                         </div>
                         <p class="text-sm text-slate-500">Track and visualize all site photos on a map</p>
                     </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
                 </div>
-                <img src="./assets/airender.png" alt="Photo Log Map preview" class="w-full h-20 object-cover rounded-lg">
+            </div>
+            <div id="photoLogPanel" class="hidden bg-white p-4 mt-1 rounded-b-lg">
+                <img src="./assets/airender.webp" alt="Photo Log Map preview" class="w-full h-48 object-cover rounded-lg mb-3">
+                <p class="text-sm text-slate-500">Track every photo taken on site with GPS location and camera direction. See exactly where and what your team documented.</p>
             </div>
         </section>
 
