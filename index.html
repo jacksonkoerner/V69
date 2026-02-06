@@ -298,6 +298,10 @@
             if (chevron) {
                 chevron.style.transform = panel.classList.contains('hidden') ? '' : 'rotate(180deg)';
             }
+            // Lazy-load panel content on first open
+            if (!panel.classList.contains('hidden') && typeof onPanelOpen === 'function') {
+                onPanelOpen(panelId);
+            }
         }
     </script>
 </body>
