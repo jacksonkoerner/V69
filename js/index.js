@@ -603,6 +603,7 @@ async function syncWeather() {
         document.getElementById('weatherCondition').textContent = weatherInfo.text;
         document.getElementById('condBarTemp').textContent = `${highTemp}°`;
         document.getElementById('condBarTempLow').textContent = `L: ${lowTemp}°`;
+        document.getElementById('condBarPrecip').textContent = `${precip}"`;
         document.getElementById('condBarWeatherIcon').className = `fas ${weatherInfo.icon} text-xl ${weatherInfo.color}`;
 
         // Cache extended weather data for detail panels
