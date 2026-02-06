@@ -602,6 +602,7 @@ async function syncWeather() {
         // Update conditions bar UI
         document.getElementById('weatherCondition').textContent = weatherInfo.text;
         document.getElementById('condBarTemp').textContent = `${highTemp}°`;
+        document.getElementById('condBarTempLow').textContent = `L: ${lowTemp}°`;
         document.getElementById('condBarWeatherIcon').className = `fas ${weatherInfo.icon} text-xl ${weatherInfo.color}`;
 
         // Cache extended weather data for detail panels
@@ -642,23 +643,23 @@ function updateConditionsBar() {
     var gustsEl = document.getElementById('condBarGusts');
     var statusEl = document.getElementById('condBarFlightStatus');
 
-    if (windEl) windEl.textContent = (weatherDataCache.windSpeed !== null ? weatherDataCache.windSpeed + ' mph' : '-- mph');
-    if (gustsEl) gustsEl.textContent = (weatherDataCache.windGusts !== null ? weatherDataCache.windGusts + ' mph' : '-- mph');
+    if (windEl) windEl.textContent = (weatherDataCache.windSpeed !== null ? weatherDataCache.windSpeed + ' mph' : '--');
+    if (gustsEl) gustsEl.textContent = (weatherDataCache.windGusts !== null ? weatherDataCache.windGusts + ' mph' : '--');
 
     if (statusEl) {
         var gusts = weatherDataCache.windGusts;
         if (gusts === null) {
             statusEl.textContent = '--';
-            statusEl.className = 'text-[10px] font-bold px-2 py-1 rounded bg-slate-200 text-slate-500';
+            statusEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap bg-slate-200 text-slate-500';
         } else if (gusts < 20) {
             statusEl.textContent = 'FLY';
-            statusEl.className = 'text-[10px] font-bold px-2 py-1 rounded bg-safety-green text-white';
+            statusEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap bg-safety-green text-white';
         } else if (gusts <= 25) {
             statusEl.textContent = 'CAUTION';
-            statusEl.className = 'text-[10px] font-bold px-2 py-1 rounded bg-dot-orange text-white';
+            statusEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap bg-dot-orange text-white';
         } else {
             statusEl.textContent = 'NO FLY';
-            statusEl.className = 'text-[10px] font-bold px-2 py-1 rounded bg-red-600 text-white';
+            statusEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap bg-red-600 text-white';
         }
 
         // Refine with daylight check if sunrise data available
@@ -667,7 +668,7 @@ function updateConditionsBar() {
             var withinWindow = now >= sunriseSunsetCache.sunrise && now <= sunriseSunsetCache.sunset;
             if (!withinWindow) {
                 statusEl.textContent = 'NO FLY';
-                statusEl.className = 'text-[10px] font-bold px-2 py-1 rounded bg-red-600 text-white';
+                statusEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap bg-red-600 text-white';
             }
         }
     }

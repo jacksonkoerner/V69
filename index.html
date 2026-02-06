@@ -168,6 +168,7 @@
                         <div>
                             <p id="condBarTemp" class="text-lg font-bold text-slate-800 leading-tight">--°</p>
                             <p id="weatherCondition" class="text-[10px] text-slate-500">Loading...</p>
+                            <p id="condBarTempLow" class="text-[10px] text-slate-400">L: --°</p>
                         </div>
                     </div>
                 </div>
@@ -180,17 +181,17 @@
                         </div>
                         <i class="fas fa-chevron-down text-slate-400 text-[10px] transition-transform duration-200"></i>
                     </div>
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2">
                         <div>
                             <p class="text-[10px] text-slate-400 uppercase">Wind</p>
-                            <p id="condBarWind" class="text-sm font-bold text-slate-800">-- mph</p>
+                            <p id="condBarWind" class="text-xs font-bold text-slate-800">--</p>
                         </div>
-                        <div class="border-l border-slate-200 pl-3">
+                        <div class="border-l border-slate-200 pl-2">
                             <p class="text-[10px] text-slate-400 uppercase">Gusts</p>
-                            <p id="condBarGusts" class="text-sm font-bold text-slate-800">-- mph</p>
+                            <p id="condBarGusts" class="text-xs font-bold text-slate-800">--</p>
                         </div>
-                        <div class="ml-auto">
-                            <span id="condBarFlightStatus" class="text-[10px] font-bold px-2 py-1 rounded bg-slate-200 text-slate-500">--</span>
+                        <div class="ml-auto shrink-0">
+                            <span id="condBarFlightStatus" class="text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap bg-slate-200 text-slate-500">--</span>
                         </div>
                     </div>
                 </div>
@@ -219,29 +220,17 @@
             <!-- Content rendered by updateReportStatus() -->
         </section>
 
-        <!-- QUICK TOOLS -->
+        <!-- FIELD TOOLS -->
         <section class="px-4 mb-4">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Quick Tools</p>
-            <div class="flex gap-2 overflow-x-auto hide-scrollbar">
-                <button class="flex-shrink-0 flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Field Tools</p>
+            <div class="flex gap-3">
+                <button onclick="alert('Coming soon')" class="flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
                     <i class="fas fa-compass text-dot-blue"></i>
                     <span class="text-[10px] text-slate-500">Compass</span>
                 </button>
-                <button class="flex-shrink-0 flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                <button onclick="alert('Coming soon')" class="flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
                     <i class="fas fa-ruler text-dot-blue"></i>
                     <span class="text-[10px] text-slate-500">Measure</span>
-                </button>
-                <button class="flex-shrink-0 flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-                    <i class="fas fa-location-dot text-dot-blue"></i>
-                    <span class="text-[10px] text-slate-500">GPS</span>
-                </button>
-                <button class="flex-shrink-0 flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-                    <i class="fas fa-sun text-dot-orange"></i>
-                    <span class="text-[10px] text-slate-500">Sun Calc</span>
-                </button>
-                <button class="flex-shrink-0 flex flex-col items-center gap-1 w-16 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-                    <i class="fas fa-camera text-dot-blue"></i>
-                    <span class="text-[10px] text-slate-500">Photos</span>
                 </button>
             </div>
         </section>
