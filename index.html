@@ -28,8 +28,12 @@
     <script src="./js/ui-utils.js"></script>
     <script src="./js/indexeddb-utils.js"></script>
     <script src="./js/data-layer.js"></script>
+    <script src="./js/api-keys.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -79,6 +83,69 @@
             border: 1px solid #1e3a5f;
             pointer-events: none;
         }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        /* Field Tools auto-scrolling carousel */
+        @keyframes toolsScroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .tools-carousel-track {
+            display: flex;
+            gap: 12px;
+            width: max-content;
+            animation: toolsScroll 35s linear infinite;
+        }
+        .tools-carousel-track.paused {
+            animation-play-state: paused;
+        }
+        /* Flashlight strobe slider - DOT theme */
+        .fl-range-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        .fl-range-slider::-webkit-slider-runnable-track {
+            height: 6px;
+            background: #334155;
+            border-radius: 3px;
+        }
+        .fl-range-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #1e3a5f;
+            border: 3px solid #f59e0b;
+            margin-top: -9px;
+        }
+        .fl-range-slider::-moz-range-track {
+            height: 6px;
+            background: #334155;
+            border-radius: 3px;
+            border: none;
+        }
+        .fl-range-slider::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #1e3a5f;
+            border: 3px solid #f59e0b;
+        }
+        .tools-carousel-wrapper {
+            overflow: hidden;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .tools-carousel-wrapper::-webkit-scrollbar {
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
@@ -112,7 +179,7 @@
         </div>
     </div>
 
-    <div id="app" class="max-w-lg mx-auto min-h-screen flex flex-col">
+    <div id="app" class="max-w-lg mx-auto min-h-screen flex flex-col pb-16">
 
         <!-- HEADER -->
         <header class="bg-dot-navy text-white p-4">
@@ -138,37 +205,66 @@
             </div>
         </header>
 
-        <!-- WEATHER STATUS CARD -->
+        <!-- CONDITIONS BAR -->
         <section class="px-4 mb-4">
-            <div class="bg-white border-l-4 border-dot-blue p-4">
-                <div class="flex items-center justify-between mb-3">
+            <div class="flex">
+                <!-- Weather Half -->
+                <div class="flex-1 bg-white border-l-4 border-dot-blue p-3 cursor-pointer" onclick="togglePanel('weatherDetailsPanel', this)">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-1.5">
+                            <i class="fas fa-cloud-sun text-dot-blue text-xs"></i>
+                            <span class="text-[10px] font-bold text-dot-blue uppercase tracking-wider">Weather</span>
+                        </div>
+                        <i class="fas fa-chevron-down text-slate-400 text-[10px] transition-transform duration-200"></i>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <i id="condBarWeatherIcon" class="fas fa-sun text-3xl text-dot-yellow"></i>
+                        <div>
+                            <p id="condBarTemp" class="text-2xl font-bold text-slate-800 leading-none">--°</p>
+                            <p id="weatherCondition" class="text-xs text-slate-500">Loading...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 mt-1.5">
+                        <div class="flex items-center gap-1">
+                            <i class="fas fa-temperature-low text-blue-400 text-xs"></i>
+                            <span id="condBarTempLow" class="text-xs text-slate-500 font-medium">L: --°</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <i class="fas fa-droplet text-blue-400 text-xs"></i>
+                            <span id="condBarPrecip" class="text-xs text-slate-500 font-medium">0.00"</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Drone Half -->
+                <div class="flex-1 bg-white border-l border-slate-200 p-3 cursor-pointer" onclick="togglePanel('droneOpsPanel', this)">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-1.5">
+                            <i class="fas fa-helicopter text-dot-orange text-xs"></i>
+                            <span class="text-[10px] font-bold text-dot-orange uppercase tracking-wider">Drone Ops</span>
+                        </div>
+                        <i class="fas fa-chevron-down text-slate-400 text-[10px] transition-transform duration-200"></i>
+                    </div>
                     <div class="flex items-center gap-2">
-                        <i class="fas fa-cloud-sun text-dot-blue"></i>
-                        <span class="text-xs font-bold text-dot-blue uppercase tracking-wider">Weather Conditions</span>
-                    </div>
-                    <button id="syncWeatherBtn" onclick="syncWeather()" class="text-xs text-dot-blue font-bold flex items-center gap-1 hover:text-dot-navy transition-colors">
-                        <i id="syncIcon" class="fas fa-sync-alt text-[10px]"></i>
-                        SYNC
-                    </button>
-                </div>
-                <div class="grid grid-cols-4 gap-3">
-                    <div class="text-center">
-                        <i id="weatherIcon" class="fas fa-sun text-2xl text-dot-yellow mb-1"></i>
-                        <p id="weatherCondition" class="text-xs font-medium text-slate-600">Loading...</p>
-                    </div>
-                    <div class="text-center border-l border-slate-200">
-                        <p class="text-lg font-bold text-slate-800" id="weatherTempHigh">--°</p>
-                        <p class="text-[10px] text-slate-400 uppercase">High</p>
-                    </div>
-                    <div class="text-center border-l border-slate-200">
-                        <p class="text-lg font-bold text-slate-800" id="weatherTempLow">--°</p>
-                        <p class="text-[10px] text-slate-400 uppercase">Low</p>
-                    </div>
-                    <div class="text-center border-l border-slate-200">
-                        <p class="text-lg font-bold text-slate-800" id="weatherPrecipVal">0.00"</p>
-                        <p class="text-[10px] text-slate-400 uppercase">Precip</p>
+                        <div>
+                            <p class="text-[10px] text-slate-400 uppercase">Wind</p>
+                            <p id="condBarWind" class="text-xs font-bold text-slate-800">--</p>
+                        </div>
+                        <div class="border-l border-slate-200 pl-2">
+                            <p class="text-[10px] text-slate-400 uppercase">Gusts</p>
+                            <p id="condBarGusts" class="text-xs font-bold text-slate-800">--</p>
+                        </div>
+                        <div class="ml-auto shrink-0">
+                            <span id="condBarFlightStatus" class="text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap bg-slate-200 text-slate-500">--</span>
+                        </div>
                     </div>
                 </div>
+            </div>
+            <!-- Expandable Panels -->
+            <div id="weatherDetailsPanel" class="hidden bg-white rounded-xl p-4 mt-1">
+                <p class="text-sm text-slate-500">Weather details loading...</p>
+            </div>
+            <div id="droneOpsPanel" class="hidden bg-white rounded-xl p-4 mt-1">
+                <p class="text-sm text-slate-500">Drone operations info loading...</p>
             </div>
         </section>
 
@@ -187,6 +283,122 @@
             <!-- Content rendered by updateReportStatus() -->
         </section>
 
+        <!-- FIELD TOOLS (auto-scrolling carousel) -->
+        <section class="px-4 mb-4">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Field Tools</p>
+            <div id="toolsCarousel" class="tools-carousel-wrapper">
+                <div id="toolsTrack" class="tools-carousel-track">
+                    <!-- Set 1 -->
+                    <button onclick="openCompass()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                        <i class="fas fa-compass text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Compass</span>
+                    </button>
+                    <button onclick="openMeasure()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                        <i class="fas fa-ruler text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Measure</span>
+                    </button>
+                    <button onclick="openMapsOverlay()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                        <i class="fas fa-map text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Maps</span>
+                    </button>
+                    <button onclick="openCalc()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                        <i class="fas fa-calculator text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Calc</span>
+                    </button>
+                    <button onclick="openSlope()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                        <i class="fas fa-road text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Slope</span>
+                    </button>
+                    <button onclick="openLevel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                        <i class="fas fa-ruler-horizontal text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Level</span>
+                    </button>
+                    <button onclick="openDecibel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                        <i class="fas fa-volume-high text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">dB Meter</span>
+                    </button>
+                    <button onclick="openTimer()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                        <i class="fas fa-stopwatch text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Timer</span>
+                    </button>
+                    <button onclick="openFlashlight()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                        <i class="fas fa-lightbulb text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Light</span>
+                    </button>
+                    <button onclick="openQR()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                        <i class="fas fa-qrcode text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">QR Scan</span>
+                    </button>
+                    <!-- Set 2 (duplicate for seamless loop) -->
+                    <button onclick="openCompass()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
+                        <i class="fas fa-compass text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Compass</span>
+                    </button>
+                    <button onclick="openMeasure()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
+                        <i class="fas fa-ruler text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Measure</span>
+                    </button>
+                    <button onclick="openMapsOverlay()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
+                        <i class="fas fa-map text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Maps</span>
+                    </button>
+                    <button onclick="openCalc()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
+                        <i class="fas fa-calculator text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Calc</span>
+                    </button>
+                    <button onclick="openSlope()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
+                        <i class="fas fa-road text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Slope</span>
+                    </button>
+                    <button onclick="openLevel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
+                        <i class="fas fa-ruler-horizontal text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Level</span>
+                    </button>
+                    <button onclick="openDecibel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
+                        <i class="fas fa-volume-high text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">dB Meter</span>
+                    </button>
+                    <button onclick="openTimer()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
+                        <i class="fas fa-stopwatch text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Timer</span>
+                    </button>
+                    <button onclick="openFlashlight()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
+                        <i class="fas fa-lightbulb text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">Light</span>
+                    </button>
+                    <button onclick="openQR()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors" aria-hidden="true">
+                        <i class="fas fa-qrcode text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">QR Scan</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+        <script>
+            (function() {
+                var carousel = document.getElementById('toolsCarousel');
+                var track = document.getElementById('toolsTrack');
+                if (!carousel || !track) return;
+                var resumeTimer = null;
+
+                function pauseCarousel() {
+                    track.classList.add('paused');
+                    if (resumeTimer) clearTimeout(resumeTimer);
+                }
+
+                function scheduleResume() {
+                    if (resumeTimer) clearTimeout(resumeTimer);
+                    resumeTimer = setTimeout(function() {
+                        track.classList.remove('paused');
+                    }, 3000);
+                }
+
+                carousel.addEventListener('touchstart', pauseCarousel, { passive: true });
+                carousel.addEventListener('pointerdown', pauseCarousel);
+                carousel.addEventListener('touchend', scheduleResume, { passive: true });
+                carousel.addEventListener('pointerup', scheduleResume);
+            })();
+        </script>
+
         <!-- REPORT ARCHIVES -->
         <section class="px-4 mb-4">
             <a href="archives.html" class="block bg-white border-l-4 border-dot-slate p-4 hover:bg-slate-50 transition-colors">
@@ -203,18 +415,107 @@
             </a>
         </section>
 
-        <!-- FOOTER -->
-        <footer class="bg-dot-navy text-center py-3">
-            <p class="text-[10px] text-slate-500 uppercase tracking-widest">
-                <i class="fas fa-shield-alt mr-1"></i>
-                DOT Compliant Field Documentation System
-            </p>
-            <div class="text-center text-gray-600 text-xs mt-2">
-                <a href="admin-debug.html" class="hover:text-gray-400">Debug Tools</a>
+        <!-- JOB CALENDAR (Coming Soon) -->
+        <section class="px-4 mb-4">
+            <div class="bg-white border-l-4 border-dot-blue p-4 cursor-pointer" onclick="togglePanel('calendarPanel', this)">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-dot-blue flex items-center justify-center shrink-0">
+                        <i class="fas fa-calendar-days text-white"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-xs font-bold text-dot-blue uppercase tracking-wider">Job Calendar</p>
+                        <p class="text-sm text-slate-600">Coming Soon</p>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
+                </div>
             </div>
+            <div id="calendarPanel" class="hidden bg-white p-4 mt-1 rounded-b-lg">
+                <div id="calendarGrid"></div>
+            </div>
+        </section>
+        <script>
+            (function() {
+                var panel = document.getElementById('calendarPanel');
+                var grid = document.getElementById('calendarGrid');
+                var rendered = false;
+                var origToggle = window.togglePanel;
+                // Render calendar on first open
+                var observer = new MutationObserver(function() {
+                    if (!panel.classList.contains('hidden') && !rendered) {
+                        rendered = true;
+                        renderCalendarGrid();
+                    }
+                });
+                observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
+
+                function renderCalendarGrid() {
+                    var now = new Date();
+                    var year = now.getFullYear();
+                    var month = now.getMonth();
+                    var today = now.getDate();
+                    var firstDay = new Date(year, month, 1).getDay();
+                    var daysInMonth = new Date(year, month + 1, 0).getDate();
+                    var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+                    var html = '<p class="text-sm font-bold text-slate-800 text-center mb-3">' + monthNames[month] + ' ' + year + '</p>';
+                    html += '<div class="grid grid-cols-7 gap-1 text-center">';
+                    var days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+                    for (var d = 0; d < 7; d++) {
+                        html += '<div class="text-[10px] text-slate-400 font-bold py-1">' + days[d] + '</div>';
+                    }
+                    for (var i = 0; i < firstDay; i++) {
+                        html += '<div></div>';
+                    }
+                    for (var day = 1; day <= daysInMonth; day++) {
+                        var isToday = day === today;
+                        html += '<div class="py-1.5 text-xs font-medium rounded ' +
+                            (isToday ? 'bg-dot-orange text-white font-bold' : 'text-slate-600') + '">' + day + '</div>';
+                    }
+                    html += '</div>';
+                    grid.innerHTML = html;
+                }
+            })();
+        </script>
+
+        <!-- PHOTO LOG MAP (In Development) -->
+        <section class="px-4 mb-4">
+            <div class="bg-white border-l-4 border-dot-blue p-4 cursor-pointer" onclick="togglePanel('photoLogPanel', this)">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-dot-blue flex items-center justify-center shrink-0">
+                        <i class="fas fa-map-location-dot text-white"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <p class="text-xs font-bold text-dot-blue uppercase tracking-wider">Photo Log Map</p>
+                            <span class="bg-dot-blue text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full leading-none">IN DEVELOPMENT</span>
+                        </div>
+                        <p class="text-sm text-slate-500">Track and visualize all site photos on a map</p>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
+                </div>
+            </div>
+            <div id="photoLogPanel" class="hidden bg-white p-4 mt-1 rounded-b-lg">
+                <img src="./assets/airender.webp" alt="Photo Log Map preview" class="w-full h-48 object-cover rounded-lg mb-3">
+                <p class="text-sm text-slate-500">Track every photo taken on site with GPS location and camera direction. See exactly where and what your team documented.</p>
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer class="mt-auto py-2 text-center">
+            <a href="admin-debug.html" class="text-xs text-gray-400 hover:text-gray-600">Debug Tools</a>
         </footer>
     </div>
 
+    <script src="./js/maps.js"></script>
+    <script src="./js/compass.js"></script>
+    <script src="./js/measure.js"></script>
+    <script src="./js/calc.js"></script>
+    <script src="./js/slope.js"></script>
+    <script src="./js/level.js"></script>
+    <script src="./js/decibel.js"></script>
+    <script src="./js/timer.js"></script>
+    <script src="./js/flashlight.js"></script>
+    <script src="./js/qrscanner.js"></script>
     <script src="./js/index.js"></script>
 
     <!-- Project Picker Modal -->
@@ -253,9 +554,222 @@
         <i class="fas fa-wifi-slash mr-2"></i>You are offline - Some features may be unavailable
     </div>
 
+    <!-- Emergency Strip -->
+    <div id="emergencyStrip" class="fixed bottom-0 left-0 right-0 z-[100] bg-red-600 text-white h-12 flex items-center justify-center cursor-pointer" onclick="togglePanel('emergencyPanel', this)">
+        <i class="fas fa-hospital mr-2"></i>
+        <span class="font-bold text-sm">Emergency Info</span>
+    </div>
+    <div id="emergencyPanel" class="hidden fixed bottom-12 left-0 right-0 z-[100] bg-white text-gray-900 rounded-t-xl shadow-lg p-4">
+        <p class="text-sm text-slate-500">Emergency info loading...</p>
+    </div>
+
+    <!-- Maps Overlay -->
+    <div id="mapsOverlay" class="hidden fixed inset-0 z-50 bg-white flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeMapsOverlay()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <div class="flex flex-col items-center">
+                <span id="mapTitle" class="text-white font-bold text-sm">Weather Radar</span>
+                <div class="flex items-center gap-1.5 mt-1">
+                    <div id="mapDot-0" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                    <div id="mapDot-1" class="w-1.5 h-1.5 rounded-full bg-white/40"></div>
+                    <div id="mapDot-2" class="w-1.5 h-1.5 rounded-full bg-white/40"></div>
+                </div>
+            </div>
+            <div class="w-11"></div>
+        </div>
+        <!-- Map Container -->
+        <div id="mapContainer" class="flex-1 relative"></div>
+        <!-- Bottom Tabs -->
+        <div class="flex border-t border-slate-200 shrink-0" style="padding-bottom: env(safe-area-inset-bottom);">
+            <button id="mapTab-weather" onclick="switchMap('weather')" class="flex-1 py-2.5 flex flex-col items-center gap-0.5 bg-white text-dot-navy font-bold shadow-sm transition-colors">
+                <i class="fas fa-cloud-rain text-sm text-dot-navy"></i>
+                <span class="text-[10px] font-bold text-dot-navy">Weather</span>
+            </button>
+            <button id="mapTab-airspace" onclick="switchMap('airspace')" class="flex-1 py-2.5 flex flex-col items-center gap-0.5 bg-slate-100 text-slate-500 transition-colors">
+                <i class="fas fa-plane-up text-sm text-slate-400"></i>
+                <span class="text-[10px] font-medium text-slate-500">Airspace</span>
+            </button>
+            <button id="mapTab-satellite" onclick="switchMap('satellite')" class="flex-1 py-2.5 flex flex-col items-center gap-0.5 bg-slate-100 text-slate-500 transition-colors">
+                <i class="fas fa-satellite text-sm text-slate-400"></i>
+                <span class="text-[10px] font-medium text-slate-500">Satellite</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Compass Overlay -->
+    <div id="compassOverlay" class="hidden fixed inset-0 z-50 bg-slate-900 flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeCompass()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">Compass</span>
+            <div class="w-11"></div>
+        </div>
+        <!-- Compass Display -->
+        <div id="compassDisplay" class="flex-1 flex items-center justify-center">
+            <p class="text-slate-500 text-sm">Initializing...</p>
+        </div>
+    </div>
+
+    <!-- Measure Overlay -->
+    <div id="measureOverlay" class="hidden fixed inset-0 z-50 bg-white flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeMeasure()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">Measure Distance</span>
+            <button onclick="clearMeasure()" class="text-white text-xs font-bold px-3 py-1 border border-white/30 rounded">Clear</button>
+        </div>
+        <!-- Map Container -->
+        <div id="measureMapContainer" class="flex-1"></div>
+        <!-- Bottom Total Bar -->
+        <div class="bg-dot-navy px-4 py-3 shrink-0 text-center" style="padding-bottom: max(env(safe-area-inset-bottom), 8px);">
+            <p id="measureTotal" class="text-white font-bold text-sm">Tap map to place pins</p>
+            <p id="measureArea" class="text-slate-400 text-xs mt-0.5"></p>
+        </div>
+    </div>
+
+    <!-- Calc Overlay -->
+    <div id="calcOverlay" class="hidden fixed inset-0 z-50 bg-white flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeCalc()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">Construction Calculator</span>
+            <div class="w-11"></div>
+        </div>
+        <!-- Content -->
+        <div id="calcContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
+    <!-- Slope Overlay -->
+    <div id="slopeOverlay" class="hidden fixed inset-0 z-50 bg-white flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeSlope()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">Slope &amp; Grade</span>
+            <div class="w-11"></div>
+        </div>
+        <!-- Content -->
+        <div id="slopeContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
+    <!-- Level Overlay -->
+    <div id="levelOverlay" class="hidden fixed inset-0 z-50 bg-slate-900 flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeLevel()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">Level / Inclinometer</span>
+            <div class="w-11"></div>
+        </div>
+        <!-- Content -->
+        <div id="levelContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
+    <!-- Decibel Meter Overlay -->
+    <div id="decibelOverlay" class="hidden fixed inset-0 z-50 bg-slate-100 flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeDecibel()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">Decibel Meter</span>
+            <div class="w-11"></div>
+        </div>
+        <!-- Content -->
+        <div id="decibelContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
+    <!-- Timer Overlay -->
+    <div id="timerOverlay" class="hidden fixed inset-0 z-50 bg-white flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeTimer()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">Timer / Stopwatch</span>
+            <div class="w-11"></div>
+        </div>
+        <!-- Content -->
+        <div id="timerContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
+    <!-- Flashlight Overlay -->
+    <div id="flashlightOverlay" class="hidden fixed inset-0 z-50 bg-slate-900 flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeFlashlight()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">Flashlight</span>
+            <div class="w-11"></div>
+        </div>
+        <!-- Content -->
+        <div id="flashlightContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
+    <!-- QR Scanner Overlay -->
+    <div id="qrOverlay" class="hidden fixed inset-0 z-50 bg-black flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeQR()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">QR Scanner</span>
+            <button id="qrTorchBtn" onclick="toggleQRTorch()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white/60">
+                <i class="fas fa-bolt text-lg"></i>
+            </button>
+        </div>
+        <!-- Content -->
+        <div id="qrContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
     <!-- Initialize PWA features -->
     <script>
+        if (typeof updateDraftsSection === 'undefined') { var updateDraftsSection = function() {}; }
         initPWA({ onOnline: updateDraftsSection });
+    </script>
+
+    <!-- Toggle Panel Logic -->
+    <script>
+        function togglePanel(panelId, trigger) {
+            var panel = document.getElementById(panelId);
+
+            // Mutual exclusion for conditions bar panels
+            var mutualPanels = { weatherDetailsPanel: 'droneOpsPanel', droneOpsPanel: 'weatherDetailsPanel' };
+            if (mutualPanels[panelId]) {
+                var otherPanel = document.getElementById(mutualPanels[panelId]);
+                if (otherPanel && !otherPanel.classList.contains('hidden')) {
+                    otherPanel.classList.add('hidden');
+                    // Reset the other panel's trigger chevron
+                    var otherTrigger = document.querySelector('[onclick*="' + mutualPanels[panelId] + '"]');
+                    if (otherTrigger) {
+                        var otherChevron = otherTrigger.querySelector('.fa-chevron-down');
+                        if (otherChevron) otherChevron.style.transform = '';
+                    }
+                }
+            }
+
+            panel.classList.toggle('hidden');
+            var chevron = trigger ? trigger.querySelector('.fa-chevron-down') : null;
+            if (chevron) {
+                chevron.style.transform = panel.classList.contains('hidden') ? '' : 'rotate(180deg)';
+            }
+            // Lazy-load panel content on first open
+            if (!panel.classList.contains('hidden') && typeof onPanelOpen === 'function') {
+                onPanelOpen(panelId);
+            }
+        }
     </script>
 </body>
 </html>
