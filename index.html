@@ -112,7 +112,7 @@
         </div>
     </div>
 
-    <div id="app" class="max-w-lg mx-auto min-h-screen flex flex-col">
+    <div id="app" class="max-w-lg mx-auto min-h-screen flex flex-col pb-16">
 
         <!-- HEADER -->
         <header class="bg-dot-navy text-white p-4">
@@ -140,16 +140,19 @@
 
         <!-- WEATHER STATUS CARD -->
         <section class="px-4 mb-4">
-            <div class="bg-white border-l-4 border-dot-blue p-4">
+            <div class="bg-white border-l-4 border-dot-blue p-4 cursor-pointer" onclick="togglePanel('weatherDetailsPanel', this)">
                 <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center gap-2">
                         <i class="fas fa-cloud-sun text-dot-blue"></i>
                         <span class="text-xs font-bold text-dot-blue uppercase tracking-wider">Weather Conditions</span>
                     </div>
-                    <button id="syncWeatherBtn" onclick="syncWeather()" class="text-xs text-dot-blue font-bold flex items-center gap-1 hover:text-dot-navy transition-colors">
-                        <i id="syncIcon" class="fas fa-sync-alt text-[10px]"></i>
-                        SYNC
-                    </button>
+                    <div class="flex items-center gap-3">
+                        <button id="syncWeatherBtn" onclick="event.stopPropagation(); syncWeather()" class="text-xs text-dot-blue font-bold flex items-center gap-1 hover:text-dot-navy transition-colors">
+                            <i id="syncIcon" class="fas fa-sync-alt text-[10px]"></i>
+                            SYNC
+                        </button>
+                        <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
+                    </div>
                 </div>
                 <div class="grid grid-cols-4 gap-3">
                     <div class="text-center">
@@ -169,6 +172,25 @@
                         <p class="text-[10px] text-slate-400 uppercase">Precip</p>
                     </div>
                 </div>
+            </div>
+            <div id="weatherDetailsPanel" class="hidden bg-white rounded-xl p-4 mt-1">
+                <p class="text-sm text-slate-500">Weather details loading...</p>
+            </div>
+        </section>
+
+        <!-- DRONE OPS CARD -->
+        <section class="px-4 mb-4">
+            <div class="bg-white border-l-4 border-dot-orange p-4 cursor-pointer" onclick="togglePanel('droneOpsPanel', this)">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-helicopter text-dot-orange"></i>
+                        <span class="text-xs font-bold text-dot-orange uppercase tracking-wider">Drone Operations</span>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
+                </div>
+            </div>
+            <div id="droneOpsPanel" class="hidden bg-white rounded-xl p-4 mt-1">
+                <p class="text-sm text-slate-500">Drone operations info loading...</p>
             </div>
         </section>
 
@@ -253,9 +275,30 @@
         <i class="fas fa-wifi-slash mr-2"></i>You are offline - Some features may be unavailable
     </div>
 
+    <!-- Emergency Strip -->
+    <div id="emergencyStrip" class="fixed bottom-0 left-0 right-0 z-[100] bg-red-600 text-white h-12 flex items-center justify-center cursor-pointer" onclick="togglePanel('emergencyPanel', this)">
+        <i class="fas fa-hospital mr-2"></i>
+        <span class="font-bold text-sm">Emergency Info</span>
+    </div>
+    <div id="emergencyPanel" class="hidden fixed bottom-12 left-0 right-0 z-[100] bg-white text-gray-900 rounded-t-xl shadow-lg p-4">
+        <p class="text-sm text-slate-500">Emergency info loading...</p>
+    </div>
+
     <!-- Initialize PWA features -->
     <script>
         initPWA({ onOnline: updateDraftsSection });
+    </script>
+
+    <!-- Toggle Panel Logic -->
+    <script>
+        function togglePanel(panelId, trigger) {
+            var panel = document.getElementById(panelId);
+            panel.classList.toggle('hidden');
+            var chevron = trigger ? trigger.querySelector('.fa-chevron-down') : null;
+            if (chevron) {
+                chevron.style.transform = panel.classList.contains('hidden') ? '' : 'rotate(180deg)';
+            }
+        }
     </script>
 </body>
 </html>
