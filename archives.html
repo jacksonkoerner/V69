@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Report Archives - FieldVoice Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .report-card { transition: transform 0.15s, box-shadow 0.15s; }
+        .report-card:active { transform: scale(0.98); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen pb-20">
+    <!-- Header -->
+    <header class="bg-green-700 text-white p-4 sticky top-0 z-10 shadow-md">
+        <div class="flex items-center justify-between max-w-lg mx-auto">
+            <a href="index.html" class="text-white flex items-center gap-1">
+                <span>←</span>
+                <span class="text-sm">Dashboard</span>
+            </a>
+            <h1 class="text-lg font-semibold">Report Archives</h1>
+            <div class="w-16"></div>
+        </div>
+    </header>
+
+    <main class="max-w-lg mx-auto">
+        <!-- Offline Warning -->
+        <div id="offlineWarning" class="hidden bg-yellow-50 border-l-4 border-yellow-400 p-4 m-4 rounded">
+            <p class="text-yellow-800 text-sm">You're offline. Archives require an internet connection.</p>
+        </div>
+
+        <!-- Recent Reports Section (last 24 hours) -->
+        <div id="recentSection" class="hidden">
+            <div class="p-4 bg-gradient-to-b from-green-50 to-white border-b">
+                <h2 class="text-sm font-semibold text-green-800 mb-3 flex items-center gap-2">
+                    <span>🕐</span> Recently Submitted
+                </h2>
+                <div id="recentReportsList" class="space-y-2"></div>
+            </div>
+        </div>
+
+        <!-- Project Filter -->
+        <div class="p-4 bg-white border-b shadow-sm">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Project</label>
+            <select id="projectFilter" class="w-full p-3 border border-gray-300 rounded-lg text-base bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                <option value="">All Projects</option>
+            </select>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="p-8 text-center">
+            <div class="inline-block w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-gray-500 mt-3">Loading reports...</p>
+        </div>
+
+        <!-- Reports List -->
+        <div id="reportsList" class="p-4 space-y-3 hidden"></div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden p-8 text-center">
+            <div class="text-gray-400 text-5xl mb-4">📋</div>
+            <p class="text-gray-600 font-medium">No submitted reports found</p>
+            <p class="text-gray-400 text-sm mt-1">Submitted reports will appear here</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="hidden p-8 text-center">
+            <div class="text-red-400 text-5xl mb-4">⚠️</div>
+            <p class="text-red-600 font-medium" id="errorMessage">Failed to load reports</p>
+            <button onclick="retryLoad()" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg">
+                Try Again
+            </button>
+        </div>
+    </main>
+
+    <!-- PDF Viewer Modal -->
+    <div id="pdfModal" class="fixed inset-0 bg-black bg-opacity-80 z-50 hidden">
+        <div class="h-full flex flex-col">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between p-3 bg-gray-900 text-white flex-shrink-0">
+                <span id="pdfTitle" class="font-medium text-sm truncate flex-1 mr-4"></span>
+                <button id="closePdfModal" class="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+                    <span class="text-xl">✕</span>
+                </button>
+            </div>
+            <!-- PDF Iframe Container -->
+            <div class="flex-1 overflow-hidden">
+                <iframe id="pdfViewer" class="w-full h-full bg-gray-200" style="border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/storage-keys.js"></script>
+    <script src="js/archives.js"></script>
+</body>
+</html>
