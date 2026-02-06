@@ -33,6 +33,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -281,6 +282,22 @@
                         <i class="fas fa-ruler-horizontal text-dot-blue"></i>
                         <span class="text-[10px] text-slate-500">Level</span>
                     </button>
+                    <button onclick="openDecibel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                        <i class="fas fa-volume-high text-dot-blue"></i>
+                        <span class="text-[10px] text-slate-500">dB Meter</span>
+                    </button>
+                    <button onclick="openTimer()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                        <i class="fas fa-stopwatch text-dot-blue"></i>
+                        <span class="text-[10px] text-slate-500">Timer</span>
+                    </button>
+                    <button onclick="openFlashlight()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                        <i class="fas fa-lightbulb text-dot-blue"></i>
+                        <span class="text-[10px] text-slate-500">Light</span>
+                    </button>
+                    <button onclick="openQR()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                        <i class="fas fa-qrcode text-dot-blue"></i>
+                        <span class="text-[10px] text-slate-500">QR Scan</span>
+                    </button>
                     <!-- Set 2 (duplicate for seamless loop) -->
                     <button onclick="openCompass()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
                         <i class="fas fa-compass text-dot-blue"></i>
@@ -305,6 +322,22 @@
                     <button onclick="openLevel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
                         <i class="fas fa-ruler-horizontal text-dot-blue"></i>
                         <span class="text-[10px] text-slate-500">Level</span>
+                    </button>
+                    <button onclick="openDecibel()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                        <i class="fas fa-volume-high text-dot-blue"></i>
+                        <span class="text-[10px] text-slate-500">dB Meter</span>
+                    </button>
+                    <button onclick="openTimer()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                        <i class="fas fa-stopwatch text-dot-blue"></i>
+                        <span class="text-[10px] text-slate-500">Timer</span>
+                    </button>
+                    <button onclick="openFlashlight()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                        <i class="fas fa-lightbulb text-dot-blue"></i>
+                        <span class="text-[10px] text-slate-500">Light</span>
+                    </button>
+                    <button onclick="openQR()" class="tool-btn flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors" aria-hidden="true">
+                        <i class="fas fa-qrcode text-dot-blue"></i>
+                        <span class="text-[10px] text-slate-500">QR Scan</span>
                     </button>
                 </div>
             </div>
@@ -352,6 +385,86 @@
             </a>
         </section>
 
+        <!-- JOB CALENDAR (Coming Soon) -->
+        <section class="px-4 mb-4">
+            <div class="bg-white border-l-4 border-dot-blue p-4 cursor-pointer" onclick="togglePanel('calendarPanel', this)">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-dot-blue flex items-center justify-center shrink-0">
+                        <i class="fas fa-calendar-days text-white"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-xs font-bold text-dot-blue uppercase tracking-wider">Job Calendar</p>
+                        <p class="text-sm text-slate-600">Coming Soon</p>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
+                </div>
+            </div>
+            <div id="calendarPanel" class="hidden bg-white p-4 mt-1 rounded-b-lg">
+                <div id="calendarGrid"></div>
+            </div>
+        </section>
+        <script>
+            (function() {
+                var panel = document.getElementById('calendarPanel');
+                var grid = document.getElementById('calendarGrid');
+                var rendered = false;
+                var origToggle = window.togglePanel;
+                // Render calendar on first open
+                var observer = new MutationObserver(function() {
+                    if (!panel.classList.contains('hidden') && !rendered) {
+                        rendered = true;
+                        renderCalendarGrid();
+                    }
+                });
+                observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
+
+                function renderCalendarGrid() {
+                    var now = new Date();
+                    var year = now.getFullYear();
+                    var month = now.getMonth();
+                    var today = now.getDate();
+                    var firstDay = new Date(year, month, 1).getDay();
+                    var daysInMonth = new Date(year, month + 1, 0).getDate();
+                    var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+                    var html = '<p class="text-sm font-bold text-slate-800 text-center mb-3">' + monthNames[month] + ' ' + year + '</p>';
+                    html += '<div class="grid grid-cols-7 gap-1 text-center">';
+                    var days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+                    for (var d = 0; d < 7; d++) {
+                        html += '<div class="text-[10px] text-slate-400 font-bold py-1">' + days[d] + '</div>';
+                    }
+                    for (var i = 0; i < firstDay; i++) {
+                        html += '<div></div>';
+                    }
+                    for (var day = 1; day <= daysInMonth; day++) {
+                        var isToday = day === today;
+                        html += '<div class="py-1.5 text-xs font-medium rounded ' +
+                            (isToday ? 'bg-dot-orange text-white font-bold' : 'text-slate-600') + '">' + day + '</div>';
+                    }
+                    html += '</div>';
+                    grid.innerHTML = html;
+                }
+            })();
+        </script>
+
+        <!-- PHOTO LOG MAP (Coming Soon) -->
+        <section class="px-4 mb-4">
+            <div class="bg-white border-l-4 border-slate-400 p-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-slate-400 flex items-center justify-center shrink-0">
+                        <i class="fas fa-map-location-dot text-white"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Photo Log Map</p>
+                            <span class="bg-dot-orange text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full leading-none">COMING SOON</span>
+                        </div>
+                        <p class="text-sm text-slate-500">Track and visualize all site photos on a map</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- FOOTER -->
         <footer class="mt-auto py-2 text-center">
             <a href="admin-debug.html" class="text-xs text-gray-400 hover:text-gray-600">Debug Tools</a>
@@ -364,6 +477,10 @@
     <script src="./js/calc.js"></script>
     <script src="./js/slope.js"></script>
     <script src="./js/level.js"></script>
+    <script src="./js/decibel.js"></script>
+    <script src="./js/timer.js"></script>
+    <script src="./js/flashlight.js"></script>
+    <script src="./js/qrscanner.js"></script>
     <script src="./js/index.js"></script>
 
     <!-- Project Picker Modal -->
@@ -522,6 +639,62 @@
         </div>
         <!-- Content -->
         <div id="levelContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
+    <!-- Decibel Meter Overlay -->
+    <div id="decibelOverlay" class="hidden fixed inset-0 z-50 bg-slate-100 flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeDecibel()" class="w-8 h-8 flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">Decibel Meter</span>
+            <div class="w-8"></div>
+        </div>
+        <!-- Content -->
+        <div id="decibelContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
+    <!-- Timer Overlay -->
+    <div id="timerOverlay" class="hidden fixed inset-0 z-50 bg-white flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeTimer()" class="w-8 h-8 flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">Timer / Stopwatch</span>
+            <div class="w-8"></div>
+        </div>
+        <!-- Content -->
+        <div id="timerContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
+    <!-- Flashlight Overlay -->
+    <div id="flashlightOverlay" class="hidden fixed inset-0 z-50 bg-slate-900 flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeFlashlight()" class="w-8 h-8 flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">Flashlight</span>
+            <div class="w-8"></div>
+        </div>
+        <!-- Content -->
+        <div id="flashlightContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
+    <!-- QR Scanner Overlay -->
+    <div id="qrOverlay" class="hidden fixed inset-0 z-50 bg-black flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeQR()" class="w-8 h-8 flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">QR Scanner</span>
+            <div class="w-8"></div>
+        </div>
+        <!-- Content -->
+        <div id="qrContent" class="flex-1 flex flex-col overflow-hidden"></div>
     </div>
 
     <!-- Initialize PWA features -->
