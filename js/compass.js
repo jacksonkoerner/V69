@@ -16,6 +16,11 @@ function openCompass() {
     var overlay = document.getElementById('compassOverlay');
     if (!overlay) return;
     overlay.classList.remove('hidden');
+    // Hide emergency strip so it doesn't cover the overlay
+    var strip = document.getElementById('emergencyStrip');
+    if (strip) strip.classList.add('hidden');
+    var panel = document.getElementById('emergencyPanel');
+    if (panel) panel.classList.add('hidden');
 
     // Check if we need permission (iOS 13+)
     if (typeof DeviceOrientationEvent !== 'undefined' &&
@@ -31,6 +36,9 @@ function closeCompass() {
     var overlay = document.getElementById('compassOverlay');
     if (!overlay) return;
     overlay.classList.add('hidden');
+    // Restore emergency strip
+    var strip = document.getElementById('emergencyStrip');
+    if (strip) strip.classList.remove('hidden');
     stopCompass();
 }
 

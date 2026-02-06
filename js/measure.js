@@ -19,6 +19,11 @@ function openMeasure() {
     var overlay = document.getElementById('measureOverlay');
     if (!overlay) return;
     overlay.classList.remove('hidden');
+    // Hide emergency strip so it doesn't cover the overlay
+    var strip = document.getElementById('emergencyStrip');
+    if (strip) strip.classList.add('hidden');
+    var panel = document.getElementById('emergencyPanel');
+    if (panel) panel.classList.add('hidden');
 
     var loc = getLocationFromCache();
     var lat = loc ? loc.lat : 39.8283;
@@ -65,6 +70,9 @@ function closeMeasure() {
     var overlay = document.getElementById('measureOverlay');
     if (!overlay) return;
     overlay.classList.add('hidden');
+    // Restore emergency strip
+    var strip = document.getElementById('emergencyStrip');
+    if (strip) strip.classList.remove('hidden');
 
     if (measureState.map) {
         measureState.map.remove();

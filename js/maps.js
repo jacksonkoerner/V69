@@ -16,6 +16,11 @@ function openMapsOverlay() {
     var overlay = document.getElementById('mapsOverlay');
     if (!overlay) return;
     overlay.classList.remove('hidden');
+    // Hide emergency strip so it doesn't cover the overlay
+    var strip = document.getElementById('emergencyStrip');
+    if (strip) strip.classList.add('hidden');
+    var panel = document.getElementById('emergencyPanel');
+    if (panel) panel.classList.add('hidden');
     // Default to weather radar
     switchMap('weather');
 }
@@ -24,6 +29,9 @@ function closeMapsOverlay() {
     var overlay = document.getElementById('mapsOverlay');
     if (!overlay) return;
     overlay.classList.add('hidden');
+    // Restore emergency strip
+    var strip = document.getElementById('emergencyStrip');
+    if (strip) strip.classList.remove('hidden');
     if (mapsState.currentMap) {
         mapsState.currentMap.remove();
         mapsState.currentMap = null;
@@ -150,10 +158,14 @@ function createAirspaceMap(container, lat, lng) {
 
     var apiKey = (typeof API_KEYS !== 'undefined' && API_KEYS.OPENAIP) ? API_KEYS.OPENAIP : '';
     if (apiKey) {
-        L.tileLayer('https://api.tiles.openaip.net/api/data/airspaces/{z}/{x}/{y}.png?apiKey=' + apiKey, {
+        L.tileLayer('https://{s}.api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=' + apiKey, {
+            subdomains: 'abc',
             opacity: 0.7,
-            maxZoom: 14
+            minZoom: 7,
+            maxZoom: 18
         }).addTo(map);
+    } else {
+        console.warn('[Maps] No OpenAIP API key found. Airspace overlay will not load.');
     }
 
     addUserMarker(map, lat, lng);
