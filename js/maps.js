@@ -2,7 +2,7 @@
 // FieldVoice Pro - Maps Overlay (maps.js)
 //
 // Uses:
-// - ui-utils.js: getLocationFromCache
+// - ui-utils.js: getFreshLocation
 // - Leaflet.js (CDN) — satellite map only
 //
 // Weather Radar: Windy.com embed iframe
@@ -56,7 +56,7 @@ function clearAirspaceTimeout() {
     mapsState._airspaceLoaded = false;
 }
 
-function switchMap(type) {
+async function switchMap(type) {
     if (type === mapsState.currentType) return;
 
     // Clear airspace fallback timeout when switching tabs
@@ -72,7 +72,8 @@ function switchMap(type) {
     updateMapTabs(type);
     updateMapTitle(type);
 
-    var loc = getLocationFromCache();
+    // Always get fresh GPS so maps reflect the user's current position
+    var loc = await getFreshLocation();
     var lat = loc ? loc.lat : 39.8283;
     var lng = loc ? loc.lng : -98.5795;
 

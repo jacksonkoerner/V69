@@ -275,13 +275,13 @@ function getLocationFromCache(maxAgeMs = 60 * 60 * 1000) {
 }
 
 /**
- * Get fresh GPS location for weather sync.
+ * Get fresh GPS location for any feature (weather, maps, measure, etc.).
  * Always attempts a live GPS read when permission is granted,
- * so weather reflects the user's current position on every page.
+ * so every feature reflects the user's current position.
  * Falls back to cache only when the live read fails.
  * @returns {Promise<{lat: number, lng: number}|null>}
  */
-async function getFreshLocationForWeather() {
+async function getFreshLocation() {
     const granted = localStorage.getItem(STORAGE_KEYS.LOC_GRANTED) === 'true';
     if (!granted || !navigator.geolocation) return null;
 
@@ -312,10 +312,10 @@ async function getFreshLocationForWeather() {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
         cacheLocation(lat, lng);
-        console.log('[Weather] Got fresh location for weather');
+        console.log('[Location] Got fresh GPS position');
         return { lat, lng };
     } catch (geoError) {
-        console.warn('[Weather] Fresh location failed, falling back to cache:', geoError.message);
+        console.warn('[Location] Fresh GPS failed, falling back to cache:', geoError.message);
         if (geoError.code === 1) {
             // Permission denied
             clearCachedLocation();

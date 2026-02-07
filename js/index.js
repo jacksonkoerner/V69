@@ -488,7 +488,7 @@ async function syncWeather() {
         }
 
         // Always get fresh GPS for weather so it reflects current position
-        const freshLoc = await getFreshLocationForWeather();
+        const freshLoc = await getFreshLocation();
         if (!freshLoc) {
             console.log('[Weather] No location available, skipping weather sync');
             document.getElementById('weatherCondition').textContent = 'Location needed';
@@ -842,11 +842,12 @@ async function loadDroneOpsPanel() {
     panel.innerHTML = html;
 }
 
-function loadEmergencyPanel() {
+async function loadEmergencyPanel() {
     var panel = document.getElementById('emergencyPanel');
     if (!panel) return;
 
-    var loc = getLocationFromCache();
+    // Use fresh GPS for emergency — accuracy matters most here
+    var loc = await getFreshLocation() || getCachedLocation();
     var latStr = loc ? loc.lat.toFixed(6) : 'Unavailable';
     var lngStr = loc ? loc.lng.toFixed(6) : 'Unavailable';
     var mapsUrl = loc ? 'https://www.google.com/maps?q=' + loc.lat + ',' + loc.lng : '';
@@ -890,8 +891,9 @@ function loadEmergencyPanel() {
     panel.innerHTML = html;
 }
 
-function shareEmergencyLocation() {
-    var loc = getLocationFromCache();
+async function shareEmergencyLocation() {
+    // Use fresh GPS for emergency sharing — accuracy matters most here
+    var loc = await getFreshLocation() || getCachedLocation();
     if (!loc || !navigator.share) return;
     var url = 'https://www.google.com/maps?q=' + loc.lat + ',' + loc.lng;
     navigator.share({

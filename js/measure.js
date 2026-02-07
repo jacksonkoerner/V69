@@ -2,7 +2,7 @@
 // FieldVoice Pro - Distance Measure Tool (measure.js)
 //
 // Uses:
-// - ui-utils.js: getLocationFromCache
+// - ui-utils.js: getFreshLocation
 // - Leaflet.js (CDN)
 // ============================================================================
 
@@ -15,7 +15,7 @@ var measureState = {
     points: []
 };
 
-function openMeasure() {
+async function openMeasure() {
     var overlay = document.getElementById('measureOverlay');
     if (!overlay) return;
     overlay.classList.remove('hidden');
@@ -25,7 +25,8 @@ function openMeasure() {
     var panel = document.getElementById('emergencyPanel');
     if (panel) panel.classList.add('hidden');
 
-    var loc = getLocationFromCache();
+    // Always get fresh GPS so the measure tool centers on current position
+    var loc = await getFreshLocation();
     var lat = loc ? loc.lat : 39.8283;
     var lng = loc ? loc.lng : -98.5795;
 

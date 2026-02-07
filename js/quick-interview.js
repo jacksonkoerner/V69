@@ -3826,7 +3826,7 @@
         async function fetchWeather() {
             try {
                 // Always get fresh GPS for weather so it reflects current position
-                const freshLoc = await getFreshLocationForWeather();
+                const freshLoc = await getFreshLocation();
                 if (!freshLoc) {
                     console.log('[Weather] No location available, skipping weather fetch');
                     return;
