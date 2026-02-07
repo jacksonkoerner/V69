@@ -34,6 +34,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -329,6 +330,10 @@
                         <i class="fas fa-qrcode text-dot-blue"></i>
                         <span class="text-xs text-slate-500">QR Scan</span>
                     </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200">
+                        <i class="fas fa-camera-rotate text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">AR Tape</span>
+                    </div>
                     <!-- Set 2 (duplicate for seamless loop) -->
                     <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
                         <i class="fas fa-compass text-dot-blue"></i>
@@ -369,6 +374,10 @@
                     <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
                         <i class="fas fa-qrcode text-dot-blue"></i>
                         <span class="text-xs text-slate-500">QR Scan</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-1 w-16 shrink-0 py-2 bg-white rounded-lg border border-slate-200" aria-hidden="true">
+                        <i class="fas fa-camera-rotate text-dot-blue"></i>
+                        <span class="text-xs text-slate-500">AR Tape</span>
                     </div>
                 </div>
             </div>
@@ -844,6 +853,7 @@
     <script src="./js/timer.js"></script>
     <script src="./js/flashlight.js"></script>
     <script src="./js/qrscanner.js"></script>
+    <script src="./js/ar-measure.js"></script>
     <script src="./js/index.js"></script>
 
     <!-- Project Picker Modal -->
@@ -927,6 +937,10 @@
                 <button onclick="fieldToolAction(openQR)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
                     <i class="fas fa-qrcode text-dot-blue text-xl"></i>
                     <span class="text-sm font-medium text-slate-700">QR Scan</span>
+                </button>
+                <button onclick="fieldToolAction(openARMeasure)" class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3 active:bg-slate-50 transition-colors" style="min-height:56px;">
+                    <i class="fas fa-camera-rotate text-dot-blue text-xl"></i>
+                    <span class="text-sm font-medium text-slate-700">AR Tape</span>
                 </button>
             </div>
         </div>
@@ -1117,6 +1131,20 @@
         <div id="qrContent" class="flex-1 flex flex-col overflow-hidden"></div>
     </div>
 
+    <!-- AR Measure Overlay -->
+    <div id="arMeasureOverlay" class="hidden fixed inset-0 z-50 bg-white flex flex-col">
+        <!-- Top Bar -->
+        <div class="bg-dot-navy px-4 py-3 flex items-center justify-between shrink-0" style="padding-top: max(env(safe-area-inset-top), 12px);">
+            <button onclick="closeARMeasure()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+            <span class="text-white font-bold text-sm">AR Measure</span>
+            <div class="w-11"></div>
+        </div>
+        <!-- Content -->
+        <div id="arMeasureContent" class="flex-1 flex flex-col overflow-hidden"></div>
+    </div>
+
     <!-- AI Assistant Floating Button -->
     <div id="aiAssistantBtn" class="fixed z-[90] cursor-grab active:cursor-grabbing select-none" style="bottom: 70px; right: 16px;">
         <div class="w-14 h-14 rounded-full bg-dot-blue text-white shadow-lg flex items-center justify-center animate-pulse">
@@ -1295,7 +1323,7 @@
             var overlayIds = [
                 'mapsOverlay', 'compassOverlay', 'measureOverlay', 'calcOverlay',
                 'slopeOverlay', 'levelOverlay', 'decibelOverlay', 'timerOverlay',
-                'flashlightOverlay', 'qrOverlay', 'fieldToolsModal'
+                'flashlightOverlay', 'qrOverlay', 'arMeasureOverlay', 'fieldToolsModal'
             ];
             var observer = new MutationObserver(function() {
                 var anyOpen = overlayIds.some(function(id) {
