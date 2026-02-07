@@ -882,11 +882,11 @@ async function loadEmergencyPanel() {
         html += '</a>';
     }
 
-    // Nearest hospital placeholder
-    html += '<div class="bg-slate-50 rounded-lg p-3 text-center">';
-    html += '<i class="fas fa-hospital text-slate-400 mr-2"></i>';
-    html += '<span class="text-sm text-slate-500">Nearest hospital: searching...</span>';
-    html += '</div>';
+    // Find Nearest Hospital — opens Google Maps search (no API key needed)
+    var hospitalUrl = 'https://www.google.com/maps/search/hospital+near+me/';
+    html += '<a href="' + hospitalUrl + '" target="_blank" rel="noopener" class="block w-full bg-white border-2 border-red-300 hover:bg-red-50 text-red-700 text-center py-3 rounded-lg font-bold text-sm transition-colors">';
+    html += '<i class="fas fa-hospital mr-2"></i>Find Nearest Hospital';
+    html += '</a>';
 
     panel.innerHTML = html;
 }
