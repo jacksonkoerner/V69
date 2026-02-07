@@ -100,11 +100,6 @@ async function switchMap(type) {
                 '<iframe id="airspaceIframe" src="https://faa.maps.arcgis.com/apps/webappviewer/index.html?id=9c2e4406710048e19806ebf6a06754ad&center=' + lng + ',' + lat + '&level=12" ' +
                     'style="width:100%;height:100%;border:none;filter:invert(1) hue-rotate(180deg) brightness(0.9) contrast(1.1);" ' +
                     'allowfullscreen onload="onAirspaceIframeLoad()"></iframe>' +
-            '</div>' +
-            '<div id="airspaceOpenSkyBtn" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:10;">' +
-                '<button onclick="openFullAirspaceCheck()" style="background:#1e3a5f;color:white;font-weight:600;border-radius:0.5rem;padding:10px 20px;border:none;font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.3);display:flex;align-items:center;gap:8px;">' +
-                    '<i class="fas fa-up-right-from-square"></i> Open in OpenSky' +
-                '</button>' +
             '</div>';
         // Fallback: if iframe hasn't signaled success within 15s, show fallback card
         mapsState._airspaceTimeout = setTimeout(function() {
@@ -215,8 +210,4 @@ function showAirspaceFallback() {
                 '</button>' +
             '</div>' +
         '</div>';
-}
-
-function openFullAirspaceCheck() {
-    window.open('https://opensky.wing.com', '_blank');
 }
