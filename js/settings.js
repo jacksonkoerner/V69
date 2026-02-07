@@ -464,12 +464,12 @@ async function resetAllData() {
         console.log('[Nuclear Reset] All local data cleared. Redirecting to index...');
 
         // Hard reload to index.html
-        window.location.href = '/index.html';
+        window.location.href = './index.html';
 
     } catch (error) {
         console.error('[Nuclear Reset] Error during reset:', error);
         // Even if some steps fail, try to redirect
-        window.location.href = '/index.html';
+        window.location.href = './index.html';
     }
 }
 

@@ -1,7 +1,7 @@
 // FieldVoice Pro Service Worker
 // Enables offline functionality for PWA
 
-const CACHE_VERSION = 'v1.19.0';
+const CACHE_VERSION = 'v1.20.0';
 const CACHE_NAME = `fieldvoice-pro-${CACHE_VERSION}`;
 
 // Files to cache for offline use
@@ -29,16 +29,22 @@ const STATIC_ASSETS = [
     './icons/icon-192x192.png',
     './icons/icon-512x512.png',
     './icons/icon-192x192-maskable.png',
-    './icons/icon-512x512-maskable.png'
+    './icons/icon-512x512-maskable.png',
+    './css/output.css'
 ];
 
 // External CDN assets to cache
 const CDN_ASSETS = [
-    'https://cdn.tailwindcss.com',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.woff2',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-regular-400.woff2',
-    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-brands-400.woff2'
+    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-brands-400.woff2',
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+    'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 ];
 
 // API endpoints that need special offline handling

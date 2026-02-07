@@ -246,18 +246,8 @@ function viewPdf(reportId) {
         return;
     }
 
-    const modal = document.getElementById('pdfModal');
-    const viewer = document.getElementById('pdfViewer');
-    const title = document.getElementById('pdfTitle');
-
-    title.textContent = `${report.projectName} — ${formatDate(report.reportDate)}`;
-
-    // Use Google Docs viewer for reliable mobile PDF rendering
-    const encodedUrl = encodeURIComponent(report.pdfUrl);
-    viewer.src = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`;
-
-    modal.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
+    // Open PDF directly in a new tab — works in both browser and WebView
+    window.open(report.pdfUrl, '_blank');
 }
 
 function closePdfModal() {

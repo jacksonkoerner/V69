@@ -1,5 +1,17 @@
 {
+  "scripts": {
+    "build:css": "npx tailwindcss -i src/input.css -o css/output.css --minify",
+    "build:www": "rm -rf www && mkdir -p www/js www/css www/icons www/assets www/src && cp *.html www/ && cp -r js/* www/js/ && cp -r css/* www/css/ && cp -r icons/* www/icons/ && cp -r assets/* www/assets/ && cp manifest.json www/ && cp capacitor.config.json www/ 2>/dev/null; true",
+    "cap:sync": "npm run build:css && npm run build:www && npx cap sync"
+  },
   "devDependencies": {
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "tailwindcss": "^3.4.19"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.2",
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2",
+    "@capacitor/ios": "^8.0.2"
   }
 }
