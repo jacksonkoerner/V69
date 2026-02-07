@@ -43,22 +43,7 @@ async function openARMeasure() {
         if (saved) arMeasureState.log = JSON.parse(saved);
     } catch (e) { /* ignore */ }
 
-    // Check WebXR support
-    var supported = false;
-    try {
-        if (navigator.xr) {
-            supported = await navigator.xr.isSessionSupported('immersive-ar');
-        }
-    } catch (e) {
-        supported = false;
-    }
-
-    if (!supported) {
-        renderARFallback();
-        return;
-    }
-
-    // WebXR is supported — try to start AR session
+    // Try to start AR session directly — show fallback only if it actually fails
     try {
         await startARSession();
     } catch (e) {
