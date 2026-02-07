@@ -967,32 +967,51 @@
             <button onclick="closeMapsOverlay()" class="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-white">
                 <i class="fas fa-times text-lg"></i>
             </button>
-            <div class="flex flex-col items-center">
-                <span id="mapTitle" class="text-white font-bold text-sm">Weather Radar</span>
-                <div class="flex items-center gap-1.5 mt-1">
-                    <div id="mapDot-0" class="w-1.5 h-1.5 rounded-full bg-white"></div>
-                    <div id="mapDot-1" class="w-1.5 h-1.5 rounded-full bg-white/40"></div>
-                    <div id="mapDot-2" class="w-1.5 h-1.5 rounded-full bg-white/40"></div>
-                </div>
-            </div>
+            <span id="mapTitle" class="text-white font-bold text-sm">Weather Radar</span>
             <div class="w-11"></div>
         </div>
         <!-- Map Container -->
         <div id="mapContainer" class="flex-1 relative"></div>
-        <!-- Bottom Tabs -->
-        <div class="flex border-t border-slate-200 shrink-0" style="padding-bottom: env(safe-area-inset-bottom);">
-            <button id="mapTab-weather" onclick="switchMap('weather')" class="flex-1 py-2.5 flex flex-col items-center gap-0.5 bg-white text-dot-navy font-bold shadow-sm transition-colors">
-                <i class="fas fa-cloud-rain text-sm text-dot-navy"></i>
-                <span class="text-[10px] font-bold text-dot-navy">Weather</span>
-            </button>
-            <button id="mapTab-airspace" onclick="switchMap('airspace')" class="flex-1 py-2.5 flex flex-col items-center gap-0.5 bg-slate-100 text-slate-500 transition-colors">
-                <i class="fas fa-plane-up text-sm text-slate-400"></i>
-                <span class="text-[10px] font-medium text-slate-500">Airspace</span>
-            </button>
-            <button id="mapTab-satellite" onclick="switchMap('satellite')" class="flex-1 py-2.5 flex flex-col items-center gap-0.5 bg-slate-100 text-slate-500 transition-colors">
-                <i class="fas fa-satellite text-sm text-slate-400"></i>
-                <span class="text-[10px] font-medium text-slate-500">Satellite</span>
-            </button>
+        <!-- Bottom Scrollable Tab Row -->
+        <div class="bg-dot-navy shrink-0" style="padding-bottom: env(safe-area-inset-bottom);">
+            <div id="mapTabRow" class="flex gap-2 px-3 py-2 overflow-x-auto hide-scrollbar" style="scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;">
+                <button id="mapTab-weather" onclick="switchMap('weather')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-white text-dot-navy font-bold shadow-sm transition-colors" style="scroll-snap-align: start;">
+                    <i class="fas fa-cloud-rain text-xs"></i>
+                    <span class="text-[11px]">Weather</span>
+                </button>
+                <button id="mapTab-airspace" onclick="switchMap('airspace')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-slate-700/50 text-slate-300 transition-colors" style="scroll-snap-align: start;">
+                    <i class="fas fa-plane-up text-xs"></i>
+                    <span class="text-[11px]">Airspace</span>
+                </button>
+                <button id="mapTab-satellite" onclick="switchMap('satellite')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-slate-700/50 text-slate-300 transition-colors" style="scroll-snap-align: start;">
+                    <i class="fas fa-satellite text-xs"></i>
+                    <span class="text-[11px]">Satellite</span>
+                </button>
+                <button id="mapTab-topo" onclick="switchMap('topo')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-slate-700/50 text-slate-300 transition-colors" style="scroll-snap-align: start;">
+                    <i class="fas fa-mountain text-xs"></i>
+                    <span class="text-[11px]">Topo</span>
+                </button>
+                <button id="mapTab-soils" onclick="switchMap('soils')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-slate-700/50 text-slate-300 transition-colors" style="scroll-snap-align: start;">
+                    <i class="fas fa-mound text-xs"></i>
+                    <span class="text-[11px]">Soils</span>
+                </button>
+                <button id="mapTab-flood" onclick="switchMap('flood')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-slate-700/50 text-slate-300 transition-colors" style="scroll-snap-align: start;">
+                    <i class="fas fa-house-flood-water text-xs"></i>
+                    <span class="text-[11px]">Flood</span>
+                </button>
+                <button id="mapTab-parcels" onclick="switchMap('parcels')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-slate-700/50 text-slate-300 transition-colors" style="scroll-snap-align: start;">
+                    <i class="fas fa-vector-square text-xs"></i>
+                    <span class="text-[11px]">Parcels</span>
+                </button>
+                <button id="mapTab-historical" onclick="switchMap('historical')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-slate-700/50 text-slate-300 transition-colors" style="scroll-snap-align: start;">
+                    <i class="fas fa-clock-rotate-left text-xs"></i>
+                    <span class="text-[11px]">History</span>
+                </button>
+                <button id="mapTab-traffic" onclick="switchMap('traffic')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-slate-700/50 text-slate-300 transition-colors" style="scroll-snap-align: start;">
+                    <i class="fas fa-traffic-light text-xs"></i>
+                    <span class="text-[11px]">Traffic</span>
+                </button>
+            </div>
         </div>
     </div>
 
