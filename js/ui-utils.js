@@ -273,3 +273,55 @@ function getLocationFromCache(maxAgeMs = 60 * 60 * 1000) {
     }
     return null;
 }
+
+/**
+ * Get fresh GPS location for weather sync.
+ * Always attempts a live GPS read when permission is granted,
+ * so weather reflects the user's current position on every page.
+ * Falls back to cache only when the live read fails.
+ * @returns {Promise<{lat: number, lng: number}|null>}
+ */
+async function getFreshLocationForWeather() {
+    const granted = localStorage.getItem(STORAGE_KEYS.LOC_GRANTED) === 'true';
+    if (!granted || !navigator.geolocation) return null;
+
+    // Check browser permission to avoid triggering a prompt
+    let browserPermissionState = 'prompt';
+    if (navigator.permissions) {
+        try {
+            const result = await navigator.permissions.query({ name: 'geolocation' });
+            browserPermissionState = result.state;
+        } catch (e) {
+            // Permissions API not available
+        }
+    }
+
+    if (browserPermissionState !== 'granted') {
+        // Can't get fresh location without prompting — use cache as-is
+        return getCachedLocation();
+    }
+
+    try {
+        const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 60000 // accept readings up to 1 min old from the device
+            });
+        });
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        cacheLocation(lat, lng);
+        console.log('[Weather] Got fresh location for weather');
+        return { lat, lng };
+    } catch (geoError) {
+        console.warn('[Weather] Fresh location failed, falling back to cache:', geoError.message);
+        if (geoError.code === 1) {
+            // Permission denied
+            clearCachedLocation();
+            return null;
+        }
+        // Timeout or other error — fall back to any cached location (even stale)
+        return getCachedLocation();
+    }
+}

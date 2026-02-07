@@ -487,78 +487,16 @@ async function syncWeather() {
             return;
         }
 
-        // Try to get location - use cache first to avoid prompting user
-        let latitude, longitude;
-        const cachedLocation = getLocationFromCache();
-
-        if (cachedLocation) {
-            // Use cached location - no prompt needed
-            latitude = cachedLocation.lat;
-            longitude = cachedLocation.lng;
-            console.log('[Weather] Using cached location');
-        } else {
-            // No cached location - check if permission was granted
-            const granted = localStorage.getItem(STORAGE_KEYS.LOC_GRANTED) === 'true';
-            if (!granted) {
-                // Permission not granted - show message, don't prompt
-                console.log('[Weather] Location permission not granted, skipping weather sync');
-                document.getElementById('weatherCondition').textContent = 'Location needed';
-                document.getElementById('condBarWeatherIcon').className = 'fas fa-location-dot text-3xl text-slate-400';
-                return;
-            }
-
-            // Permission was granted but cache expired/cleared - check browser permission before requesting
-            if (!navigator.geolocation) {
-                throw { code: -1, message: 'Geolocation not supported' };
-            }
-
-            // Check browser's ACTUAL permission state to avoid prompting
-            let browserPermissionState = 'prompt';
-            if (navigator.permissions) {
-                try {
-                    const result = await navigator.permissions.query({ name: 'geolocation' });
-                    browserPermissionState = result.state;
-                    console.log(`[Weather] Browser permission state: ${browserPermissionState}`);
-                } catch (e) {
-                    console.warn('[Weather] Permissions API not available');
-                }
-            }
-
-            // Only call geolocation if browser permission is actually 'granted'
-            if (browserPermissionState !== 'granted') {
-                console.log('[Weather] Browser permission not granted, skipping weather sync');
-                document.getElementById('weatherCondition').textContent = 'Location needed';
-                document.getElementById('condBarWeatherIcon').className = 'fas fa-location-dot text-3xl text-slate-400';
-                return;
-            }
-
-            try {
-                const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(
-                        resolve,
-                        reject,
-                        { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 }
-                    );
-                });
-                latitude = position.coords.latitude;
-                longitude = position.coords.longitude;
-                // Update cache with fresh location
-                cacheLocation(latitude, longitude);
-                console.log('[Weather] Got fresh location and cached');
-            } catch (geoError) {
-                // Location failed - handle gracefully
-                if (geoError.code === 1) {
-                    // Permission denied - clear cached permission status
-                    clearCachedLocation();
-                    document.getElementById('weatherCondition').textContent = 'Location blocked';
-                    document.getElementById('condBarWeatherIcon').className = 'fas fa-location-crosshairs text-3xl text-red-500';
-                } else {
-                    document.getElementById('weatherCondition').textContent = 'GPS unavailable';
-                    document.getElementById('condBarWeatherIcon').className = 'fas fa-location-crosshairs text-3xl text-yellow-500';
-                }
-                return;
-            }
+        // Always get fresh GPS for weather so it reflects current position
+        const freshLoc = await getFreshLocationForWeather();
+        if (!freshLoc) {
+            console.log('[Weather] No location available, skipping weather sync');
+            document.getElementById('weatherCondition').textContent = 'Location needed';
+            document.getElementById('condBarWeatherIcon').className = 'fas fa-location-dot text-3xl text-slate-400';
+            return;
         }
+        const latitude = freshLoc.lat;
+        const longitude = freshLoc.lng;
 
         // Fetch weather data (extended with hourly wind/UV/humidity and daily sunrise/sunset)
         const response = await fetch(
