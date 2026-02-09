@@ -636,9 +636,10 @@
             };
 
             try {
-                // v6: Use saveCurrentReport for draft storage
+                // v6.9: UUID-only — no draft key fallback
+                if (!currentReportId) throw new Error('Cannot save: no report ID');
                 const reportData = {
-                    id: currentReportId || `draft_${activeProjectId}_${todayStr}`,
+                    id: currentReportId,
                     project_id: activeProjectId,
                     project_name: activeProject?.projectName || activeProject?.project_name || '',
                     date: todayStr,
@@ -661,32 +662,22 @@
          * Returns null if no valid draft exists for current project/date
          */
         function loadFromLocalStorage() {
-            const activeProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
-            const today = getTodayDateString();
-            const draftId = currentReportId || `draft_${activeProjectId}_${today}`;
+            if (!currentReportId) return null;
 
             try {
-                // v6: Use getCurrentReport to load draft
-                const storedReport = getCurrentReport(draftId);
+                // v6.9: UUID-only lookup — no draft key fallback
+                const storedReport = getCurrentReport(currentReportId);
                 if (!storedReport) return null;
 
                 // Extract draft data from stored report
                 const data = storedReport._draft_data;
                 if (!data) return null;
 
-                // Verify it's for the same project and date
-                if (data.projectId !== activeProjectId || data.reportDate !== today) {
-                    // Different project or date - clear old draft
-                    console.log('[LOCAL] Draft is for different project/date, clearing');
-                    deleteCurrentReport(draftId);
-                    return null;
-                }
-
                 console.log('[LOCAL] Found valid draft from', data.lastSaved);
                 return data;
             } catch (e) {
                 console.error('[LOCAL] Failed to parse stored draft:', e);
-                deleteCurrentReport(draftId);
+                deleteCurrentReport(currentReportId);
                 return null;
             }
         }
@@ -805,47 +796,37 @@
          * Also removes from offline queue if present
          */
         function clearLocalStorageDraft() {
-            const activeProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
-            const todayStr = getTodayDateString();
-            const draftId = currentReportId || `draft_${activeProjectId}_${todayStr}`;
+            if (!currentReportId) {
+                console.warn('[LOCAL] No currentReportId — nothing to clear');
+                return;
+            }
 
-            // v6: Use deleteCurrentReport to clear draft
-            deleteCurrentReport(draftId);
+            // v6.9: UUID-only — delete by currentReportId
+            deleteCurrentReport(currentReportId);
 
             // v6: Sync queue is now managed by sync-manager.js
             // The processOfflineQueue() function handles cleanup automatically
             console.log('[LOCAL] Draft cleared from localStorage');
         }
 
-        // Update localStorage report to 'refined' status (instead of deleting)
-        // v6.6.1: Preserve existing draft data for swipe-out recovery
+        // v6.9: Update localStorage report to 'refined' status — UUID-only
         function updateLocalReportToRefined() {
-            const todayStr = getTodayDateString();
-            const draftKey = `draft_${activeProject?.id}_${todayStr}`;
-            const reportId = currentReportId || draftKey;
+            if (!currentReportId) throw new Error('Cannot update to refined: no report ID');
 
-            // Get existing report data to preserve _draft_data
-            // Try the draft key first (has the full data), then the reportId
-            const existingReport = getCurrentReport(draftKey) || getCurrentReport(reportId) || {};
+            const existingReport = getCurrentReport(currentReportId) || {};
 
             saveCurrentReport({
-                ...existingReport,  // Preserve existing data including _draft_data
-                id: reportId,
+                ...existingReport,
+                id: currentReportId,
                 project_id: activeProject?.id,
                 project_name: activeProject?.projectName || activeProject?.project_name,
-                date: todayStr,
-                report_date: todayStr,
+                date: getTodayDateString(),
+                report_date: getTodayDateString(),
                 status: 'refined',
                 created_at: existingReport.created_at || report.meta?.createdAt || new Date().toISOString()
             });
 
-            // v6.6.1: If we have a real Supabase ID, delete the old draft key to prevent duplicates
-            if (currentReportId && currentReportId !== draftKey) {
-                deleteCurrentReport(draftKey);
-                console.log('[LOCAL] Deleted old draft key:', draftKey);
-            }
-
-            console.log('[LOCAL] Report updated to refined status in localStorage (draft data preserved)');
+            console.log('[LOCAL] Report updated to refined status in localStorage');
         }
 
         // autoExpand(), initAutoExpand(), initAllAutoExpandTextareas() moved to /js/ui-utils.js
@@ -1106,21 +1087,21 @@
                 confirmBtn.disabled = true;
                 confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
 
-                // Get the correct draft ID (same pattern as saveToLocalStorage)
-                const activeProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
-                const todayStr = getTodayDateString();
-                const draftId = currentReportId || `draft_${activeProjectId}_${todayStr}`;
+                if (!currentReportId) throw new Error('No report ID — cannot cancel');
 
                 // Delete from Supabase only if we have a real Supabase ID (UUID format, 36 chars)
-                if (currentReportId && currentReportId.length === 36) {
+                if (currentReportId.length === 36) {
                     await deleteReportFromSupabase(currentReportId);
                 }
 
-                // Always delete from localStorage using the correct key
-                deleteCurrentReport(draftId);
+                // v6.9: UUID-only — delete by currentReportId
+                deleteCurrentReport(currentReportId);
+
+                // Also delete orphaned report data (fvp_report_{id})
+                deleteReportData(currentReportId);
 
                 // Clear any sync queue items for this report
-                clearSyncQueueForReport(draftId);
+                clearSyncQueueForReport(currentReportId);
 
                 // Reset local state
                 currentReportId = null;
@@ -2507,27 +2488,17 @@
                     console.warn('[LOCAL] Failed to save report package to localStorage');
                 }
 
-                // v6.6.3: Update fvp_current_reports so dashboard can find this refined report
-                const currentReports = JSON.parse(localStorage.getItem('fvp_current_reports') || '{}');
-                currentReports[currentReportId] = {
+                // v6.9: Use saveCurrentReport helper (sets updated_at, validates)
+                saveCurrentReport({
                     id: currentReportId,
                     project_id: activeProject?.id,
                     project_name: activeProject?.projectName || activeProject?.project_name,
                     date: todayStr,
                     report_date: todayStr,
                     status: 'refined',
-                    created_at: report.meta?.createdAt ? new Date(report.meta.createdAt).getTime() : Date.now(),
-                    lastSaved: new Date().toISOString()
-                };
-                localStorage.setItem('fvp_current_reports', JSON.stringify(currentReports));
+                    created_at: report.meta?.createdAt ? new Date(report.meta.createdAt).getTime() : Date.now()
+                });
                 console.log('[LOCAL] Updated fvp_current_reports with refined status:', currentReportId);
-
-                // Clean up old draft key if we have a real Supabase ID
-                const draftKey = `draft_${activeProject?.id}_${todayStr}`;
-                if (currentReportId && currentReportId !== draftKey) {
-                    deleteCurrentReport(draftKey);
-                    console.log('[LOCAL] Cleaned up old draft key:', draftKey);
-                }
 
                 // Release the lock before navigating away
                 if (window.lockManager) {
@@ -3686,8 +3657,9 @@
                 const todayStr = getTodayDateString();
 
                 // 1. Upsert the main report record
-                // v6.6.16: Priority: 1) existing currentReportId, 2) URL param, 3) generate new
-                const reportId = currentReportId || getReportIdFromUrl() || generateId();
+                // v6.9: UUID-only — hard error if no report ID
+                if (!currentReportId) throw new Error('No report ID — cannot save to Supabase');
+                const reportId = currentReportId;
 
                 const reportData = {
                     id: reportId,
@@ -5261,27 +5233,17 @@
                     console.warn('[LOCAL] Failed to save report package to localStorage');
                 }
 
-                // v6.6.3: Update fvp_current_reports so dashboard can find this refined report
-                const currentReports = JSON.parse(localStorage.getItem('fvp_current_reports') || '{}');
-                currentReports[currentReportId] = {
+                // v6.9: Use saveCurrentReport helper (sets updated_at, validates)
+                saveCurrentReport({
                     id: currentReportId,
                     project_id: activeProject?.id,
                     project_name: activeProject?.projectName || activeProject?.project_name,
                     date: todayStr,
                     report_date: todayStr,
                     status: 'refined',
-                    created_at: report.meta?.createdAt ? new Date(report.meta.createdAt).getTime() : Date.now(),
-                    lastSaved: new Date().toISOString()
-                };
-                localStorage.setItem('fvp_current_reports', JSON.stringify(currentReports));
+                    created_at: report.meta?.createdAt ? new Date(report.meta.createdAt).getTime() : Date.now()
+                });
                 console.log('[LOCAL] Updated fvp_current_reports with refined status:', currentReportId);
-
-                // Clean up old draft key if we have a real Supabase ID
-                const draftKey = `draft_${activeProject?.id}_${todayStr}`;
-                if (currentReportId && currentReportId !== draftKey) {
-                    deleteCurrentReport(draftKey);
-                    console.log('[LOCAL] Cleaned up old draft key:', draftKey);
-                }
 
                 // Release the lock before navigating away
                 if (window.lockManager) {
@@ -5432,10 +5394,10 @@
                     console.log('[QUICK-INTERVIEW] Using reportId from URL:', currentReportId);
                 }
 
-                // If still no reportId, generate one now
+                // If still no reportId, generate one now (shouldn't happen — index.js always passes ?reportId)
                 if (!currentReportId) {
                     currentReportId = generateId();
-                    console.log('[QUICK-INTERVIEW] Generated new reportId:', currentReportId);
+                    console.warn('[QUICK-INTERVIEW] No reportId in URL — generated fallback:', currentReportId);
                 }
 
                 // LOCALSTORAGE-FIRST: Check if we have a localStorage draft with unsaved changes
