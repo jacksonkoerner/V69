@@ -891,6 +891,39 @@
         </div>
     </div>
 
+    <!-- Duplicate Report Modal -->
+    <div id="duplicateReportModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white max-w-sm w-full shadow-xl">
+            <!-- Header -->
+            <div class="bg-dot-orange p-4">
+                <div class="flex items-center gap-3 text-white">
+                    <i class="fas fa-exclamation-triangle text-white"></i>
+                    <h3 class="font-bold uppercase tracking-wider">Report Already Exists</h3>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div class="p-5">
+                <p id="duplicateReportMessage" class="text-sm text-slate-700 leading-relaxed mb-6"></p>
+
+                <div class="flex flex-col gap-3">
+                    <button id="duplicateGoToReportBtn" class="w-full p-3 bg-dot-blue hover:bg-dot-navy text-white font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2">
+                        <i class="fas fa-arrow-right"></i>
+                        Go to Report
+                    </button>
+                    <button id="duplicateDeleteAndNewBtn" class="w-full p-3 bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2">
+                        <i class="fas fa-trash"></i>
+                        Delete & Start Fresh
+                    </button>
+                    <button id="duplicateCancelBtn" class="w-full p-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2">
+                        <i class="fas fa-times"></i>
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Field Tools Modal -->
     <div id="fieldToolsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center" onclick="closeFieldToolsModal()">
         <div class="absolute inset-0 bg-black/50"></div>

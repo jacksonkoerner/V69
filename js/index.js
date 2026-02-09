@@ -213,7 +213,23 @@ function beginDailyReport() {
 }
 
 function continueDailyReport() {
-    // v6.6.16: Generate reportId here and pass via URL
+    // v6.9: Duplicate check before proceeding
+    const activeProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
+    if (activeProjectId) {
+        const today = getTodayDateString();
+        const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
+        const existing = Object.values(reports).find(
+            r => r.project_id === activeProjectId &&
+                 r.date === today &&
+                 r.status !== REPORT_STATUS.SUBMITTED
+        );
+        if (existing) {
+            const projectName = existing.project_name || activeProjectCache?.projectName || 'this project';
+            showDuplicateReportModal(projectName, today, existing.id, activeProjectId);
+            return;
+        }
+    }
+
     const newReportId = crypto.randomUUID();
     window.location.href = `quick-interview.html?reportId=${newReportId}`;
 }
@@ -349,11 +365,105 @@ async function selectProjectAndProceed(projectId) {
     // Update the active project card on dashboard (visible when they return)
     updateActiveProjectCard();
 
-    // Close modal and proceed
+    // Close project picker modal
     closeProjectPickerModal();
-    // v6.6.16: Generate reportId here and pass via URL
+
+    // v6.9: Duplicate report check — look for existing report for this project + today
+    const today = getTodayDateString();
+    const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
+    const existing = Object.values(reports).find(
+        r => r.project_id === projectId &&
+             r.date === today &&
+             r.status !== REPORT_STATUS.SUBMITTED
+    );
+
+    if (existing) {
+        // Show duplicate report dialog
+        const projectName = existing.project_name || activeProjectCache?.projectName || 'this project';
+        showDuplicateReportModal(projectName, today, existing.id, projectId);
+        return;
+    }
+
+    // No duplicate — proceed with new UUID
     const newReportId = crypto.randomUUID();
     window.location.href = `quick-interview.html?reportId=${newReportId}`;
+}
+
+// ============ DUPLICATE REPORT CHECK ============
+function showDuplicateReportModal(projectName, date, existingReportId, projectId) {
+    const modal = document.getElementById('duplicateReportModal');
+    const messageEl = document.getElementById('duplicateReportMessage');
+    const goBtn = document.getElementById('duplicateGoToReportBtn');
+    const deleteBtn = document.getElementById('duplicateDeleteAndNewBtn');
+    const cancelBtn = document.getElementById('duplicateCancelBtn');
+
+    // Format date for display
+    const displayDate = formatDate(date, 'short');
+    messageEl.textContent = `You already have a report in progress for ${projectName} on ${displayDate}. Go to that report, or delete it and start fresh?`;
+
+    // Wire up buttons
+    goBtn.onclick = () => {
+        closeDuplicateReportModal();
+        window.location.href = `quick-interview.html?reportId=${existingReportId}`;
+    };
+
+    deleteBtn.onclick = async () => {
+        // Show loading state
+        deleteBtn.disabled = true;
+        deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
+
+        try {
+            // Delete from Supabase if it exists (UUID format, 36 chars)
+            if (existingReportId && existingReportId.length === 36 && typeof supabaseClient !== 'undefined' && supabaseClient) {
+                try {
+                    // Delete report entries
+                    await supabaseClient.from('report_entries').delete().eq('report_id', existingReportId);
+                    // Delete photos
+                    await supabaseClient.from('photos').delete().eq('report_id', existingReportId);
+                    // Delete raw capture data
+                    await supabaseClient.from('raw_capture_data').delete().eq('report_id', existingReportId);
+                    // Delete the report itself
+                    await supabaseClient.from('reports').delete().eq('id', existingReportId);
+                    console.log('[DUPLICATE] Deleted existing report from Supabase:', existingReportId);
+                } catch (e) {
+                    console.warn('[DUPLICATE] Supabase delete failed (continuing):', e);
+                }
+            }
+
+            // Delete from localStorage: fvp_current_reports entry
+            deleteCurrentReport(existingReportId);
+            // Delete orphaned report data: fvp_report_{uuid}
+            deleteReportData(existingReportId);
+            console.log('[DUPLICATE] Deleted existing report from localStorage:', existingReportId);
+
+            closeDuplicateReportModal();
+
+            // Proceed with new UUID
+            const newReportId = crypto.randomUUID();
+            window.location.href = `quick-interview.html?reportId=${newReportId}`;
+        } catch (e) {
+            console.error('[DUPLICATE] Error deleting report:', e);
+            deleteBtn.disabled = false;
+            deleteBtn.innerHTML = '<i class="fas fa-trash mr-2"></i>Delete & Start Fresh';
+            alert('Failed to delete existing report. Please try again.');
+        }
+    };
+
+    cancelBtn.onclick = () => {
+        closeDuplicateReportModal();
+    };
+
+    modal.classList.remove('hidden');
+}
+
+function closeDuplicateReportModal() {
+    const modal = document.getElementById('duplicateReportModal');
+    modal.classList.add('hidden');
+
+    // Reset delete button state
+    const deleteBtn = document.getElementById('duplicateDeleteAndNewBtn');
+    deleteBtn.disabled = false;
+    deleteBtn.innerHTML = '<i class="fas fa-trash mr-2"></i>Delete & Start Fresh';
 }
 
 function goToProjectSetup() {
