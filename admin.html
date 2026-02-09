@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>FieldVoice Pro - Admin Dashboard</title>
+
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" type="image/x-icon" href="./assets/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png">
+    <meta name="theme-color" content="#0a1628">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./js/config.js"></script>
+    <link rel="stylesheet" href="./css/output.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .header-stripe {
+            background: repeating-linear-gradient(-45deg, #f59e0b, #f59e0b 10px, #0a1628 10px, #0a1628 20px);
+            height: 4px;
+            padding-top: env(safe-area-inset-top);
+        }
+        .stat-card {
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .stat-card:active {
+            transform: scale(0.97);
+        }
+        .tab-btn.active {
+            color: #1e3a5f;
+            border-bottom: 3px solid #1e3a5f;
+            font-weight: 700;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .pulse-dot {
+            animation: pulse-green 2s ease-in-out infinite;
+        }
+        @keyframes pulse-green {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .table-row:nth-child(even) { background: #f8fafc; }
+        .table-row:hover { background: #f1f5f9; }
+        .skeleton {
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+    <!-- Safety Stripe Header -->
+    <div class="header-stripe"></div>
+
+    <div class="max-w-lg mx-auto min-h-screen flex flex-col pb-20">
+
+        <!-- HEADER -->
+        <header class="bg-dot-navy text-white p-4">
+            <div class="flex justify-between items-start">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <i class="fas fa-shield-halved text-dot-yellow"></i>
+                        <span class="text-[10px] font-bold tracking-widest text-dot-yellow">ADMIN DASHBOARD</span>
+                    </div>
+                    <h1 class="text-xl font-bold tracking-tight">System Overview</h1>
+                    <p id="adminDate" class="text-xs text-slate-400 mt-1"></p>
+                </div>
+                <div class="flex gap-2">
+                    <a href="index.html" class="w-10 h-10 border border-slate-600 flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-colors" title="Home">
+                        <i class="fas fa-home"></i>
+                    </a>
+                    <button onclick="refreshAll()" class="w-10 h-10 border border-slate-600 flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition-colors" title="Refresh" id="refreshBtn">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- SYSTEM HEALTH BAR -->
+        <div id="healthBar" class="bg-safety-green text-white px-4 py-2 flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-white pulse-dot"></div>
+            <span class="text-xs font-bold">SUPABASE CONNECTED</span>
+            <span id="healthLatency" class="text-xs text-white/70 ml-auto">--ms</span>
+        </div>
+
+        <!-- STATS GRID -->
+        <section class="px-4 mt-4 mb-4">
+            <div class="grid grid-cols-3 gap-3">
+                <!-- Total Reports -->
+                <div class="stat-card bg-white rounded-lg p-3 border-t-4 border-dot-blue cursor-pointer" onclick="switchTab('reports')">
+                    <div class="flex items-center gap-1.5 mb-2">
+                        <i class="fas fa-clipboard-list text-dot-blue text-xs"></i>
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Reports</span>
+                    </div>
+                    <p id="statReports" class="text-2xl font-black text-dot-navy leading-none">--</p>
+                    <p id="statReportsSub" class="text-[10px] text-slate-400 mt-1">loading...</p>
+                </div>
+                <!-- Active Projects -->
+                <div class="stat-card bg-white rounded-lg p-3 border-t-4 border-dot-yellow cursor-pointer" onclick="switchTab('projects')">
+                    <div class="flex items-center gap-1.5 mb-2">
+                        <i class="fas fa-folder-open text-dot-yellow text-xs"></i>
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Projects</span>
+                    </div>
+                    <p id="statProjects" class="text-2xl font-black text-dot-navy leading-none">--</p>
+                    <p id="statProjectsSub" class="text-[10px] text-slate-400 mt-1">loading...</p>
+                </div>
+                <!-- User Profiles -->
+                <div class="stat-card bg-white rounded-lg p-3 border-t-4 border-safety-green cursor-pointer" onclick="switchTab('users')">
+                    <div class="flex items-center gap-1.5 mb-2">
+                        <i class="fas fa-users text-safety-green text-xs"></i>
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Users</span>
+                    </div>
+                    <p id="statUsers" class="text-2xl font-black text-dot-navy leading-none">--</p>
+                    <p id="statUsersSub" class="text-[10px] text-slate-400 mt-1">loading...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECONDARY STATS ROW -->
+        <section class="px-4 mb-4">
+            <div class="grid grid-cols-3 gap-3">
+                <div class="bg-white rounded-lg p-3">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase">AI Responses</span>
+                    <p id="statAI" class="text-lg font-bold text-dot-navy">--</p>
+                </div>
+                <div class="bg-white rounded-lg p-3">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase">Photos</span>
+                    <p id="statPhotos" class="text-lg font-bold text-dot-navy">--</p>
+                </div>
+                <div class="bg-white rounded-lg p-3">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase">Submissions</span>
+                    <p id="statSubmissions" class="text-lg font-bold text-dot-navy">--</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB NAVIGATION -->
+        <div class="px-4 mb-0">
+            <div class="flex bg-white rounded-t-lg overflow-hidden border-b border-slate-200">
+                <button class="tab-btn active flex-1 py-3 text-xs font-medium text-slate-500 border-b-3 border-transparent text-center" data-tab="reports" onclick="switchTab('reports')">
+                    <i class="fas fa-clipboard-list mr-1"></i>Reports
+                </button>
+                <button class="tab-btn flex-1 py-3 text-xs font-medium text-slate-500 border-b-3 border-transparent text-center" data-tab="projects" onclick="switchTab('projects')">
+                    <i class="fas fa-folder-open mr-1"></i>Projects
+                </button>
+                <button class="tab-btn flex-1 py-3 text-xs font-medium text-slate-500 border-b-3 border-transparent text-center" data-tab="users" onclick="switchTab('users')">
+                    <i class="fas fa-users mr-1"></i>Users
+                </button>
+                <button class="tab-btn flex-1 py-3 text-xs font-medium text-slate-500 border-b-3 border-transparent text-center" data-tab="system" onclick="switchTab('system')">
+                    <i class="fas fa-server mr-1"></i>System
+                </button>
+            </div>
+        </div>
+
+        <!-- TAB CONTENT -->
+        <div class="px-4">
+            <!-- REPORTS TAB -->
+            <div id="tab-reports" class="tab-content active bg-white rounded-b-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-dot-navy">All Reports</h3>
+                    <div class="flex gap-2">
+                        <select id="reportStatusFilter" onchange="filterReports()" class="text-xs border border-slate-300 rounded px-2 py-1">
+                            <option value="all">All Status</option>
+                            <option value="draft">Draft</option>
+                            <option value="refined">Refined</option>
+                            <option value="submitted">Submitted</option>
+                            <option value="finalized">Finalized</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="reportsList" class="space-y-2 max-h-96 overflow-y-auto">
+                    <div class="skeleton h-16 w-full mb-2"></div>
+                    <div class="skeleton h-16 w-full mb-2"></div>
+                    <div class="skeleton h-16 w-full"></div>
+                </div>
+            </div>
+
+            <!-- PROJECTS TAB -->
+            <div id="tab-projects" class="tab-content bg-white rounded-b-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-dot-navy">All Projects</h3>
+                    <span id="projectCount" class="text-xs text-slate-400"></span>
+                </div>
+                <div id="projectsList" class="space-y-2 max-h-96 overflow-y-auto">
+                    <div class="skeleton h-20 w-full mb-2"></div>
+                    <div class="skeleton h-20 w-full"></div>
+                </div>
+            </div>
+
+            <!-- USERS TAB -->
+            <div id="tab-users" class="tab-content bg-white rounded-b-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-dot-navy">User Profiles</h3>
+                    <span id="userCount" class="text-xs text-slate-400"></span>
+                </div>
+                <div id="usersList" class="space-y-2 max-h-96 overflow-y-auto">
+                    <div class="skeleton h-16 w-full mb-2"></div>
+                    <div class="skeleton h-16 w-full"></div>
+                </div>
+            </div>
+
+            <!-- SYSTEM TAB -->
+            <div id="tab-system" class="tab-content bg-white rounded-b-lg p-4">
+                <h3 class="text-sm font-bold text-dot-navy mb-3">System Health</h3>
+
+                <!-- Connection Status -->
+                <div class="border border-slate-200 rounded-lg p-3 mb-3">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div id="sysConnDot" class="w-3 h-3 rounded-full bg-safety-green pulse-dot"></div>
+                        <span class="text-sm font-bold text-dot-navy">Supabase Connection</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                            <span class="text-slate-400">URL</span>
+                            <p class="text-slate-700 truncate font-mono text-[10px]" id="sysUrl">--</p>
+                        </div>
+                        <div>
+                            <span class="text-slate-400">Latency</span>
+                            <p class="text-slate-700 font-mono" id="sysLatency">--</p>
+                        </div>
+                        <div>
+                            <span class="text-slate-400">Project Ref</span>
+                            <p class="text-slate-700 font-mono text-[10px]" id="sysRef">--</p>
+                        </div>
+                        <div>
+                            <span class="text-slate-400">Status</span>
+                            <p id="sysStatus" class="text-safety-green font-bold">--</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table Sizes -->
+                <div class="border border-slate-200 rounded-lg p-3 mb-3">
+                    <h4 class="text-xs font-bold text-dot-navy mb-2">
+                        <i class="fas fa-database mr-1"></i>Table Row Counts
+                    </h4>
+                    <div id="tableStats" class="space-y-1.5">
+                        <div class="skeleton h-4 w-full"></div>
+                        <div class="skeleton h-4 w-full"></div>
+                        <div class="skeleton h-4 w-full"></div>
+                    </div>
+                </div>
+
+                <!-- Storage -->
+                <div class="border border-slate-200 rounded-lg p-3 mb-3">
+                    <h4 class="text-xs font-bold text-dot-navy mb-2">
+                        <i class="fas fa-hard-drive mr-1"></i>Storage
+                    </h4>
+                    <div id="storageStats" class="text-xs text-slate-500">
+                        <div class="skeleton h-4 w-3/4"></div>
+                    </div>
+                </div>
+
+                <!-- localStorage -->
+                <div class="border border-slate-200 rounded-lg p-3">
+                    <h4 class="text-xs font-bold text-dot-navy mb-2">
+                        <i class="fas fa-box mr-1"></i>localStorage Keys
+                    </h4>
+                    <div id="localStorageInfo" class="text-xs text-slate-500">
+                        Counting...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- QUICK ACTIONS -->
+        <section class="px-4 mt-4">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Quick Actions</p>
+            <div class="grid grid-cols-2 gap-3">
+                <a href="admin-debug.html" class="bg-white rounded-lg p-3 flex items-center gap-3 border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <div class="w-9 h-9 bg-dot-orange flex items-center justify-center rounded-lg shrink-0">
+                        <i class="fas fa-bug text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-dot-navy">Debug Tools</p>
+                        <p class="text-[10px] text-slate-400">Advanced admin</p>
+                    </div>
+                </a>
+                <a href="project-config.html" class="bg-white rounded-lg p-3 flex items-center gap-3 border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <div class="w-9 h-9 bg-dot-blue flex items-center justify-center rounded-lg shrink-0">
+                        <i class="fas fa-cog text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-dot-navy">Project Config</p>
+                        <p class="text-[10px] text-slate-400">Manage projects</p>
+                    </div>
+                </a>
+                <a href="archives.html" class="bg-white rounded-lg p-3 flex items-center gap-3 border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <div class="w-9 h-9 bg-dot-slate flex items-center justify-center rounded-lg shrink-0">
+                        <i class="fas fa-archive text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-dot-navy">Archives</p>
+                        <p class="text-[10px] text-slate-400">Past reports</p>
+                    </div>
+                </a>
+                <a href="settings.html" class="bg-white rounded-lg p-3 flex items-center gap-3 border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <div class="w-9 h-9 bg-dot-navy flex items-center justify-center rounded-lg shrink-0">
+                        <i class="fas fa-sliders text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-dot-navy">Settings</p>
+                        <p class="text-[10px] text-slate-400">App configuration</p>
+                    </div>
+                </a>
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer class="mt-auto py-4 text-center">
+            <p class="text-[10px] text-slate-400">FieldVoice Pro v6.9 • Admin Dashboard</p>
+            <p class="text-[10px] text-slate-300 mt-1">Supabase: bdqfpemylkqnmeqaoere</p>
+        </footer>
+    </div>
+
+    <script>
+    // ── State ──
+    let allReports = [];
+    let allProjects = [];
+    let allUsers = [];
+
+    // ── Init ──
+    document.addEventListener('DOMContentLoaded', async () => {
+        document.getElementById('adminDate').textContent = new Date().toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
+        await refreshAll();
+    });
+
+    // ── Refresh Everything ──
+    async function refreshAll() {
+        const btn = document.getElementById('refreshBtn');
+        btn.querySelector('i').classList.add('animate-spin');
+
+        try {
+            await Promise.all([
+                checkHealth(),
+                loadStats(),
+                loadReports(),
+                loadProjects(),
+                loadUsers(),
+                loadSystemInfo()
+            ]);
+        } catch (e) {
+            console.error('Refresh error:', e);
+        }
+
+        btn.querySelector('i').classList.remove('animate-spin');
+    }
+
+    // ── Health Check ──
+    async function checkHealth() {
+        const bar = document.getElementById('healthBar');
+        const start = performance.now();
+        try {
+            const { data, error } = await supabaseClient.from('projects').select('id', { count: 'exact', head: true });
+            const latency = Math.round(performance.now() - start);
+            document.getElementById('healthLatency').textContent = latency + 'ms';
+
+            if (error) throw error;
+            bar.className = 'bg-safety-green text-white px-4 py-2 flex items-center gap-2';
+            bar.querySelector('span:first-of-type').textContent = 'SUPABASE CONNECTED';
+        } catch (e) {
+            bar.className = 'bg-red-600 text-white px-4 py-2 flex items-center gap-2';
+            bar.querySelector('span:first-of-type').textContent = 'CONNECTION ERROR';
+            document.getElementById('healthLatency').textContent = 'ERR';
+        }
+    }
+
+    // ── Load Stats ──
+    async function loadStats() {
+        try {
+            const [reports, projects, users, ai, photos, subs] = await Promise.all([
+                supabaseClient.from('reports').select('id, status', { count: 'exact' }),
+                supabaseClient.from('projects').select('id', { count: 'exact' }),
+                supabaseClient.from('user_profiles').select('id', { count: 'exact' }),
+                supabaseClient.from('ai_responses').select('id', { count: 'exact', head: true }),
+                supabaseClient.from('photos').select('id', { count: 'exact', head: true }),
+                supabaseClient.from('report_submissions').select('id', { count: 'exact', head: true }),
+            ]);
+
+            const reportCount = reports.data?.length || 0;
+            const draftCount = reports.data?.filter(r => r.status === 'draft').length || 0;
+            const submittedCount = reports.data?.filter(r => r.status === 'submitted' || r.status === 'finalized').length || 0;
+
+            document.getElementById('statReports').textContent = reportCount;
+            document.getElementById('statReportsSub').textContent = `${draftCount} draft, ${submittedCount} final`;
+
+            document.getElementById('statProjects').textContent = projects.data?.length || 0;
+            document.getElementById('statProjectsSub').textContent = 'active projects';
+
+            document.getElementById('statUsers').textContent = users.data?.length || 0;
+            document.getElementById('statUsersSub').textContent = 'registered';
+
+            document.getElementById('statAI').textContent = ai.count || 0;
+            document.getElementById('statPhotos').textContent = photos.count || 0;
+            document.getElementById('statSubmissions').textContent = subs.count || 0;
+        } catch (e) {
+            console.error('Stats error:', e);
+        }
+    }
+
+    // ── Load Reports ──
+    async function loadReports() {
+        try {
+            const { data, error } = await supabaseClient
+                .from('reports')
+                .select(`id, report_date, status, inspector_name, created_at, weather_conditions, projects (project_name)`)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            allReports = data || [];
+            renderReports(allReports);
+        } catch (e) {
+            document.getElementById('reportsList').innerHTML = `<p class="text-red-500 text-sm">Error loading reports: ${e.message}</p>`;
+        }
+    }
+
+    function renderReports(reports) {
+        const el = document.getElementById('reportsList');
+        if (!reports.length) {
+            el.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">No reports found</p>';
+            return;
+        }
+        el.innerHTML = reports.map(r => {
+            const statusColors = {
+                draft: 'bg-slate-200 text-slate-700',
+                refined: 'bg-blue-100 text-blue-700',
+                submitted: 'bg-amber-100 text-amber-700',
+                finalized: 'bg-green-100 text-green-700'
+            };
+            const color = statusColors[r.status] || 'bg-slate-200 text-slate-700';
+            return `
+                <div class="table-row border border-slate-100 rounded-lg p-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-bold text-dot-navy truncate">${r.projects?.project_name || 'Unknown Project'}</p>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-[10px] text-slate-400"><i class="fas fa-calendar mr-1"></i>${r.report_date || 'No date'}</span>
+                                <span class="text-[10px] text-slate-400"><i class="fas fa-user mr-1"></i>${r.inspector_name || 'Unknown'}</span>
+                            </div>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded ${color} whitespace-nowrap ml-2">${r.status || 'draft'}</span>
+                    </div>
+                    <div class="text-[9px] text-slate-300 mt-1 font-mono truncate">${r.id}</div>
+                </div>`;
+        }).join('');
+    }
+
+    function filterReports() {
+        const filter = document.getElementById('reportStatusFilter').value;
+        if (filter === 'all') {
+            renderReports(allReports);
+        } else {
+            renderReports(allReports.filter(r => r.status === filter));
+        }
+    }
+
+    // ── Load Projects ──
+    async function loadProjects() {
+        try {
+            const { data, error } = await supabaseClient
+                .from('projects')
+                .select(`id, project_name, project_number, dot_district, contractors, status, created_at`)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            allProjects = data || [];
+            document.getElementById('projectCount').textContent = `${allProjects.length} total`;
+            renderProjects(allProjects);
+        } catch (e) {
+            document.getElementById('projectsList').innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}</p>`;
+        }
+    }
+
+    function renderProjects(projects) {
+        const el = document.getElementById('projectsList');
+        if (!projects.length) {
+            el.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">No projects found</p>';
+            return;
+        }
+        el.innerHTML = projects.map(p => {
+            const contractors = Array.isArray(p.contractors) ? p.contractors : [];
+            return `
+                <div class="table-row border border-slate-100 rounded-lg p-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-dot-yellow flex items-center justify-center rounded-lg shrink-0">
+                            <i class="fas fa-hard-hat text-white text-sm"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-bold text-dot-navy truncate">${p.project_name || 'Unnamed'}</p>
+                            <p class="text-[10px] text-slate-400">
+                                ${p.project_number ? '#' + p.project_number + ' • ' : ''}
+                                ${p.dot_district || 'No district'}
+                            </p>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-[10px] text-slate-500">
+                                    <i class="fas fa-users mr-1"></i>${contractors.length} contractor${contractors.length !== 1 ? 's' : ''}
+                                </span>
+                                ${p.status ? `<span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">${p.status}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    ${contractors.length ? `
+                        <div class="mt-2 flex flex-wrap gap-1">
+                            ${contractors.map(c => {
+                                const name = typeof c === 'string' ? c : (c.name || 'Unknown');
+                                return `<span class="text-[10px] bg-dot-blue/5 text-dot-blue px-2 py-0.5 rounded">${name}</span>`;
+                            }).join('')}
+                        </div>` : ''}
+                </div>`;
+        }).join('');
+    }
+
+    // ── Load Users ──
+    async function loadUsers() {
+        try {
+            const { data, error } = await supabaseClient
+                .from('user_profiles')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            allUsers = data || [];
+            document.getElementById('userCount').textContent = `${allUsers.length} total`;
+            renderUsers(allUsers);
+        } catch (e) {
+            document.getElementById('usersList').innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}</p>`;
+        }
+    }
+
+    function renderUsers(users) {
+        const el = document.getElementById('usersList');
+        if (!users.length) {
+            el.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">No user profiles found</p>';
+            return;
+        }
+        el.innerHTML = users.map(u => {
+            const initials = (u.display_name || u.inspector_name || 'U')
+                .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+            const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-red-500', 'bg-teal-600'];
+            const color = colors[Math.abs(hashCode(u.id || '')) % colors.length];
+            return `
+                <div class="table-row border border-slate-100 rounded-lg p-3 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full ${color} flex items-center justify-center shrink-0">
+                        <span class="text-white text-sm font-bold">${initials}</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-bold text-dot-navy truncate">${u.display_name || u.inspector_name || 'Unknown User'}</p>
+                        <p class="text-[10px] text-slate-400">
+                            ${u.role || 'user'} • ${u.company || 'No company'}
+                        </p>
+                        <p class="text-[9px] text-slate-300 font-mono truncate">${u.device_id || u.id || ''}</p>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <p class="text-[10px] text-slate-400">${u.created_at ? timeAgo(u.created_at) : ''}</p>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    // ── System Info ──
+    async function loadSystemInfo() {
+        // Supabase connection details
+        document.getElementById('sysUrl').textContent = SUPABASE_URL.replace('https://', '');
+        document.getElementById('sysRef').textContent = 'bdqfpemylkqnmeqaoere';
+
+        // Connection test
+        const start = performance.now();
+        try {
+            await supabaseClient.from('projects').select('id', { head: true });
+            const latency = Math.round(performance.now() - start);
+            document.getElementById('sysLatency').textContent = latency + 'ms';
+            document.getElementById('sysStatus').textContent = 'Connected';
+            document.getElementById('sysStatus').className = 'text-safety-green font-bold';
+            document.getElementById('sysConnDot').className = 'w-3 h-3 rounded-full bg-safety-green pulse-dot';
+        } catch (e) {
+            document.getElementById('sysLatency').textContent = 'ERR';
+            document.getElementById('sysStatus').textContent = 'Disconnected';
+            document.getElementById('sysStatus').className = 'text-red-500 font-bold';
+            document.getElementById('sysConnDot').className = 'w-3 h-3 rounded-full bg-red-500';
+        }
+
+        // Table row counts
+        const tables = ['reports', 'projects', 'user_profiles', 'report_submissions', 'ai_responses', 'final_reports', 'photos', 'report_activities', 'report_operations', 'report_equipment'];
+        const tableStats = document.getElementById('tableStats');
+        let tableHtml = '';
+        for (const t of tables) {
+            try {
+                const { count, error } = await supabaseClient.from(t).select('*', { count: 'exact', head: true });
+                const c = error ? 'ERR' : (count || 0);
+                const barWidth = error ? 0 : Math.min(100, (count / 50) * 100);
+                tableHtml += `
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] text-slate-500 w-28 truncate font-mono">${t}</span>
+                        <div class="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div class="bg-dot-blue h-2 rounded-full" style="width: ${barWidth}%"></div>
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-700 w-8 text-right">${c}</span>
+                    </div>`;
+            } catch (e) {
+                tableHtml += `<div class="text-[10px] text-red-500">${t}: error</div>`;
+            }
+        }
+        tableStats.innerHTML = tableHtml;
+
+        // Storage bucket info
+        try {
+            const { data: buckets, error } = await supabaseClient.storage.listBuckets();
+            if (error) throw error;
+            const storageEl = document.getElementById('storageStats');
+            if (buckets && buckets.length > 0) {
+                storageEl.innerHTML = buckets.map(b =>
+                    `<div class="flex items-center justify-between py-1 border-b border-slate-100 last:border-0">
+                        <span class="font-mono text-[10px]"><i class="fas fa-bucket mr-1 text-dot-blue"></i>${b.name}</span>
+                        <span class="text-[10px] text-slate-400">${b.public ? 'Public' : 'Private'}</span>
+                    </div>`
+                ).join('');
+            } else {
+                storageEl.textContent = 'No storage buckets found';
+            }
+        } catch (e) {
+            document.getElementById('storageStats').textContent = 'Could not load storage info';
+        }
+
+        // localStorage
+        let fvpCount = 0;
+        let totalSize = 0;
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('fvp_')) {
+                fvpCount++;
+                totalSize += (localStorage.getItem(key) || '').length;
+            }
+        }
+        document.getElementById('localStorageInfo').innerHTML = `
+            <p>${fvpCount} fvp_* keys • ${(totalSize / 1024).toFixed(1)} KB</p>
+            <p class="text-slate-300 mt-1">Total localStorage keys: ${localStorage.length}</p>`;
+    }
+
+    // ── Tab Switching ──
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+        document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add('active');
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+    }
+
+    // ── Utilities ──
+    function hashCode(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = ((hash << 5) - hash) + str.charCodeAt(i);
+            hash |= 0;
+        }
+        return hash;
+    }
+
+    function timeAgo(dateStr) {
+        const now = new Date();
+        const date = new Date(dateStr);
+        const diff = Math.floor((now - date) / 1000);
+        if (diff < 60) return 'just now';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+        if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+        return date.toLocaleDateString();
+    }
+
+    function getStatusColor(status) {
+        const colors = {
+            draft: 'bg-slate-200 text-slate-700',
+            refined: 'bg-blue-100 text-blue-700',
+            submitted: 'bg-amber-100 text-amber-700',
+            finalized: 'bg-green-100 text-green-700'
+        };
+        return colors[status] || 'bg-slate-200 text-slate-700';
+    }
+    </script>
+
+    <!-- AI Assistant -->
+    <script src="./js/ai-assistant.js"></script>
+</body>
+</html>
