@@ -1545,14 +1545,32 @@ async function generateVectorPDF() {
         doc.text(`${pageNum} of {{TOTAL}}`, PW / 2, footerY, { align: 'center' });
     }
 
+    // Pre-load logo image before drawing (if available)
+    let logoDataUrl = null;
+    const logoSrcUrl = activeProject?.logoUrl || activeProject?.logoThumbnail || activeProject?.logo;
+    if (logoSrcUrl) {
+        try {
+            logoDataUrl = await loadImageAsDataURL(logoSrcUrl);
+        } catch (e) {
+            console.warn('[PDF-VECTOR] Failed to pre-load logo:', e);
+        }
+    }
+
     // ── Helper: draw report header (logo area + title) ──
     function drawReportHeader() {
-        // Logo placeholder text (left side)
-        setFont('bold', 9);
-        setTextColor(...DARK_BLUE);
-        // We'll try to add the logo image, fallback to text
-        const logoSrc = activeProject?.logoUrl || activeProject?.logoThumbnail || activeProject?.logo;
-        if (!logoSrc) {
+        if (logoDataUrl) {
+            try {
+                doc.addImage(logoDataUrl, 'JPEG', ML, curY + 2, 0, 38);
+            } catch (e) {
+                setFont('bold', 9);
+                setTextColor(...DARK_BLUE);
+                doc.text('LOUIS ARMSTRONG', ML, curY + 12);
+                doc.text('NEW ORLEANS', ML, curY + 22);
+                doc.text('INTERNATIONAL AIRPORT', ML, curY + 32);
+            }
+        } else {
+            setFont('bold', 9);
+            setTextColor(...DARK_BLUE);
             doc.text('LOUIS ARMSTRONG', ML, curY + 12);
             doc.text('NEW ORLEANS', ML, curY + 22);
             doc.text('INTERNATIONAL AIRPORT', ML, curY + 32);
@@ -1630,7 +1648,7 @@ async function generateVectorPDF() {
         }
     }
 
-    // ── Helper: draw multi-line text in a bordered box ──
+    // ── Helper: draw multi-line text in a bordered box (with page break support) ──
     function drawTextBox(text, x, y, w, options = {}) {
         const { fontSize, fontStyle, padding, borderTop, bulletPoints } = {
             fontSize: BODY_SIZE,
@@ -1645,7 +1663,6 @@ async function generateVectorPDF() {
         let lines;
 
         if (bulletPoints && text) {
-            // Split by newlines, prefix each with bullet
             const rawLines = String(text).split('\n').filter(l => l.trim());
             lines = [];
             rawLines.forEach(line => {
@@ -1658,30 +1675,62 @@ async function generateVectorPDF() {
         }
 
         const lineH = fontSize * 1.3;
-        const contentH = lines.length * lineH + padding * 2;
+        const footerReserve = 35;
+        const maxPageY = PH - MT - footerReserve;
+        const totalH = lines.length * lineH + padding * 2;
 
-        // Draw border
-        setDrawColor(...BLACK);
-        doc.setLineWidth(0.5);
-        if (borderTop) {
-            doc.rect(x, y, w, contentH, 'S');
-        } else {
-            // Draw sides and bottom only (no top, it connects to section header above)
-            doc.line(x, y, x, y + contentH); // left
-            doc.line(x + w, y, x + w, y + contentH); // right
-            doc.line(x, y + contentH, x + w, y + contentH); // bottom
+        // Check if entire box fits on current page
+        if (y + totalH <= maxPageY + MT) {
+            // Fits on one page — draw normally
+            setDrawColor(...BLACK);
+            doc.setLineWidth(0.5);
+            if (borderTop) {
+                doc.rect(x, y, w, totalH, 'S');
+            } else {
+                doc.line(x, y, x, y + totalH);
+                doc.line(x + w, y, x + w, y + totalH);
+                doc.line(x, y + totalH, x + w, y + totalH);
+            }
+            setFont(fontStyle, fontSize);
+            setTextColor(...BLACK);
+            let textY = y + padding + fontSize;
+            lines.forEach(line => { doc.text(line, x + padding, textY); textY += lineH; });
+            return totalH;
         }
 
-        // Draw text
+        // Multi-page: draw lines progressively with page breaks
+        let boxStartY = y;
         setFont(fontStyle, fontSize);
         setTextColor(...BLACK);
         let textY = y + padding + fontSize;
-        lines.forEach(line => {
-            doc.text(line, x + padding, textY);
-            textY += lineH;
-        });
 
-        return contentH;
+        for (let i = 0; i < lines.length; i++) {
+            if (textY + lineH > maxPageY + MT) {
+                const boxH = textY - boxStartY + padding;
+                setDrawColor(...BLACK); doc.setLineWidth(0.5);
+                doc.line(x, boxStartY, x, boxStartY + boxH);
+                doc.line(x + w, boxStartY, x + w, boxStartY + boxH);
+                doc.line(x, boxStartY + boxH, x + w, boxStartY + boxH);
+
+                drawPageFooter(); doc.addPage(); pageNum++;
+                curY = MT; drawReportHeader();
+                boxStartY = curY;
+                textY = curY + padding + fontSize;
+                setFont(fontStyle, fontSize);
+                setTextColor(...BLACK);
+            }
+            doc.text(lines[i], x + padding, textY);
+            textY += lineH;
+        }
+
+        // Close final box segment
+        const finalH = textY - boxStartY + padding;
+        setDrawColor(...BLACK); doc.setLineWidth(0.5);
+        doc.line(x, boxStartY, x, boxStartY + finalH);
+        doc.line(x + w, boxStartY, x + w, boxStartY + finalH);
+        doc.line(x, boxStartY + finalH, x + w, boxStartY + finalH);
+        curY = boxStartY + finalH;
+        return curY - y;
     }
 
     // ── Gather data from report ──
@@ -1831,7 +1880,7 @@ async function generateVectorPDF() {
     doc.setLineWidth(0.5);
 
     // We'll draw the work summary content then close the box
-    const wsStartY = curY;
+    let wsStartY = curY;
     const wsPadding = 8;
     let wsContentY = curY + wsPadding;
 
@@ -1900,11 +1949,8 @@ async function generateVectorPDF() {
                             pageNum++;
                             curY = MT;
                             drawReportHeader();
-                            // Continue work summary on new page - don't re-draw section header
                             wsContentY = curY + wsPadding;
-                            // We need to track the new wsStartY for the box
-                            // Use a trick: re-set wsStartY to current
-                            // (This is simplified; the box won't carry over perfectly but avoids truncation)
+                            wsStartY = curY; // Reset box start for new page
                         }
                         doc.text(i === 0 ? wl : '  ' + wl, ML + wsPadding + 5, wsContentY + BODY_SIZE);
                         wsContentY += BODY_SIZE * 1.3;
@@ -1934,6 +1980,7 @@ async function generateVectorPDF() {
                     curY = MT;
                     drawReportHeader();
                     wsContentY = curY + wsPadding;
+                    wsStartY = curY; // Reset box start for new page
                 }
 
                 // Crew name as bold sub-header

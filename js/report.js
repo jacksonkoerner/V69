@@ -3500,9 +3500,31 @@
             doc.text(`${pageNum} of {{TOTAL}}`, PW / 2, footerY, { align: 'center' });
         }
 
+        // Pre-load logo image before drawing (if available)
+        let logoDataUrl = null;
+        const logoSrcUrl = activeProject?.logoUrl || activeProject?.logoThumbnail || activeProject?.logo;
+        if (logoSrcUrl) {
+            try {
+                logoDataUrl = await loadImageAsDataURL(logoSrcUrl);
+            } catch (e) {
+                console.warn('[PDF-VECTOR] Failed to pre-load logo:', e);
+            }
+        }
+
         function drawReportHeader() {
-            const logoSrc = activeProject?.logoUrl || activeProject?.logoThumbnail || activeProject?.logo;
-            if (!logoSrc) {
+            if (logoDataUrl) {
+                // Draw embedded logo image (max 50pt high, proportional width)
+                try {
+                    doc.addImage(logoDataUrl, 'JPEG', ML, curY + 2, 0, 38); // auto-width, 38pt height
+                } catch (e) {
+                    // Fallback to text if image fails
+                    setFont('bold', 9);
+                    setTextColor(...DARK_BLUE);
+                    doc.text('LOUIS ARMSTRONG', ML, curY + 12);
+                    doc.text('NEW ORLEANS', ML, curY + 22);
+                    doc.text('INTERNATIONAL AIRPORT', ML, curY + 32);
+                }
+            } else {
                 setFont('bold', 9);
                 setTextColor(...DARK_BLUE);
                 doc.text('LOUIS ARMSTRONG', ML, curY + 12);
@@ -3562,17 +3584,61 @@
                 lines = wrapText(text || 'N/A.', innerW, opts.fontSize, opts.fontStyle);
             }
             const lineH = opts.fontSize * 1.3;
-            const contentH = lines.length * lineH + opts.padding * 2;
-            setDrawColor(...BLACK);
-            doc.setLineWidth(0.5);
-            doc.line(x, y, x, y + contentH);
-            doc.line(x + w, y, x + w, y + contentH);
-            doc.line(x, y + contentH, x + w, y + contentH);
+            const footerReserve = 35;
+            const maxPageY = PH - MT - footerReserve;
+
+            // Check if entire box fits on current page
+            const totalH = lines.length * lineH + opts.padding * 2;
+            if (y + totalH <= maxPageY + MT) {
+                // Fits on one page — draw normally
+                setDrawColor(...BLACK);
+                doc.setLineWidth(0.5);
+                doc.line(x, y, x, y + totalH);
+                doc.line(x + w, y, x + w, y + totalH);
+                doc.line(x, y + totalH, x + w, y + totalH);
+                setFont(opts.fontStyle, opts.fontSize);
+                setTextColor(...BLACK);
+                let textY = y + opts.padding + opts.fontSize;
+                lines.forEach(line => { doc.text(line, x + opts.padding, textY); textY += lineH; });
+                return totalH;
+            }
+
+            // Multi-page: draw lines progressively with page breaks
+            let boxStartY = y;
             setFont(opts.fontStyle, opts.fontSize);
             setTextColor(...BLACK);
             let textY = y + opts.padding + opts.fontSize;
-            lines.forEach(line => { doc.text(line, x + opts.padding, textY); textY += lineH; });
-            return contentH;
+            let totalDrawn = 0;
+
+            for (let i = 0; i < lines.length; i++) {
+                if (textY + lineH > maxPageY + MT) {
+                    // Close box on current page
+                    const boxH = textY - boxStartY + opts.padding;
+                    setDrawColor(...BLACK); doc.setLineWidth(0.5);
+                    doc.line(x, boxStartY, x, boxStartY + boxH);
+                    doc.line(x + w, boxStartY, x + w, boxStartY + boxH);
+                    doc.line(x, boxStartY + boxH, x + w, boxStartY + boxH);
+                    totalDrawn += boxH;
+
+                    drawPageFooter(); doc.addPage(); pageNum++;
+                    curY = MT; drawReportHeader();
+                    boxStartY = curY;
+                    textY = curY + opts.padding + opts.fontSize;
+                    setFont(opts.fontStyle, opts.fontSize);
+                    setTextColor(...BLACK);
+                }
+                doc.text(lines[i], x + opts.padding, textY);
+                textY += lineH;
+            }
+
+            // Close final box segment
+            const finalH = textY - boxStartY + opts.padding;
+            setDrawColor(...BLACK); doc.setLineWidth(0.5);
+            doc.line(x, boxStartY, x, boxStartY + finalH);
+            doc.line(x + w, boxStartY, x + w, boxStartY + finalH);
+            doc.line(x, boxStartY + finalH, x + w, boxStartY + finalH);
+            curY = boxStartY + finalH;
+            return curY - y; // total height consumed from original y
         }
 
         // ── Gather data from current form state ──
@@ -3747,7 +3813,7 @@
 
         // Daily Work Summary
         drawSectionHeader('DAILY WORK SUMMARY');
-        const wsStartY = curY;
+        let wsStartY = curY;
         const wsPadding = 8;
         let wsContentY = curY + wsPadding;
 
@@ -3809,6 +3875,7 @@
                                 doc.line(ML, wsStartY + boxH, ML + CW, wsStartY + boxH);
                                 drawPageFooter(); doc.addPage(); pageNum++; curY = MT;
                                 drawReportHeader(); wsContentY = curY + wsPadding;
+                                wsStartY = curY; // Reset box start for new page
                             }
                             doc.text(i === 0 ? wl : '  ' + wl, ML + wsPadding + 5, wsContentY + BODY_SIZE);
                             wsContentY += BODY_SIZE * 1.3;
@@ -3830,6 +3897,7 @@
                         doc.line(ML, wsStartY + boxH, ML + CW, wsStartY + boxH);
                         drawPageFooter(); doc.addPage(); pageNum++; curY = MT;
                         drawReportHeader(); wsContentY = curY + wsPadding;
+                        wsStartY = curY; // Reset box start for new page
                     }
 
                     setFont('bold', BODY_SIZE);
