@@ -418,7 +418,7 @@
         try {
             const { data, error } = await supabaseClient
                 .from('reports')
-                .select(`id, report_date, status, inspector_name, created_at, weather_conditions, projects (project_name)`)
+                .select(`id, report_date, status, inspector_name, created_at, projects (project_name)`)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
