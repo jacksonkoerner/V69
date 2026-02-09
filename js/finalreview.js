@@ -2076,23 +2076,22 @@ async function generateVectorPDF() {
     }
 
     // ═══════════════════════════════════════
-    // GENERAL ISSUES; UNFORESEEN CONDITIONS; VISITORS
+    // GENERAL ISSUES; UNFORESEEN CONDITIONS; NOTICES GIVEN
     // ═══════════════════════════════════════
-    drawSectionHeader('GENERAL ISSUES; UNFORESEEN CONDITIONS; VISITORS');
+    drawSectionHeader('GENERAL ISSUES; UNFORESEEN CONDITIONS; NOTICES GIVEN');
 
     const issuesText = getTextValueWithFallback('issues', 'issues_delays', 'generalIssues', 'guidedNotes.issues', '');
     const issuesH = drawTextBox(issuesText || 'N/A.', ML, curY, CW, { bulletPoints: !!issuesText });
     curY += issuesH;
 
     // ═══════════════════════════════════════
-    // DELIVERIES
+    // COMMUNICATIONS WITH THE CONTRACTOR
     // ═══════════════════════════════════════
-    drawSectionHeader('DELIVERIES');
+    drawSectionHeader('COMMUNICATIONS WITH THE CONTRACTOR');
 
-    // Deliveries data — check visitors_deliveries or dedicated field
-    const deliveriesText = report.aiGenerated?.deliveries || '';
-    const deliveriesH = drawTextBox(deliveriesText || 'N/A.', ML, curY, CW, { bulletPoints: !!deliveriesText });
-    curY += deliveriesH;
+    const commsText = getTextValueWithFallback('communications', 'communications', 'contractorCommunications', '', '');
+    const commsH = drawTextBox(commsText || 'N/A.', ML, curY, CW, { bulletPoints: !!commsText });
+    curY += commsH;
 
     // ═══════════════════════════════════════
     // QA/QC TESTING AND/OR INSPECTIONS

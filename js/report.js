@@ -3927,14 +3927,14 @@
         }
 
         // ═══ ISSUES ═══
-        drawSectionHeader('GENERAL ISSUES; UNFORESEEN CONDITIONS; VISITORS');
+        drawSectionHeader('GENERAL ISSUES; UNFORESEEN CONDITIONS; NOTICES GIVEN');
         const issuesText = formVal('issuesText', '');
         curY += drawTextBox(issuesText || 'N/A.', ML, curY, CW, { bulletPoints: !!issuesText });
 
-        // ═══ DELIVERIES ═══
-        drawSectionHeader('DELIVERIES');
-        const deliveriesText = report.aiGenerated?.deliveries || '';
-        curY += drawTextBox(deliveriesText || 'N/A.', ML, curY, CW, { bulletPoints: !!deliveriesText });
+        // ═══ COMMUNICATIONS ═══
+        drawSectionHeader('COMMUNICATIONS WITH THE CONTRACTOR');
+        const commsText = formVal('communicationsText', '');
+        curY += drawTextBox(commsText || 'N/A.', ML, curY, CW, { bulletPoints: !!commsText });
 
         // ═══ QA/QC ═══
         drawSectionHeader('QA/QC TESTING AND/OR INSPECTIONS');
