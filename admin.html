@@ -474,7 +474,7 @@
         try {
             const { data, error } = await supabaseClient
                 .from('projects')
-                .select(`id, project_name, project_number, dot_district, contractors, status, created_at`)
+                .select(`id, project_name, noab_project_no, location, contractors, status, created_at`)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -493,7 +493,11 @@
             return;
         }
         el.innerHTML = projects.map(p => {
-            const contractors = Array.isArray(p.contractors) ? p.contractors : [];
+            let contractors = [];
+            try {
+                if (Array.isArray(p.contractors)) contractors = p.contractors;
+                else if (typeof p.contractors === 'string') contractors = JSON.parse(p.contractors);
+            } catch(e) {}
             return `
                 <div class="table-row border border-slate-100 rounded-lg p-3">
                     <div class="flex items-center gap-3">
@@ -503,8 +507,8 @@
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-bold text-dot-navy truncate">${p.project_name || 'Unnamed'}</p>
                             <p class="text-[10px] text-slate-400">
-                                ${p.project_number ? '#' + p.project_number + ' • ' : ''}
-                                ${p.dot_district || 'No district'}
+                                ${p.noab_project_no ? '#' + p.noab_project_no + ' • ' : ''}
+                                ${p.location || 'No location'}
                             </p>
                             <div class="flex items-center gap-2 mt-1">
                                 <span class="text-[10px] text-slate-500">
@@ -549,7 +553,7 @@
             return;
         }
         el.innerHTML = users.map(u => {
-            const initials = (u.display_name || u.inspector_name || 'U')
+            const initials = (u.full_name || 'U')
                 .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
             const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-red-500', 'bg-teal-600'];
             const color = colors[Math.abs(hashCode(u.id || '')) % colors.length];
@@ -559,9 +563,9 @@
                         <span class="text-white text-sm font-bold">${initials}</span>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm font-bold text-dot-navy truncate">${u.display_name || u.inspector_name || 'Unknown User'}</p>
+                        <p class="text-sm font-bold text-dot-navy truncate">${u.full_name || 'Unknown User'}</p>
                         <p class="text-[10px] text-slate-400">
-                            ${u.role || 'user'} • ${u.company || 'No company'}
+                            ${u.title || 'user'} • ${u.company || 'No company'}
                         </p>
                         <p class="text-[9px] text-slate-300 font-mono truncate">${u.device_id || u.id || ''}</p>
                     </div>
