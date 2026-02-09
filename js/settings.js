@@ -511,6 +511,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load settings from IndexedDB (or scratch pad if unsaved changes exist)
     loadSettings();
+
+    // Display authenticated email
+    if (window.auth && window.auth.getCurrentUser) {
+        window.auth.getCurrentUser().then(user => {
+            const emailEl = document.getElementById('accountEmail');
+            if (emailEl && user) {
+                emailEl.textContent = user.email || 'No email';
+            } else if (emailEl) {
+                emailEl.textContent = 'Not signed in';
+            }
+        });
+    }
 });
 
 // ============ EXPOSE TO WINDOW FOR ONCLICK HANDLERS ============

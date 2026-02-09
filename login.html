@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Sign In - FieldVoice Pro</title>
+
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" type="image/x-icon" href="./assets/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./assets/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png">
+    <meta name="theme-color" content="#0a1628">
+
+    <!-- iOS PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FieldVoice">
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./js/config.js"></script>
+    <script src="./js/storage-keys.js"></script>
+    <link rel="stylesheet" href="./css/output.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+        .header-stripe {
+            background: repeating-linear-gradient(-45deg, #f59e0b, #f59e0b 10px, #0a1628 10px, #0a1628 20px);
+            height: 4px;
+            padding-top: env(safe-area-inset-top);
+        }
+        .role-card {
+            transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+        }
+        .role-card:active {
+            transform: scale(0.97);
+        }
+        .role-card:hover {
+            border-color: #f59e0b;
+            box-shadow: 0 4px 20px rgba(245, 158, 11, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-dot-navy min-h-screen">
+    <div class="header-stripe"></div>
+
+    <div class="max-w-lg mx-auto min-h-screen flex flex-col">
+
+        <!-- HEADER -->
+        <header class="bg-dot-navy text-white p-6 text-center">
+            <div class="mb-2">
+                <i class="fas fa-hard-hat text-dot-yellow text-4xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight">FieldVoice Pro</h1>
+            <p class="text-xs text-slate-400 uppercase tracking-widest mt-1">DOT Compliant Field Documentation</p>
+        </header>
+
+        <!-- ========== SIGN IN VIEW ========== -->
+        <div id="signInView" class="flex-1 p-4 space-y-4">
+            <div class="bg-white border-2 border-slate-200">
+                <div class="bg-safety-green text-white p-4">
+                    <h2 class="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Sign In
+                    </h2>
+                </div>
+                <div class="p-4 space-y-4">
+                    <div>
+                        <label class="text-xs font-bold text-dot-blue uppercase tracking-wider">Email</label>
+                        <input type="email" id="signInEmail" class="w-full mt-2 bg-white border-2 border-slate-300 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-dot-blue" placeholder="you@company.com" autocomplete="email">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-dot-blue uppercase tracking-wider">Password</label>
+                        <input type="password" id="signInPassword" class="w-full mt-2 bg-white border-2 border-slate-300 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-dot-blue" placeholder="••••••••" autocomplete="current-password">
+                    </div>
+                    <div id="signInError" class="hidden bg-red-50 border border-red-300 text-red-700 px-4 py-3 text-sm"></div>
+                    <button id="signInBtn" onclick="handleSignIn()" class="w-full p-4 bg-safety-green hover:bg-green-700 text-white font-bold uppercase transition-colors flex items-center justify-center gap-2">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Sign In
+                    </button>
+                </div>
+            </div>
+
+            <div class="text-center">
+                <button onclick="showView('signUp')" class="text-sm text-dot-blue hover:text-white transition-colors underline">
+                    Don't have an account? <span class="font-bold">Sign Up</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ========== SIGN UP VIEW ========== -->
+        <div id="signUpView" class="flex-1 p-4 space-y-4 hidden">
+            <div class="bg-white border-2 border-slate-200">
+                <div class="bg-dot-blue text-white p-4">
+                    <h2 class="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                        <i class="fas fa-user-plus"></i>
+                        Create Account
+                    </h2>
+                </div>
+                <div class="p-4 space-y-4">
+                    <div>
+                        <label class="text-xs font-bold text-dot-blue uppercase tracking-wider">Full Name <span class="text-red-500">*</span></label>
+                        <input type="text" id="signUpName" class="w-full mt-2 bg-white border-2 border-slate-300 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-dot-blue" placeholder="e.g., Andrew Stiebing" autocomplete="name">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-dot-blue uppercase tracking-wider">Title</label>
+                        <input type="text" id="signUpTitle" class="w-full mt-2 bg-white border-2 border-slate-300 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-dot-blue" placeholder="e.g., RPR" autocomplete="organization-title">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-dot-blue uppercase tracking-wider">Company / Firm</label>
+                        <input type="text" id="signUpCompany" class="w-full mt-2 bg-white border-2 border-slate-300 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-dot-blue" placeholder="e.g., Burns & McDonnell" autocomplete="organization">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-dot-blue uppercase tracking-wider">Email <span class="text-red-500">*</span></label>
+                        <input type="email" id="signUpEmail" class="w-full mt-2 bg-white border-2 border-slate-300 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-dot-blue" placeholder="you@company.com" autocomplete="email">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-dot-blue uppercase tracking-wider">Phone</label>
+                        <input type="tel" id="signUpPhone" class="w-full mt-2 bg-white border-2 border-slate-300 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-dot-blue" placeholder="(555) 123-4567" autocomplete="tel">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-dot-blue uppercase tracking-wider">Password <span class="text-red-500">*</span></label>
+                        <input type="password" id="signUpPassword" class="w-full mt-2 bg-white border-2 border-slate-300 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-dot-blue" placeholder="Min 6 characters" autocomplete="new-password">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-dot-blue uppercase tracking-wider">Confirm Password <span class="text-red-500">*</span></label>
+                        <input type="password" id="signUpConfirm" class="w-full mt-2 bg-white border-2 border-slate-300 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-dot-blue" placeholder="Re-enter password" autocomplete="new-password">
+                    </div>
+                    <div id="signUpError" class="hidden bg-red-50 border border-red-300 text-red-700 px-4 py-3 text-sm"></div>
+                    <button id="signUpBtn" onclick="handleSignUp()" class="w-full p-4 bg-dot-blue hover:bg-blue-800 text-white font-bold uppercase transition-colors flex items-center justify-center gap-2">
+                        <i class="fas fa-user-plus"></i>
+                        Create Account
+                    </button>
+                </div>
+            </div>
+
+            <div class="text-center">
+                <button onclick="showView('signIn')" class="text-sm text-dot-blue hover:text-white transition-colors underline">
+                    Already have an account? <span class="font-bold">Sign In</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ========== ROLE PICKER VIEW ========== -->
+        <div id="rolePickerView" class="flex-1 p-4 space-y-6 hidden">
+            <div class="text-center text-white mb-4">
+                <i class="fas fa-user-circle text-dot-yellow text-3xl mb-2"></i>
+                <h2 class="text-xl font-bold">Welcome!</h2>
+                <p class="text-sm text-slate-400" id="roleWelcomeName">Choose your role to continue</p>
+            </div>
+
+            <div class="space-y-4">
+                <!-- Inspector Card -->
+                <button onclick="selectRole('inspector')" class="role-card w-full bg-white border-2 border-slate-200 p-6 text-left flex items-center gap-5">
+                    <div class="w-16 h-16 bg-safety-green flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-clipboard-check text-white text-2xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-bold text-dot-navy uppercase tracking-wide">Inspector</h3>
+                        <p class="text-sm text-slate-500 mt-1">Field reports, interviews, photos & documentation</p>
+                    </div>
+                    <i class="fas fa-chevron-right text-slate-400"></i>
+                </button>
+
+                <!-- Admin Card -->
+                <button onclick="selectRole('admin')" class="role-card w-full bg-white border-2 border-slate-200 p-6 text-left flex items-center gap-5">
+                    <div class="w-16 h-16 bg-dot-blue flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-user-shield text-white text-2xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-bold text-dot-navy uppercase tracking-wide">Admin</h3>
+                        <p class="text-sm text-slate-500 mt-1">Dashboard, analytics & team management</p>
+                    </div>
+                    <i class="fas fa-chevron-right text-slate-400"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ADMIN COMING SOON MODAL -->
+        <div id="adminModal" class="fixed inset-0 bg-black/70 z-[9998] hidden items-center justify-center p-4">
+            <div class="bg-white max-w-sm w-full shadow-xl">
+                <div class="bg-dot-blue text-white p-6 text-center">
+                    <div class="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i class="fas fa-user-shield text-3xl"></i>
+                    </div>
+                    <h3 class="text-lg font-bold uppercase">Admin Dashboard</h3>
+                </div>
+                <div class="p-6 text-center">
+                    <div class="bg-amber-50 border border-amber-300 text-amber-800 px-4 py-3 text-sm mb-4">
+                        <i class="fas fa-clock mr-2"></i>
+                        Coming Soon
+                    </div>
+                    <p class="text-sm text-slate-600">The Admin Dashboard is under development. For now, use the Inspector role for field documentation.</p>
+                </div>
+                <div class="p-4 border-t border-slate-200">
+                    <button onclick="hideAdminModal()" class="w-full p-3 bg-dot-navy text-white font-bold uppercase hover:bg-dot-blue transition-colors">
+                        Got It
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <footer class="bg-dot-navy text-center py-3 mt-auto">
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest">
+                <i class="fas fa-shield-alt mr-1"></i>
+                DOT Compliant Field Documentation System
+            </p>
+        </footer>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50"></div>
+
+    <script>
+        // ============ STATE ============
+        let pendingUser = null; // Store user info after auth, before role pick
+
+        // ============ VIEW SWITCHING ============
+        function showView(view) {
+            document.getElementById('signInView').classList.add('hidden');
+            document.getElementById('signUpView').classList.add('hidden');
+            document.getElementById('rolePickerView').classList.add('hidden');
+
+            if (view === 'signIn') {
+                document.getElementById('signInView').classList.remove('hidden');
+            } else if (view === 'signUp') {
+                document.getElementById('signUpView').classList.remove('hidden');
+            } else if (view === 'rolePicker') {
+                document.getElementById('rolePickerView').classList.remove('hidden');
+            }
+        }
+
+        // ============ SIGN IN ============
+        async function handleSignIn() {
+            const email = document.getElementById('signInEmail').value.trim();
+            const password = document.getElementById('signInPassword').value;
+            const errorEl = document.getElementById('signInError');
+            const btn = document.getElementById('signInBtn');
+
+            errorEl.classList.add('hidden');
+
+            if (!email || !password) {
+                errorEl.textContent = 'Please enter both email and password.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
+
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) {
+                    errorEl.textContent = error.message || 'Sign in failed. Check your credentials.';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+
+                console.log('[LOGIN] Sign in successful:', data.user.email);
+                pendingUser = data.user;
+
+                // Check if user has a profile with a role already
+                const { data: profile } = await supabaseClient
+                    .from('user_profiles')
+                    .select('*')
+                    .eq('auth_user_id', data.user.id)
+                    .maybeSingle();
+
+                if (profile && profile.role) {
+                    // User already has a role — go straight to app
+                    localStorage.setItem('fvp_auth_role', profile.role);
+                    if (profile.id) {
+                        setStorageItem('fvp_user_id', profile.id);
+                    }
+                    window.location.href = 'index.html';
+                    return;
+                }
+
+                // Show role picker
+                const displayName = profile?.full_name || data.user.email;
+                document.getElementById('roleWelcomeName').textContent = `Welcome, ${displayName}`;
+                showView('rolePicker');
+
+            } catch (e) {
+                console.error('[LOGIN] Sign in error:', e);
+                errorEl.textContent = 'An unexpected error occurred. Please try again.';
+                errorEl.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+            }
+        }
+
+        // ============ SIGN UP ============
+        async function handleSignUp() {
+            const name = document.getElementById('signUpName').value.trim();
+            const title = document.getElementById('signUpTitle').value.trim();
+            const company = document.getElementById('signUpCompany').value.trim();
+            const email = document.getElementById('signUpEmail').value.trim();
+            const phone = document.getElementById('signUpPhone').value.trim();
+            const password = document.getElementById('signUpPassword').value;
+            const confirm = document.getElementById('signUpConfirm').value;
+            const errorEl = document.getElementById('signUpError');
+            const btn = document.getElementById('signUpBtn');
+
+            errorEl.classList.add('hidden');
+
+            // Validation
+            if (!name) {
+                errorEl.textContent = 'Full name is required.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+            if (!email) {
+                errorEl.textContent = 'Email is required.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+            if (!password || password.length < 6) {
+                errorEl.textContent = 'Password must be at least 6 characters.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+            if (password !== confirm) {
+                errorEl.textContent = 'Passwords do not match.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
+
+            try {
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email: email,
+                    password: password,
+                    options: {
+                        data: {
+                            full_name: name,
+                            title: title,
+                            company: company
+                        }
+                    }
+                });
+
+                if (error) {
+                    errorEl.textContent = error.message || 'Sign up failed.';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+
+                console.log('[LOGIN] Sign up successful:', data.user.email);
+                pendingUser = data.user;
+
+                // Create user_profiles row
+                const deviceId = typeof getDeviceId === 'function' ? getDeviceId() : null;
+                const profileRow = {
+                    auth_user_id: data.user.id,
+                    full_name: name,
+                    title: title,
+                    company: company,
+                    email: email,
+                    phone: phone,
+                    updated_at: new Date().toISOString()
+                };
+                if (deviceId) profileRow.device_id = deviceId;
+
+                const { data: profile, error: profileError } = await supabaseClient
+                    .from('user_profiles')
+                    .upsert(profileRow, { onConflict: 'auth_user_id' })
+                    .select()
+                    .single();
+
+                if (profileError) {
+                    console.error('[LOGIN] Profile creation error:', profileError);
+                    // Don't block — auth succeeded, profile can be retried
+                }
+
+                if (profile && profile.id) {
+                    setStorageItem('fvp_user_id', profile.id);
+                }
+
+                // Show role picker
+                document.getElementById('roleWelcomeName').textContent = `Welcome, ${name}`;
+                showView('rolePicker');
+
+            } catch (e) {
+                console.error('[LOGIN] Sign up error:', e);
+                errorEl.textContent = 'An unexpected error occurred. Please try again.';
+                errorEl.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-user-plus"></i> Create Account';
+            }
+        }
+
+        // ============ ROLE SELECTION ============
+        async function selectRole(role) {
+            if (role === 'admin') {
+                // Show coming soon modal
+                const modal = document.getElementById('adminModal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                return;
+            }
+
+            // Store role locally
+            localStorage.setItem('fvp_auth_role', role);
+
+            // Update profile in Supabase
+            try {
+                const { data: { user } } = await supabaseClient.auth.getUser();
+                if (user) {
+                    await supabaseClient
+                        .from('user_profiles')
+                        .update({ role: role })
+                        .eq('auth_user_id', user.id);
+                }
+            } catch (e) {
+                console.warn('[LOGIN] Could not update role in profile:', e);
+            }
+
+            // Navigate to app
+            window.location.href = 'index.html';
+        }
+
+        function hideAdminModal() {
+            const modal = document.getElementById('adminModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // ============ TOAST (minimal for login page) ============
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const colors = {
+                success: 'bg-green-600',
+                error: 'bg-red-600',
+                warning: 'bg-yellow-600',
+                info: 'bg-blue-600'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `${colors[type] || colors.info} text-white px-4 py-3 text-sm font-medium shadow-lg mb-2`;
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        // ============ INIT — check if already logged in ============
+        (async function checkExistingSession() {
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session) {
+                    console.log('[LOGIN] Already authenticated, redirecting to app');
+                    window.location.href = 'index.html';
+                }
+            } catch (e) {
+                // No session, stay on login page
+            }
+        })();
+
+        // Enter key submits forms
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const signInView = document.getElementById('signInView');
+                const signUpView = document.getElementById('signUpView');
+                if (!signInView.classList.contains('hidden')) {
+                    handleSignIn();
+                } else if (!signUpView.classList.contains('hidden')) {
+                    handleSignUp();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

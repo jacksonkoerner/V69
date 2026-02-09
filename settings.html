@@ -26,6 +26,7 @@
     <script src="./js/storage-keys.js"></script>
     <script src="./js/indexeddb-utils.js"></script>
     <script src="./js/data-layer.js"></script>
+    <script src="./js/auth.js"></script>
     <link rel="stylesheet" href="./css/output.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -162,6 +163,26 @@
                     <button onclick="refreshApp()" class="w-full p-4 bg-slate-500 text-white font-bold uppercase hover:bg-slate-600 transition-colors flex items-center justify-center gap-2">
                         <i class="fas fa-sync-alt"></i>
                         Refresh App
+                    </button>
+                </div>
+            </section>
+
+            <!-- Account -->
+            <section class="bg-white border-2 border-slate-200">
+                <div class="bg-dot-navy text-white p-4">
+                    <h2 class="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                        <i class="fas fa-user-circle"></i>
+                        Account
+                    </h2>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div id="accountEmailDisplay" class="bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-600 flex items-center gap-2">
+                        <i class="fas fa-envelope text-slate-400"></i>
+                        <span id="accountEmail">Loading...</span>
+                    </div>
+                    <button onclick="window.auth.signOut()" class="w-full p-4 bg-white border-2 border-dot-blue text-dot-blue font-bold uppercase hover:bg-dot-blue hover:text-white transition-colors flex items-center justify-center gap-2">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Sign Out
                     </button>
                 </div>
             </section>
