@@ -1729,8 +1729,10 @@ async function generateVectorPDF() {
         doc.line(x, boxStartY, x, boxStartY + finalH);
         doc.line(x + w, boxStartY, x + w, boxStartY + finalH);
         doc.line(x, boxStartY + finalH, x + w, boxStartY + finalH);
+
+        // Set curY to end of box; return 0 since we already updated curY
         curY = boxStartY + finalH;
-        return curY - y;
+        return 0; // curY already positioned correctly
     }
 
     // ── Gather data from report ──

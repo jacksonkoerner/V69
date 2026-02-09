@@ -3608,7 +3608,6 @@
             setFont(opts.fontStyle, opts.fontSize);
             setTextColor(...BLACK);
             let textY = y + opts.padding + opts.fontSize;
-            let totalDrawn = 0;
 
             for (let i = 0; i < lines.length; i++) {
                 if (textY + lineH > maxPageY + MT) {
@@ -3618,7 +3617,6 @@
                     doc.line(x, boxStartY, x, boxStartY + boxH);
                     doc.line(x + w, boxStartY, x + w, boxStartY + boxH);
                     doc.line(x, boxStartY + boxH, x + w, boxStartY + boxH);
-                    totalDrawn += boxH;
 
                     drawPageFooter(); doc.addPage(); pageNum++;
                     curY = MT; drawReportHeader();
@@ -3637,8 +3635,10 @@
             doc.line(x, boxStartY, x, boxStartY + finalH);
             doc.line(x + w, boxStartY, x + w, boxStartY + finalH);
             doc.line(x, boxStartY + finalH, x + w, boxStartY + finalH);
+
+            // Set curY to end of box; return 0 since we already updated curY
             curY = boxStartY + finalH;
-            return curY - y; // total height consumed from original y
+            return 0; // curY already positioned correctly
         }
 
         // ── Gather data from current form state ──
