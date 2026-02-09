@@ -1551,24 +1551,57 @@
     }
 
     function setupContractorListeners() {
-        // Narrative textareas
+        // Narrative textareas - auto-save on input (debounced) AND blur (immediate)
         document.querySelectorAll('.contractor-narrative').forEach(el => {
-            el.addEventListener('blur', () => {
+            // Save to memory immediately on every keystroke, debounced persist
+            el.addEventListener('input', () => {
                 updateContractorActivity(el.dataset.contractorId);
+                el.classList.add('user-edited');
+                scheduleSave();
+            });
+            // Immediate save on blur (safety net)
+            el.addEventListener('blur', () => {
+                if (saveTimeout) {
+                    clearTimeout(saveTimeout);
+                    saveTimeout = null;
+                }
+                updateContractorActivity(el.dataset.contractorId);
+                saveReportToLocalStorage();
+                showSaveIndicator();
             });
         });
 
-        // Equipment inputs
+        // Equipment inputs - auto-save on input AND blur
         document.querySelectorAll('.contractor-equipment').forEach(el => {
-            el.addEventListener('blur', () => {
+            el.addEventListener('input', () => {
                 updateContractorActivity(el.dataset.contractorId);
+                scheduleSave();
+            });
+            el.addEventListener('blur', () => {
+                if (saveTimeout) {
+                    clearTimeout(saveTimeout);
+                    saveTimeout = null;
+                }
+                updateContractorActivity(el.dataset.contractorId);
+                saveReportToLocalStorage();
+                showSaveIndicator();
             });
         });
 
-        // Crew inputs
+        // Crew inputs - auto-save on input AND blur
         document.querySelectorAll('.contractor-crew').forEach(el => {
-            el.addEventListener('blur', () => {
+            el.addEventListener('input', () => {
                 updateContractorActivity(el.dataset.contractorId);
+                scheduleSave();
+            });
+            el.addEventListener('blur', () => {
+                if (saveTimeout) {
+                    clearTimeout(saveTimeout);
+                    saveTimeout = null;
+                }
+                updateContractorActivity(el.dataset.contractorId);
+                saveReportToLocalStorage();
+                showSaveIndicator();
             });
         });
     }
@@ -3079,7 +3112,21 @@
             const workText = getValue('guidedNotes.workSummary', '');
             page1 += workText ? `<p>${escapeHtml(workText)}</p>` : `<p class="rpr-na">N/A.</p>`;
         } else {
-            projectContractors.forEach(contractor => {
+            // Sort contractors: those with work performed first, no-work at bottom
+            const sortedContractors = [...projectContractors].sort((a, b) => {
+                const actA = getContractorActivity(a.id);
+                const actB = getContractorActivity(b.id);
+                const noWorkA = actA?.noWork === true || !(actA?.narrative || '').trim();
+                const noWorkB = actB?.noWork === true || !(actB?.narrative || '').trim();
+                if (noWorkA && !noWorkB) return 1;   // a has no work → goes after b
+                if (!noWorkA && noWorkB) return -1;   // a has work → goes before b
+                // Same status: keep prime contractors first
+                if (a.type === 'prime' && b.type !== 'prime') return -1;
+                if (a.type !== 'prime' && b.type === 'prime') return 1;
+                return 0;
+            });
+
+            sortedContractors.forEach(contractor => {
                 const activity = getContractorActivity(contractor.id);
                 const crews = contractor.crews || [];
                 const typeLabel = contractor.type === 'prime' ? 'PRIME CONTRACTOR' : 'SUBCONTRACTOR';
@@ -3649,7 +3696,20 @@
 
         const pdfDisplayDate = reportDate || 'this date';
 
-        projectContractors.forEach(contractor => {
+        // Sort: contractors with work first, no-work at bottom
+        const pdfSortedContractors = [...projectContractors].sort((a, b) => {
+            const actA = getContractorActivity(a.id);
+            const actB = getContractorActivity(b.id);
+            const noA = actA?.noWork === true || !(actA?.narrative || '').trim();
+            const noB = actB?.noWork === true || !(actB?.narrative || '').trim();
+            if (noA && !noB) return 1;
+            if (!noA && noB) return -1;
+            if (a.type === 'prime' && b.type !== 'prime') return -1;
+            if (a.type !== 'prime' && b.type === 'prime') return 1;
+            return 0;
+        });
+
+        pdfSortedContractors.forEach(contractor => {
             if (wsContentY > curY) curY = wsContentY;
             checkPageBreak(60);
             wsContentY = curY;
