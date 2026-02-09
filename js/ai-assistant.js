@@ -279,12 +279,15 @@
         addBubble('user', text);
         saveConversation();
 
-        // Check for local commands first
+        // Check for local commands first (returns false if not a command)
         const localResponse = handleLocalCommand(text);
-        if (localResponse) {
-            conversation.push({ role: 'assistant', content: localResponse, ts: Date.now() });
-            addBubble('assistant', localResponse);
-            saveConversation();
+        if (localResponse !== false) {
+            if (localResponse) {  // Non-empty string = show response bubble
+                conversation.push({ role: 'assistant', content: localResponse, ts: Date.now() });
+                addBubble('assistant', localResponse);
+                saveConversation();
+            }
+            // Empty string or '' = handled internally (clear chat, help)
             isProcessing = false;
             return;
         }
@@ -359,14 +362,14 @@
             conversation = [];
             saveConversation();
             renderMessages();
-            return null; // Don't add a message, renderMessages shows welcome
+            return ''; // Handled internally — don't add a bubble
         }
         if (lower === 'help' || lower === 'what can you do' || lower.includes('what can you do')) {
             showHelp();
-            return null; // showHelp handles adding the message
+            return ''; // Handled internally — showHelp adds the bubble
         }
 
-        return null; // Not a local command, send to AI
+        return false; // Not a local command → send to AI webhook
     }
 
     // ── AI Webhook ──
