@@ -213,12 +213,13 @@
         if (conversation.length === 0) {
             // Welcome message
             container.innerHTML = makeBubble('assistant',
-                "Hey! I'm your AI field assistant. Ask me about your project, reports, or say things like:\n\n" +
+                "Hey! I'm your AI field assistant. I can open any tool, navigate anywhere, and answer questions about your project.\n\n" +
+                "Try saying:\n" +
+                "• \"Open compass\" or \"Open calculator\"\n" +
+                "• \"Show me the weather radar\"\n" +
                 "• \"Start a new report\"\n" +
-                "• \"What work was done yesterday?\"\n" +
-                "• \"Summarize this week's reports\"\n" +
-                "• \"What's the weather forecast?\"\n" +
-                "• \"Open project settings\"");
+                "• \"Check weather\" or \"Drone ops\"\n\n" +
+                "Say \"help\" for the full list!");
             return;
         }
 
@@ -315,17 +316,35 @@
     // ── Help / Feature List ──
     function showHelp() {
         const helpText = "Here's what I can do:\n\n" +
-            "🗣️ Navigation:\n" +
-            "• \"Start a new report\"\n" +
-            "• \"Open settings\" / \"Open archives\"\n" +
-            "• \"Project settings\" / \"Home\"\n\n" +
-            "🤖 AI-Powered (coming soon):\n" +
+            "📋 Reports:\n" +
+            "• \"Start a new report\" / \"New report\"\n" +
+            "• \"Edit report\" / \"Continue report\"\n" +
+            "• \"Open archives\" / \"Past reports\"\n" +
+            "• \"Final review\" / \"Preview report\"\n\n" +
+            "🧰 Field Tools:\n" +
+            "• \"Open compass\" / \"Open calculator\"\n" +
+            "• \"Open level\" / \"Open slope meter\"\n" +
+            "• \"Open measure\" / \"AR tape\"\n" +
+            "• \"Open QR scanner\" / \"Timer\"\n" +
+            "• \"Decibel meter\" / \"Flashlight\"\n\n" +
+            "🗺️ Maps:\n" +
+            "• \"Open map\" / \"Weather radar\"\n" +
+            "• \"FAA map\" / \"Satellite view\"\n" +
+            "• \"Topo map\" / \"Flood zones\"\n" +
+            "• \"Soil map\" / \"Parcels\" / \"Traffic\"\n\n" +
+            "📍 Navigation:\n" +
+            "• \"Home\" / \"Dashboard\"\n" +
+            "• \"My profile\" / \"Settings\"\n" +
+            "• \"New project\" / \"Manage projects\"\n" +
+            "• \"Open admin\" / \"Admin dashboard\"\n" +
+            "• \"Check weather\" / \"Drone ops\"\n" +
+            "• \"Emergency info\"\n\n" +
+            "🤖 AI-Powered:\n" +
+            "• Ask about your project or reports\n" +
             "• \"What work was done yesterday?\"\n" +
-            "• \"Summarize this week's reports\"\n" +
-            "• \"What's the weather forecast?\"\n" +
-            "• Questions about specs & submittals\n\n" +
+            "• \"Summarize this week\"\n\n" +
             "🔧 Utilities:\n" +
-            "• \"Start new chat\" — clear conversation\n" +
+            "• \"New chat\" — clear conversation\n" +
             "• \"Help\" — show this message";
 
         conversation.push({ role: 'assistant', content: helpText, ts: Date.now() });
@@ -337,27 +356,7 @@
     function handleLocalCommand(text) {
         const lower = text.toLowerCase().trim();
 
-        // Navigation commands
-        if (lower.includes('new report') || lower.includes('start a report') || lower.includes('begin report')) {
-            setTimeout(() => window.location.href = 'quick-interview.html', 500);
-            return "Starting a new report! Redirecting you to the interview page...";
-        }
-        if (lower.includes('open settings') || lower.includes('go to settings')) {
-            setTimeout(() => window.location.href = 'settings.html', 500);
-            return "Opening settings...";
-        }
-        if (lower.includes('open project') || lower.includes('project settings') || lower.includes('project config')) {
-            setTimeout(() => window.location.href = 'projects.html', 500);
-            return "Opening project settings...";
-        }
-        if (lower.includes('open archives') || lower.includes('past reports') || lower.includes('report history')) {
-            setTimeout(() => window.location.href = 'archives.html', 500);
-            return "Opening report archives...";
-        }
-        if (lower === 'home' || lower === 'go home' || lower === 'dashboard') {
-            setTimeout(() => window.location.href = 'index.html', 500);
-            return "Going to the dashboard...";
-        }
+        // ── Chat management ──
         if (lower.includes('clear chat') || lower.includes('clear conversation') || lower.includes('start new chat') || lower.includes('new chat') || lower.includes('reset chat')) {
             conversation = [];
             saveConversation();
@@ -367,6 +366,297 @@
         if (lower === 'help' || lower === 'what can you do' || lower.includes('what can you do')) {
             showHelp();
             return ''; // Handled internally — showHelp adds the bubble
+        }
+
+        // ── Page Navigation commands ──
+        if (lower.includes('new report') || lower.includes('start a report') || lower.includes('begin report') || lower.includes('start report')) {
+            setTimeout(() => window.location.href = 'quick-interview.html', 500);
+            return "Starting a new report! Redirecting you to the interview page...";
+        }
+        if (lower.includes('edit report') || lower.includes('continue report') || lower.includes('current report') || lower.includes('open report')) {
+            setTimeout(() => window.location.href = 'report.html', 500);
+            return "Opening the report editor...";
+        }
+        if (lower.includes('final review') || lower.includes('preview report') || lower.includes('review report')) {
+            setTimeout(() => window.location.href = 'finalreview.html', 500);
+            return "Opening the final review...";
+        }
+        if (lower.includes('my profile') || lower.includes('open settings') || lower.includes('go to settings') || lower.includes('user settings') || lower.includes('my settings')) {
+            setTimeout(() => window.location.href = 'settings.html', 500);
+            return "Opening your profile & settings...";
+        }
+        if (lower.includes('new project') || lower.includes('add project') || lower.includes('create project') || lower.includes('project config') || lower.includes('configure project')) {
+            setTimeout(() => window.location.href = 'project-config.html', 500);
+            return "Opening project configuration...";
+        }
+        if (lower.includes('manage project') || lower.includes('project settings') || lower.includes('project list') || lower.includes('my projects') || lower.includes('open project')) {
+            setTimeout(() => window.location.href = 'projects.html', 500);
+            return "Opening project manager...";
+        }
+        if (lower.includes('open archives') || lower.includes('past reports') || lower.includes('report history') || lower.includes('old reports') || lower.includes('submitted reports')) {
+            setTimeout(() => window.location.href = 'archives.html', 500);
+            return "Opening report archives...";
+        }
+        if (lower.includes('admin') || lower.includes('admin dashboard') || lower.includes('admin panel') || lower.includes('system health')) {
+            setTimeout(() => window.location.href = 'admin.html', 500);
+            return "Opening admin dashboard...";
+        }
+        if (lower === 'home' || lower === 'go home' || lower === 'dashboard' || lower === 'main' || lower === 'go to dashboard' || lower.includes('go home') || lower.includes('go to home')) {
+            setTimeout(() => window.location.href = 'index.html', 500);
+            return "Going to the dashboard...";
+        }
+
+        // ── Field Tools (on index.html) ──
+        // If we're on index.html, call the function directly. Otherwise, redirect with ?openTool=
+        const isOnDashboard = window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/');
+
+        // Compass
+        if (lower.includes('compass') || lower.includes('bearing') || lower.includes('heading') || lower.includes('north')) {
+            if (isOnDashboard && typeof openCompass === 'function') {
+                closeAssistant();
+                setTimeout(() => openCompass(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=compass', 500);
+            }
+            return "🧭 Opening compass...";
+        }
+
+        // Calculator
+        if (lower.includes('calculator') || lower.includes('calc') || (lower.includes('calculate') && !lower.includes('slope'))) {
+            if (isOnDashboard && typeof openCalc === 'function') {
+                closeAssistant();
+                setTimeout(() => openCalc(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=calc', 500);
+            }
+            return "🔢 Opening construction calculator...";
+        }
+
+        // Level
+        if (lower.includes('level') || lower.includes('inclinometer') || lower.includes('bubble level')) {
+            if (isOnDashboard && typeof openLevel === 'function') {
+                closeAssistant();
+                setTimeout(() => openLevel(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=level', 500);
+            }
+            return "📐 Opening level...";
+        }
+
+        // Slope / Grade
+        if (lower.includes('slope') || lower.includes('grade meter') || lower.includes('grade tool') || lower.includes('slope meter')) {
+            if (isOnDashboard && typeof openSlope === 'function') {
+                closeAssistant();
+                setTimeout(() => openSlope(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=slope', 500);
+            }
+            return "📏 Opening slope & grade tool...";
+        }
+
+        // Weather Radar / Maps
+        if (lower.includes('weather radar') || lower.includes('radar map')) {
+            if (isOnDashboard && typeof openMapsOverlay === 'function') {
+                closeAssistant();
+                setTimeout(() => { openMapsOverlay(); switchMap('weather'); }, 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=maps&mapType=weather', 500);
+            }
+            return "🌧️ Opening weather radar...";
+        }
+        if (lower.includes('faa map') || lower.includes('airspace') || lower.includes('flight map')) {
+            if (isOnDashboard && typeof openMapsOverlay === 'function') {
+                closeAssistant();
+                setTimeout(() => { openMapsOverlay(); switchMap('airspace'); }, 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=maps&mapType=airspace', 500);
+            }
+            return "✈️ Opening FAA airspace map...";
+        }
+        if (lower.includes('satellite') || lower.includes('satellite view') || lower.includes('aerial view')) {
+            if (isOnDashboard && typeof openMapsOverlay === 'function') {
+                closeAssistant();
+                setTimeout(() => { openMapsOverlay(); switchMap('satellite'); }, 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=maps&mapType=satellite', 500);
+            }
+            return "🛰️ Opening satellite view...";
+        }
+        if (lower.includes('topo') || lower.includes('topograph')) {
+            if (isOnDashboard && typeof openMapsOverlay === 'function') {
+                closeAssistant();
+                setTimeout(() => { openMapsOverlay(); switchMap('topo'); }, 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=maps&mapType=topo', 500);
+            }
+            return "🏔️ Opening topo map...";
+        }
+        if (lower.includes('flood') || lower.includes('flood map') || lower.includes('flood zone')) {
+            if (isOnDashboard && typeof openMapsOverlay === 'function') {
+                closeAssistant();
+                setTimeout(() => { openMapsOverlay(); switchMap('flood'); }, 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=maps&mapType=flood', 500);
+            }
+            return "🌊 Opening flood zone map...";
+        }
+        if (lower.includes('soil') || lower.includes('soil map')) {
+            if (isOnDashboard && typeof openMapsOverlay === 'function') {
+                closeAssistant();
+                setTimeout(() => { openMapsOverlay(); switchMap('soils'); }, 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=maps&mapType=soils', 500);
+            }
+            return "🏗️ Opening soils map...";
+        }
+        if (lower.includes('parcel') || lower.includes('property line') || lower.includes('lot line')) {
+            if (isOnDashboard && typeof openMapsOverlay === 'function') {
+                closeAssistant();
+                setTimeout(() => { openMapsOverlay(); switchMap('parcels'); }, 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=maps&mapType=parcels', 500);
+            }
+            return "📍 Opening parcel/property map...";
+        }
+        if (lower.includes('traffic') || lower.includes('traffic map')) {
+            if (isOnDashboard && typeof openMapsOverlay === 'function') {
+                closeAssistant();
+                setTimeout(() => { openMapsOverlay(); switchMap('traffic'); }, 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=maps&mapType=traffic', 500);
+            }
+            return "🚦 Opening traffic map...";
+        }
+        // General map request
+        if ((lower.includes('map') || lower.includes('show me the map') || lower.includes('open map')) && !lower.includes('photo')) {
+            if (isOnDashboard && typeof openMapsOverlay === 'function') {
+                closeAssistant();
+                setTimeout(() => openMapsOverlay(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=maps', 500);
+            }
+            return "🗺️ Opening maps...";
+        }
+
+        // QR Scanner
+        if (lower.includes('qr') || lower.includes('scan') || lower.includes('barcode')) {
+            if (isOnDashboard && typeof openQR === 'function') {
+                closeAssistant();
+                setTimeout(() => openQR(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=qr', 500);
+            }
+            return "📷 Opening QR scanner...";
+        }
+
+        // Distance Measure
+        if (lower.includes('distance') || lower.includes('measure') || lower.includes('tape measure')) {
+            if (isOnDashboard && typeof openMeasure === 'function') {
+                closeAssistant();
+                setTimeout(() => openMeasure(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=measure', 500);
+            }
+            return "📏 Opening distance measurement tool...";
+        }
+
+        // AR Measure
+        if (lower.includes('ar ') || lower.includes('augmented reality') || lower.includes('ar tape') || lower.includes('ar measure')) {
+            if (isOnDashboard && typeof openARMeasure === 'function') {
+                closeAssistant();
+                setTimeout(() => openARMeasure(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=ar', 500);
+            }
+            return "📸 Opening AR measurement tool...";
+        }
+
+        // Decibel Meter
+        if (lower.includes('decibel') || lower.includes('db meter') || lower.includes('noise') || lower.includes('sound level') || lower.includes('sound meter')) {
+            if (isOnDashboard && typeof openDecibel === 'function') {
+                closeAssistant();
+                setTimeout(() => openDecibel(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=decibel', 500);
+            }
+            return "🔊 Opening decibel meter...";
+        }
+
+        // Timer / Stopwatch
+        if (lower.includes('timer') || lower.includes('stopwatch') || lower.includes('countdown')) {
+            if (isOnDashboard && typeof openTimer === 'function') {
+                closeAssistant();
+                setTimeout(() => openTimer(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=timer', 500);
+            }
+            return "⏱️ Opening timer...";
+        }
+
+        // Flashlight
+        if (lower.includes('flashlight') || lower.includes('light') || lower.includes('torch')) {
+            if (isOnDashboard && typeof openFlashlight === 'function') {
+                closeAssistant();
+                setTimeout(() => openFlashlight(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=flashlight', 500);
+            }
+            return "🔦 Opening flashlight...";
+        }
+
+        // Drone Ops
+        if (lower.includes('drone') || lower.includes('uav') || lower.includes('flight status') || lower.includes('drone ops')) {
+            if (isOnDashboard) {
+                closeAssistant();
+                setTimeout(() => {
+                    var droneHeader = document.querySelector('[onclick*="droneOpsPanel"]');
+                    if (droneHeader) droneHeader.click();
+                    droneHeader && droneHeader.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openPanel=droneOpsPanel', 500);
+            }
+            return "🚁 Opening drone operations info...";
+        }
+
+        // Weather (not radar, just weather info)
+        if (lower.includes('weather') || lower.includes('forecast') || lower.includes('temperature') || lower.includes('check weather')) {
+            if (isOnDashboard) {
+                closeAssistant();
+                setTimeout(() => {
+                    var weatherHeader = document.querySelector('[onclick*="weatherDetailsPanel"]');
+                    if (weatherHeader) weatherHeader.click();
+                    weatherHeader && weatherHeader.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openPanel=weatherDetailsPanel', 500);
+            }
+            return "🌤️ Opening weather details...";
+        }
+
+        // Emergency Info
+        if (lower.includes('emergency') || lower.includes('911') || lower.includes('first aid') || lower.includes('safety info') || lower.includes('emergency info')) {
+            if (isOnDashboard) {
+                closeAssistant();
+                setTimeout(() => {
+                    var strip = document.getElementById('emergencyStrip');
+                    if (strip) strip.click();
+                }, 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openPanel=emergencyPanel', 500);
+            }
+            return "🚨 Opening emergency info...";
+        }
+
+        // Field Tools grid
+        if (lower.includes('tools') || lower.includes('field tools') || lower.includes('open tools') || lower.includes('toolbox')) {
+            if (isOnDashboard && typeof openFieldToolsModal === 'function') {
+                closeAssistant();
+                setTimeout(() => openFieldToolsModal(), 300);
+            } else {
+                setTimeout(() => window.location.href = 'index.html?openTool=fieldtools', 500);
+            }
+            return "🧰 Opening field tools...";
         }
 
         return false; // Not a local command → send to AI webhook
