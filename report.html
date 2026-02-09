@@ -19,6 +19,7 @@
     <meta name="apple-mobile-web-app-title" content="FieldVoice">
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="./js/config.js"></script>
     <script src="./js/storage-keys.js"></script>
     <script src="./js/indexeddb-utils.js"></script>
@@ -404,6 +405,262 @@
         .debug-banner-dismiss:hover {
             color: #78350f;
         }
+        /* ============ PREVIEW TAB STYLES ============ */
+        .preview-wrapper {
+            max-width: 8.5in;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        .preview-page {
+            background: white;
+            padding: 0.4in 0.5in;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            position: relative;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 10pt;
+            line-height: 1.3;
+            color: #000;
+        }
+        .preview-page .rpr-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 3px solid #4a7c34;
+        }
+        .preview-page .rpr-logo {
+            max-height: 50px;
+            max-width: 200px;
+        }
+        .preview-page .rpr-logo-placeholder {
+            font-size: 11px;
+            font-weight: bold;
+            color: #1e3a5f;
+            text-transform: uppercase;
+        }
+        .preview-page .rpr-title {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #4a7c34;
+            text-align: right;
+        }
+        .preview-page .rpr-section-header {
+            background: #4a7c34;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            padding: 6px 10px;
+            font-size: 10pt;
+            text-transform: uppercase;
+            margin-top: 12px;
+            border: 1px solid #000;
+            border-bottom: none;
+        }
+        .preview-page .rpr-section-header:first-child { margin-top: 0; }
+        .preview-page .rpr-overview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9pt;
+            border: 1px solid #000;
+            border-top: none;
+        }
+        .preview-page .rpr-overview-table td {
+            border: 1px solid #000;
+            padding: 4px 8px;
+            vertical-align: top;
+        }
+        .preview-page .rpr-overview-table .rpr-label {
+            font-weight: bold;
+            background: #f5f5f5;
+            white-space: nowrap;
+        }
+        .preview-page .rpr-work-summary {
+            border: 1px solid #000;
+            border-top: none;
+            padding: 10px;
+            font-size: 9pt;
+        }
+        .preview-page .rpr-contractor-block { margin-bottom: 12px; }
+        .preview-page .rpr-contractor-block:last-child { margin-bottom: 0; }
+        .preview-page .rpr-contractor-name {
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .preview-page .rpr-ops-table,
+        .preview-page .rpr-equip-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8pt;
+            border: 1px solid #000;
+            border-top: none;
+        }
+        .preview-page .rpr-ops-table th,
+        .preview-page .rpr-equip-table th {
+            background: #f5f5f5;
+            border: 1px solid #000;
+            padding: 4px 3px;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+            font-size: 6pt;
+        }
+        .preview-page .rpr-ops-table td,
+        .preview-page .rpr-equip-table td {
+            border: 1px solid #000;
+            padding: 3px;
+            text-align: center;
+            font-size: 8pt;
+        }
+        .preview-page .rpr-ops-table td:first-child,
+        .preview-page .rpr-ops-table td:nth-child(2),
+        .preview-page .rpr-equip-table td:first-child,
+        .preview-page .rpr-equip-table td:nth-child(2) {
+            text-align: left;
+        }
+        .preview-page .rpr-text-section {
+            border: 1px solid #000;
+            border-top: none;
+            padding: 8px 10px;
+            min-height: 40px;
+            font-size: 9pt;
+        }
+        .preview-page .rpr-text-section ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .preview-page .rpr-text-section li { margin-bottom: 4px; }
+        .preview-page .rpr-na { color: #666; }
+        .preview-page .rpr-safety-checkboxes {
+            display: flex;
+            gap: 20px;
+            font-size: 9pt;
+        }
+        .preview-page .rpr-checkbox-box {
+            width: 12px;
+            height: 12px;
+            border: 1px solid #000;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .preview-page .rpr-checkbox-box.checked {
+            background: #000;
+            color: white;
+        }
+        .preview-page .rpr-signature-name {
+            font-size: 16pt;
+            font-family: 'Brush Script MT', cursive, Arial;
+            color: #1e3a5f;
+        }
+        .preview-page .rpr-signature-details {
+            font-size: 7pt;
+            color: #666;
+            margin-top: 4px;
+        }
+        .preview-page .rpr-photos-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            border: 1px solid #000;
+            border-top: none;
+        }
+        .preview-page .rpr-photo-cell {
+            border: 1px solid #ccc;
+            padding: 8px;
+            min-height: 250px;
+        }
+        .preview-page .rpr-photo-cell:nth-child(odd) { border-right: 1px solid #000; }
+        .preview-page .rpr-photo-image {
+            width: 100%;
+            height: 180px;
+            background: #f5f5f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        .preview-page .rpr-photo-image img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .preview-page .rpr-page-footer {
+            text-align: center;
+            font-size: 8pt;
+            color: #666;
+            border-top: 1px solid #ccc;
+            padding-top: 4px;
+            margin-top: 16px;
+        }
+        /* Preview bottom bar */
+        .preview-bottom-bar {
+            position: sticky;
+            bottom: 0;
+            background: #0a1628;
+            border-top: 2px solid #f59e0b;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            z-index: 40;
+        }
+        .preview-bottom-bar .btn-edit-back {
+            padding: 10px 24px;
+            background: #475569;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .preview-bottom-bar .btn-edit-back:hover { background: #64748b; }
+        .preview-bottom-bar .btn-submit-report {
+            padding: 10px 24px;
+            background: #16a34a;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .preview-bottom-bar .btn-submit-report:hover { background: #15803d; }
+        .preview-bottom-bar .btn-submit-report:disabled {
+            opacity: 0.7;
+            cursor: wait;
+        }
+        /* Submit loading overlay */
+        .submit-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .submit-overlay .submit-spinner {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .submit-overlay .submit-status {
+            font-size: 1rem;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
@@ -438,6 +695,9 @@
             </button>
             <button id="tabOriginalNotes" onclick="switchTab('notes')" class="flex-1 px-4 py-3 text-sm font-bold uppercase tracking-wide border-b-2 border-transparent text-slate-400 hover:text-white transition-colors">
                 <i class="fas fa-microphone mr-2"></i>Original Notes
+            </button>
+            <button id="tabPreview" onclick="switchTab('preview')" class="flex-1 px-4 py-3 text-sm font-bold uppercase tracking-wide border-b-2 border-transparent text-slate-400 hover:text-white transition-colors">
+                <i class="fas fa-file-alt mr-2"></i>Preview &amp; Submit
             </button>
         </div>
     </div>
@@ -802,7 +1062,12 @@
             <div class="p-4">
                 <textarea id="issuesText" class="editable-field auto-expand w-full px-3 py-2 text-sm"
                     placeholder="Document any issues, delays, or RFIs. Include details about impact, resolution status, and responsible parties..."></textarea>
-                <p class="text-xs text-slate-400 mt-1">Leave blank if no issues to report</p>
+                <div class="flex items-center justify-between mt-1">
+                    <p class="text-xs text-slate-400">Leave blank if no issues to report</p>
+                    <button data-refine-for="issuesText" onclick="refineTextField('issuesText')" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase transition-colors rounded flex items-center gap-1">
+                        <i class="fas fa-magic"></i> Refine
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -815,7 +1080,12 @@
             <div class="p-4">
                 <textarea id="qaqcText" class="editable-field auto-expand w-full px-3 py-2 text-sm"
                     placeholder="Document any QA/QC tests, inspections, or quality control activities performed today..."></textarea>
-                <p class="text-xs text-slate-400 mt-1">Leave blank if no inspections to report</p>
+                <div class="flex items-center justify-between mt-1">
+                    <p class="text-xs text-slate-400">Leave blank if no inspections to report</p>
+                    <button data-refine-for="qaqcText" onclick="refineTextField('qaqcText')" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase transition-colors rounded flex items-center gap-1">
+                        <i class="fas fa-magic"></i> Refine
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -842,6 +1112,11 @@
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Safety Notes / Toolbox Talks</label>
                     <textarea id="safetyText" class="editable-field auto-expand w-full px-3 py-2 text-sm"
                         placeholder="Document safety meetings, toolbox talks, observations, near misses..."></textarea>
+                    <div class="flex justify-end mt-1">
+                        <button data-refine-for="safetyText" onclick="refineTextField('safetyText')" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase transition-colors rounded flex items-center gap-1">
+                            <i class="fas fa-magic"></i> Refine
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>
@@ -855,7 +1130,12 @@
             <div class="p-4">
                 <textarea id="communicationsText" class="editable-field auto-expand w-full px-3 py-2 text-sm"
                     placeholder="Document any communications, directives, or discussions with contractors..."></textarea>
-                <p class="text-xs text-slate-400 mt-1">Leave blank if no communications to report</p>
+                <div class="flex items-center justify-between mt-1">
+                    <p class="text-xs text-slate-400">Leave blank if no communications to report</p>
+                    <button data-refine-for="communicationsText" onclick="refineTextField('communicationsText')" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase transition-colors rounded flex items-center gap-1">
+                        <i class="fas fa-magic"></i> Refine
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -868,7 +1148,12 @@
             <div class="p-4">
                 <textarea id="visitorsText" class="editable-field auto-expand w-full px-3 py-2 text-sm"
                     placeholder="Document any visitors to the site, deliveries received, or additional remarks..."></textarea>
-                <p class="text-xs text-slate-400 mt-1">Leave blank if nothing to report</p>
+                <div class="flex items-center justify-between mt-1">
+                    <p class="text-xs text-slate-400">Leave blank if nothing to report</p>
+                    <button data-refine-for="visitorsText" onclick="refineTextField('visitorsText')" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase transition-colors rounded flex items-center gap-1">
+                        <i class="fas fa-magic"></i> Refine
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -1008,7 +1293,30 @@
 
         </div><!-- END formViewContent -->
 
+        <!-- PREVIEW & SUBMIT VIEW (hidden by default) -->
+        <div id="previewContent" class="hidden">
+            <div class="preview-wrapper">
+                <!-- Preview pages will be rendered here by renderPreview() -->
+                <div class="text-center text-slate-400 py-12">
+                    <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+                    <p class="text-sm">Generating preview...</p>
+                </div>
+            </div>
+        </div>
+
     </main>
+
+    <!-- Preview Bottom Bar (only visible on preview tab) -->
+    <div id="previewBottomBar" class="preview-bottom-bar hidden">
+        <button class="btn-edit-back" onclick="switchTab('form')">
+            <i class="fas fa-arrow-left"></i>
+            Edit Report
+        </button>
+        <button id="submitReportBtn" class="btn-submit-report" onclick="handleSubmit()">
+            <i class="fas fa-paper-plane"></i>
+            Submit Report
+        </button>
+    </div>
 
     <!-- Save Indicator -->
     <div id="saveIndicator" class="save-indicator">

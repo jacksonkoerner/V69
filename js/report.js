@@ -23,7 +23,17 @@
     let isReadonly = false;
     let currentTab = 'form';
 
-    const N8N_PROCESS_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-refine-v6.6';
+    const N8N_PROCESS_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-report';
+    const N8N_REFINE_TEXT_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-text';
+
+    // Section name mapping for refine-text API
+    const SECTION_MAP = {
+        'issuesText': 'issues',
+        'qaqcText': 'inspections',
+        'safetyText': 'safety',
+        'communicationsText': 'activities',
+        'visitorsText': 'visitors'
+    };
 
     // ============ INITIALIZATION ============
     document.addEventListener('DOMContentLoaded', async () => {
@@ -81,23 +91,41 @@
         currentTab = tab;
         const tabFormView = document.getElementById('tabFormView');
         const tabOriginalNotes = document.getElementById('tabOriginalNotes');
+        const tabPreview = document.getElementById('tabPreview');
         const formViewContent = document.getElementById('formViewContent');
         const originalNotesView = document.getElementById('originalNotesView');
+        const previewContent = document.getElementById('previewContent');
+        const previewBottomBar = document.getElementById('previewBottomBar');
+
+        // Reset all tabs
+        [tabFormView, tabOriginalNotes, tabPreview].forEach(btn => {
+            if (btn) {
+                btn.classList.remove('border-dot-orange', 'text-white');
+                btn.classList.add('border-transparent', 'text-slate-400');
+            }
+        });
+
+        // Hide all views
+        formViewContent.classList.add('hidden');
+        originalNotesView.classList.add('hidden');
+        previewContent.classList.add('hidden');
+        if (previewBottomBar) previewBottomBar.classList.add('hidden');
 
         if (tab === 'form') {
             tabFormView.classList.add('border-dot-orange', 'text-white');
             tabFormView.classList.remove('border-transparent', 'text-slate-400');
-            tabOriginalNotes.classList.remove('border-dot-orange', 'text-white');
-            tabOriginalNotes.classList.add('border-transparent', 'text-slate-400');
             formViewContent.classList.remove('hidden');
-            originalNotesView.classList.add('hidden');
-        } else {
+        } else if (tab === 'notes') {
             tabOriginalNotes.classList.add('border-dot-orange', 'text-white');
             tabOriginalNotes.classList.remove('border-transparent', 'text-slate-400');
-            tabFormView.classList.remove('border-dot-orange', 'text-white');
-            tabFormView.classList.add('border-transparent', 'text-slate-400');
             originalNotesView.classList.remove('hidden');
-            formViewContent.classList.add('hidden');
+        } else if (tab === 'preview') {
+            tabPreview.classList.add('border-dot-orange', 'text-white');
+            tabPreview.classList.remove('border-transparent', 'text-slate-400');
+            previewContent.classList.remove('hidden');
+            if (previewBottomBar) previewBottomBar.classList.remove('hidden');
+            // Render the preview with live data
+            renderPreview();
         }
     }
 
@@ -188,6 +216,7 @@
     }
 
     // --- HELPER: Render Work Entries Grouped by Contractor ---
+    // v6.9: Also handles crew-level entries (work_{contractorId}_crew_{crewId})
     function renderWorkByContractor(original, contractorMap) {
         const container = document.getElementById('originalWorkByContractor');
         const entries = original?.entries?.filter(e => e.section?.startsWith('work_') && !e.is_deleted) || [];
@@ -197,39 +226,71 @@
             return;
         }
 
-        // Group by contractor ID
+        // Build crew lookup from project context
+        const contractors = original?.projectContext?.contractors || [];
+        const crewMap = {};
+        contractors.forEach(c => {
+            (c.crews || []).forEach(crew => {
+                crewMap[`${c.id}_${crew.id}`] = crew.name;
+            });
+        });
+
+        // Group by contractor ID, then sub-group by crew
         const grouped = {};
         entries.forEach(e => {
-            const contractorId = e.section.replace('work_', '');
-            if (!grouped[contractorId]) grouped[contractorId] = [];
-            grouped[contractorId].push(e);
+            // Parse section: work_{contractorId} or work_{contractorId}_crew_{crewId}
+            const crewMatch = e.section.match(/^work_(.+?)_crew_(.+)$/);
+            let contractorId, crewId;
+            if (crewMatch) {
+                contractorId = crewMatch[1];
+                crewId = crewMatch[2];
+            } else {
+                contractorId = e.section.replace('work_', '');
+                crewId = null;
+            }
+            const groupKey = contractorId;
+            if (!grouped[groupKey]) grouped[groupKey] = { entries: [], crewEntries: {} };
+            if (crewId) {
+                if (!grouped[groupKey].crewEntries[crewId]) grouped[groupKey].crewEntries[crewId] = [];
+                grouped[groupKey].crewEntries[crewId].push(e);
+            } else {
+                grouped[groupKey].entries.push(e);
+            }
         });
 
         let html = '';
         Object.keys(grouped).forEach(contractorId => {
             const contractorName = contractorMap[contractorId] || 'Unknown Contractor';
-            const contractorEntries = grouped[contractorId].sort((a, b) =>
-                new Date(a.timestamp || 0) - new Date(b.timestamp || 0)
-            );
+            const group = grouped[contractorId];
 
-            html += `
-                <div class="bg-slate-800/50 rounded-lg overflow-hidden">
-                    <div class="bg-slate-700/50 px-3 py-2 font-medium text-white text-sm">${escapeHtml(contractorName)}</div>
-                    <table class="w-full text-sm">
-                        <tbody>
-            `;
+            html += `<div class="bg-slate-800/50 rounded-lg overflow-hidden mb-2">`;
+            html += `<div class="bg-slate-700/50 px-3 py-2 font-medium text-white text-sm">${escapeHtml(contractorName)}</div>`;
 
-            contractorEntries.forEach(e => {
-                const time = e.timestamp ? new Date(e.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
-                html += `
-                    <tr class="border-t border-slate-700/50">
-                        <td class="px-3 py-2 text-slate-400 whitespace-nowrap w-20">${time}</td>
-                        <td class="px-3 py-2 text-slate-200">${escapeHtml(e.content || '')}</td>
-                    </tr>
-                `;
+            // Render contractor-level entries
+            if (group.entries.length > 0) {
+                const sorted = group.entries.sort((a, b) => new Date(a.timestamp || 0) - new Date(b.timestamp || 0));
+                html += '<table class="w-full text-sm"><tbody>';
+                sorted.forEach(e => {
+                    const time = e.timestamp ? new Date(e.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+                    html += `<tr class="border-t border-slate-700/50"><td class="px-3 py-2 text-slate-400 whitespace-nowrap w-20">${time}</td><td class="px-3 py-2 text-slate-200">${escapeHtml(e.content || '')}</td></tr>`;
+                });
+                html += '</tbody></table>';
+            }
+
+            // Render crew-level entries
+            Object.keys(group.crewEntries).forEach(crewId => {
+                const crewName = crewMap[`${contractorId}_${crewId}`] || `Crew ${crewId.substring(0, 6)}`;
+                const crewEntriesSorted = group.crewEntries[crewId].sort((a, b) => new Date(a.timestamp || 0) - new Date(b.timestamp || 0));
+                html += `<div class="bg-slate-700/30 px-3 py-1 text-xs text-slate-300 font-medium border-t border-slate-700/50"><i class="fas fa-users mr-1 text-slate-400"></i>${escapeHtml(crewName)}</div>`;
+                html += '<table class="w-full text-sm"><tbody>';
+                crewEntriesSorted.forEach(e => {
+                    const time = e.timestamp ? new Date(e.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+                    html += `<tr class="border-t border-slate-700/50"><td class="px-3 py-2 text-slate-400 whitespace-nowrap w-20">${time}</td><td class="px-3 py-2 text-slate-200">${escapeHtml(e.content || '')}</td></tr>`;
+                });
+                html += '</tbody></table>';
             });
 
-            html += '</tbody></table></div>';
+            html += '</div>';
         });
 
         container.innerHTML = html;
@@ -504,6 +565,197 @@
         }
     }
 
+    // ============ AI REFINE TEXT (per-field) ============
+    /**
+     * Refine a single text field using the AI refine-text webhook.
+     * Called from "✨ Refine" buttons next to each textarea.
+     * @param {string} textareaId - The DOM id of the textarea to refine
+     */
+    async function refineTextField(textareaId) {
+        const textarea = document.getElementById(textareaId);
+        if (!textarea) {
+            console.error('[REFINE] Textarea not found:', textareaId);
+            return;
+        }
+
+        const originalText = textarea.value.trim();
+        if (!originalText) {
+            alert('Nothing to refine — enter some notes first.');
+            return;
+        }
+
+        // Find the refine button and show loading state
+        const btn = document.querySelector(`[data-refine-for="${textareaId}"]`);
+        const originalBtnHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Refining...';
+        }
+
+        try {
+            const section = SECTION_MAP[textareaId] || 'additionalNotes';
+            const payload = {
+                originalText: originalText,
+                section: section,
+                reportContext: {
+                    projectName: activeProject?.projectName || '',
+                    reporterName: userSettings?.fullName || '',
+                    date: report?.overview?.date || new Date().toISOString().split('T')[0]
+                }
+            };
+
+            console.log('[REFINE] Sending to refine-text webhook:', { textareaId, section });
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+            const response = await fetch(N8N_REFINE_TEXT_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`Webhook failed: ${response.status}`);
+            }
+
+            const result = await response.json();
+            const refinedText = result.refinedText;
+
+            if (!refinedText || refinedText.includes('[not provided]')) {
+                throw new Error('AI returned empty or invalid refined text');
+            }
+
+            console.log('[REFINE] Got refined text for', textareaId, ':', refinedText.substring(0, 100));
+
+            // Update the textarea with refined text
+            textarea.value = refinedText;
+
+            // Mark as user-edited (so it persists)
+            textarea.classList.add('user-edited');
+
+            // Trigger auto-save
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+
+            // Brief success indicator
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-check mr-1"></i>Done!';
+                btn.classList.add('bg-green-600');
+                setTimeout(() => {
+                    btn.innerHTML = originalBtnHtml;
+                    btn.disabled = false;
+                    btn.classList.remove('bg-green-600');
+                }, 2000);
+            }
+
+        } catch (error) {
+            console.error('[REFINE] Failed:', error);
+
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i>Failed';
+                btn.classList.add('bg-red-600');
+                setTimeout(() => {
+                    btn.innerHTML = originalBtnHtml;
+                    btn.disabled = false;
+                    btn.classList.remove('bg-red-600');
+                }, 2000);
+            }
+        }
+    }
+
+    /**
+     * Refine a contractor's work summary narrative.
+     * @param {string} contractorId - The contractor UUID
+     */
+    async function refineContractorNarrative(contractorId) {
+        const textarea = document.getElementById(`narrative_${contractorId}`);
+        if (!textarea) {
+            console.error('[REFINE] Narrative textarea not found for contractor:', contractorId);
+            return;
+        }
+
+        const originalText = textarea.value.trim();
+        if (!originalText) {
+            alert('Nothing to refine — enter work summary notes first.');
+            return;
+        }
+
+        const btn = document.querySelector(`[data-refine-for="narrative_${contractorId}"]`);
+        const originalBtnHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Refining...';
+        }
+
+        try {
+            const contractor = projectContractors.find(c => c.id === contractorId);
+            const payload = {
+                originalText: originalText,
+                section: 'activities',
+                reportContext: {
+                    projectName: activeProject?.projectName || '',
+                    reporterName: userSettings?.fullName || '',
+                    date: report?.overview?.date || new Date().toISOString().split('T')[0],
+                    contractorName: contractor?.name || 'Unknown Contractor'
+                }
+            };
+
+            console.log('[REFINE] Sending contractor narrative to refine-text webhook:', contractorId);
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+            const response = await fetch(N8N_REFINE_TEXT_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`Webhook failed: ${response.status}`);
+            }
+
+            const result = await response.json();
+            const refinedText = result.refinedText;
+
+            if (!refinedText || refinedText.includes('[not provided]')) {
+                throw new Error('AI returned empty or invalid refined text');
+            }
+
+            textarea.value = refinedText;
+            textarea.classList.add('user-edited');
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-check mr-1"></i>Done!';
+                btn.classList.add('bg-green-600');
+                setTimeout(() => {
+                    btn.innerHTML = originalBtnHtml;
+                    btn.disabled = false;
+                    btn.classList.remove('bg-green-600');
+                }, 2000);
+            }
+
+        } catch (error) {
+            console.error('[REFINE] Contractor narrative refine failed:', error);
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i>Failed';
+                btn.classList.add('bg-red-600');
+                setTimeout(() => {
+                    btn.innerHTML = originalBtnHtml;
+                    btn.disabled = false;
+                    btn.classList.remove('bg-red-600');
+                }, 2000);
+            }
+        }
+    }
+
     // Save report without showing indicator (for silent updates)
     async function saveReportSilent() {
         try {
@@ -540,23 +792,13 @@
 
             activeProject = fromSupabaseProject(projectRow);
 
-            // Fetch contractors for this project
-            const { data: contractorRows, error: contractorError } = await supabaseClient
-                .from('contractors')
-                .select('*')
-                .eq('project_id', activeId);
-
-            if (!contractorError && contractorRows) {
-                activeProject.contractors = contractorRows.map(fromSupabaseContractor);
-                // Sort: prime contractors first, then subcontractors
-                projectContractors = [...activeProject.contractors].sort((a, b) => {
-                    if (a.type === 'prime' && b.type !== 'prime') return -1;
-                    if (a.type !== 'prime' && b.type === 'prime') return 1;
-                    return 0;
-                });
-            } else {
-                projectContractors = [];
-            }
+            // Contractors (with crews) come from JSONB column — already parsed
+            // Sort: prime contractors first, then subcontractors
+            projectContractors = [...(activeProject.contractors || [])].sort((a, b) => {
+                if (a.type === 'prime' && b.type !== 'prime') return -1;
+                if (a.type !== 'prime' && b.type === 'prime') return 1;
+                return 0;
+            });
 
             return activeProject;
         } catch (e) {
@@ -1194,8 +1436,13 @@
 
                         <div class="work-fields ${noWork ? 'hidden' : ''}" data-contractor-id="${contractor.id}">
                             <div class="mb-3">
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Work Narrative</label>
-                                <textarea class="editable-field auto-expand w-full px-3 py-2 text-sm contractor-narrative"
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-xs font-bold text-slate-500 uppercase">Work Narrative</label>
+                                    <button data-refine-for="narrative_${contractor.id}" onclick="refineContractorNarrative('${contractor.id}')" class="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold uppercase transition-colors rounded flex items-center gap-1">
+                                        <i class="fas fa-magic"></i> Refine
+                                    </button>
+                                </div>
+                                <textarea id="narrative_${contractor.id}" class="editable-field auto-expand w-full px-3 py-2 text-sm contractor-narrative"
                                     data-contractor-id="${contractor.id}"
                                     placeholder="Describe work performed by ${contractor.name}...">${escapeHtml(narrative)}</textarea>
                             </div>
@@ -2129,38 +2376,15 @@
         document.getElementById('headerDate').textContent = dateStr;
     }
 
-    // ============ FINAL REVIEW ============
-    async function goToFinalReview() {
-        // Update status to ready_to_submit before navigating
-        if (report && report.meta) {
-            report.meta.status = 'ready_to_submit';
-        }
-
-        // Save the current report before navigating
-        await saveReport();
-
-        // Update fvp_current_reports with new status
-        if (currentReportId) {
-            const currentReports = JSON.parse(localStorage.getItem('fvp_current_reports') || '{}');
-            if (currentReports[currentReportId]) {
-                currentReports[currentReportId].status = 'ready_to_submit';
-                localStorage.setItem('fvp_current_reports', JSON.stringify(currentReports));
-            }
-        }
-
-        // Get the report date from URL or current date
-        const reportDateStr = getReportDateStr();
-
-        // Navigate to final review page with report ID if available
-        let url = `finalreview.html?date=${reportDateStr}`;
-        if (currentReportId) {
-            url += `&reportId=${currentReportId}`;
-        }
-        window.location.href = url;
+    // ============ FINAL REVIEW / PREVIEW ============
+    function goToFinalReview() {
+        // Instead of navigating away, switch to the Preview & Submit tab
+        switchTab('preview');
+        // Scroll to top
+        window.scrollTo(0, 0);
     }
 
     function showSubmitModal() {
-        // Legacy - redirect to final review
         goToFinalReview();
     }
 
@@ -2169,7 +2393,6 @@
     }
 
     function confirmSubmit() {
-        // Legacy function - kept for backwards compatibility
         goToFinalReview();
     }
 
@@ -2628,6 +2851,8 @@
     window.goToFinalReview = goToFinalReview;
     window.switchTab = switchTab;
     window.retryRefineProcessing = retryRefineProcessing;
+    window.refineTextField = refineTextField;
+    window.refineContractorNarrative = refineContractorNarrative;
     window.scrollToDebugPanel = scrollToDebugPanel;
     window.dismissDebugBanner = dismissDebugBanner;
     window.addEquipmentRow = addEquipmentRow;
