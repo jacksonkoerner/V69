@@ -131,9 +131,9 @@
 
         <!-- SECONDARY STATS ROW -->
         <section class="px-4 mb-4">
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid grid-cols-4 gap-3">
                 <div class="bg-white rounded-lg p-3">
-                    <span class="text-[9px] font-bold text-slate-400 uppercase">AI Responses</span>
+                    <span class="text-[9px] font-bold text-slate-400 uppercase">AI</span>
                     <p id="statAI" class="text-lg font-bold text-dot-navy">--</p>
                 </div>
                 <div class="bg-white rounded-lg p-3">
@@ -141,8 +141,12 @@
                     <p id="statPhotos" class="text-lg font-bold text-dot-navy">--</p>
                 </div>
                 <div class="bg-white rounded-lg p-3">
-                    <span class="text-[9px] font-bold text-slate-400 uppercase">Submissions</span>
+                    <span class="text-[9px] font-bold text-slate-400 uppercase">Submits</span>
                     <p id="statSubmissions" class="text-lg font-bold text-dot-navy">--</p>
+                </div>
+                <div class="bg-white rounded-lg p-3 cursor-pointer" onclick="switchTab('messages')">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase">Messages</span>
+                    <p id="statMessages" class="text-lg font-bold text-dot-navy">--</p>
                 </div>
             </div>
         </section>
@@ -158,6 +162,10 @@
                 </button>
                 <button class="tab-btn flex-1 py-3 text-xs font-medium text-slate-500 border-b-3 border-transparent text-center" data-tab="users" onclick="switchTab('users')">
                     <i class="fas fa-users mr-1"></i>Users
+                </button>
+                <button class="tab-btn flex-1 py-3 text-xs font-medium text-slate-500 border-b-3 border-transparent text-center relative" data-tab="messages" onclick="switchTab('messages')">
+                    <i class="fas fa-envelope mr-1"></i>Msgs
+                    <span id="msgBadge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">0</span>
                 </button>
                 <button class="tab-btn flex-1 py-3 text-xs font-medium text-slate-500 border-b-3 border-transparent text-center" data-tab="system" onclick="switchTab('system')">
                     <i class="fas fa-server mr-1"></i>System
@@ -207,6 +215,61 @@
                     <span id="userCount" class="text-xs text-slate-400"></span>
                 </div>
                 <div id="usersList" class="space-y-2 max-h-96 overflow-y-auto">
+                    <div class="skeleton h-16 w-full mb-2"></div>
+                    <div class="skeleton h-16 w-full"></div>
+                </div>
+            </div>
+
+            <!-- MESSAGES TAB -->
+            <div id="tab-messages" class="tab-content bg-white rounded-b-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-dot-navy">Messages</h3>
+                    <div class="flex gap-2">
+                        <select id="msgFilter" onchange="filterMessages()" class="text-xs border border-slate-300 rounded px-2 py-1">
+                            <option value="all">All</option>
+                            <option value="unread">Unread</option>
+                            <option value="admin">To Admin</option>
+                            <option value="team">To Team</option>
+                        </select>
+                        <button onclick="loadMessages()" class="text-xs text-dot-blue font-medium px-2 py-1 border border-dot-blue rounded hover:bg-dot-blue hover:text-white transition-colors">
+                            <i class="fas fa-sync-alt mr-1"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Reply Composer (hidden by default) -->
+                <div id="replyComposer" class="hidden mb-3 border border-blue-200 bg-blue-50 rounded-lg p-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-dot-navy">
+                            <i class="fas fa-reply mr-1"></i>Replying to <span id="replyToName" class="text-dot-blue"></span>
+                        </span>
+                        <button onclick="closeReply()" class="text-slate-400 hover:text-slate-600">
+                            <i class="fas fa-times text-xs"></i>
+                        </button>
+                    </div>
+                    <div class="flex gap-2">
+                        <input id="replyInput" type="text" placeholder="Type your reply..."
+                            class="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-dot-blue">
+                        <button onclick="sendReply()" class="bg-dot-blue text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Broadcast Composer -->
+                <div class="mb-3 border border-slate-200 rounded-lg p-3">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Send to All Users</span>
+                    <div class="flex gap-2 mt-2">
+                        <input id="broadcastInput" type="text" placeholder="Broadcast message..."
+                            class="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-dot-blue">
+                        <button onclick="sendBroadcast()" class="bg-dot-navy text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors">
+                            <i class="fas fa-bullhorn"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Messages List -->
+                <div id="messagesList" class="space-y-2 max-h-96 overflow-y-auto">
                     <div class="skeleton h-16 w-full mb-2"></div>
                     <div class="skeleton h-16 w-full"></div>
                 </div>
@@ -352,6 +415,7 @@
                 loadReports(),
                 loadProjects(),
                 loadUsers(),
+                loadMessages(),
                 loadSystemInfo()
             ]);
         } catch (e) {
@@ -383,13 +447,14 @@
     // ── Load Stats ──
     async function loadStats() {
         try {
-            const [reports, projects, users, ai, photos, subs] = await Promise.all([
+            const [reports, projects, users, ai, photos, subs, msgs] = await Promise.all([
                 supabaseClient.from('reports').select('id, status', { count: 'exact' }),
                 supabaseClient.from('projects').select('id', { count: 'exact' }),
                 supabaseClient.from('user_profiles').select('id', { count: 'exact' }),
                 supabaseClient.from('ai_responses').select('id', { count: 'exact', head: true }),
                 supabaseClient.from('photos').select('id', { count: 'exact', head: true }),
                 supabaseClient.from('report_submissions').select('id', { count: 'exact', head: true }),
+                supabaseClient.from('messages').select('id', { count: 'exact', head: true }),
             ]);
 
             const reportCount = reports.data?.length || 0;
@@ -408,6 +473,7 @@
             document.getElementById('statAI').textContent = ai.count || 0;
             document.getElementById('statPhotos').textContent = photos.count || 0;
             document.getElementById('statSubmissions').textContent = subs.count || 0;
+            document.getElementById('statMessages').textContent = msgs.count || 0;
         } catch (e) {
             console.error('Stats error:', e);
         }
@@ -599,7 +665,7 @@
         }
 
         // Table row counts
-        const tables = ['reports', 'projects', 'user_profiles', 'report_submissions', 'ai_responses', 'final_reports', 'photos', 'report_activities', 'report_operations', 'report_equipment'];
+        const tables = ['reports', 'projects', 'user_profiles', 'messages', 'report_submissions', 'ai_responses', 'final_reports', 'photos', 'report_activities', 'report_operations', 'report_equipment'];
         const tableStats = document.getElementById('tableStats');
         let tableHtml = '';
         for (const t of tables) {
@@ -692,6 +758,188 @@
             finalized: 'bg-green-100 text-green-700'
         };
         return colors[status] || 'bg-slate-200 text-slate-700';
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // MESSAGES FUNCTIONALITY
+    // ══════════════════════════════════════════════════════════════
+    let allMessages = [];
+    let replyTargetDeviceId = null;
+    let userProfilesMap = {}; // device_id → name
+
+    async function loadMessages() {
+        try {
+            // Load user profiles to map device_id → name
+            const { data: profiles, error: profilesErr } = await supabaseClient
+                .from('user_profiles')
+                .select('device_id, full_name, title, company');
+            if (!profilesErr && profiles) {
+                userProfilesMap = {};
+                profiles.forEach(p => {
+                    if (p.device_id) {
+                        userProfilesMap[p.device_id] = p.full_name || p.title || 'Unknown User';
+                    }
+                });
+            }
+
+            // Load all messages
+            const { data, error } = await supabaseClient
+                .from('messages')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            allMessages = data || [];
+
+            // Update badge
+            const unread = allMessages.filter(m => !m.read);
+            const badge = document.getElementById('msgBadge');
+            if (unread.length > 0) {
+                badge.textContent = unread.length;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+
+            renderMessages(allMessages);
+        } catch (e) {
+            document.getElementById('messagesList').innerHTML =
+                `<p class="text-red-500 text-sm">Error loading messages: ${e.message}</p>`;
+        }
+    }
+
+    function renderMessages(messages) {
+        const el = document.getElementById('messagesList');
+        if (!messages.length) {
+            el.innerHTML = '<p class="text-slate-400 text-sm text-center py-8"><i class="fas fa-inbox text-2xl block mb-2"></i>No messages yet</p>';
+            return;
+        }
+        el.innerHTML = messages.map(m => {
+            const senderName = getSenderName(m.sender_device_id);
+            const recipientLabel = m.recipient === 'all' ? '<span class="text-blue-600">All Users</span>' :
+                m.recipient === 'admin' ? '<span class="text-amber-600">Admin</span>' :
+                    '<span class="text-slate-600">' + getSenderName(m.recipient) + '</span>';
+            const date = new Date(m.created_at);
+            const timeStr = date.toLocaleString('en-US', {
+                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+            });
+            const unreadDot = m.read ? '' : '<div class="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 mt-1.5"></div>';
+            const readClass = m.read ? 'opacity-70' : '';
+
+            return `
+                <div class="border border-slate-100 rounded-lg p-3 ${readClass}" data-msg-id="${m.id}">
+                    <div class="flex items-start gap-2">
+                        ${unreadDot}
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-bold text-dot-navy truncate">${escHtml(senderName)}</span>
+                                <span class="text-[9px] text-slate-400 whitespace-nowrap ml-2">${timeStr}</span>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mb-1">
+                                To: ${recipientLabel}
+                            </div>
+                            <p class="text-sm text-slate-700">${escHtml(m.message)}</p>
+                            <div class="flex items-center gap-2 mt-2">
+                                ${!m.read ? `<button onclick="markRead('${m.id}')" class="text-[10px] text-dot-blue hover:underline"><i class="fas fa-check mr-0.5"></i>Mark read</button>` : ''}
+                                ${m.sender_device_id && m.sender_device_id !== 'admin' ? `<button onclick="openReply('${escAttr(m.sender_device_id)}', '${escAttr(senderName)}')" class="text-[10px] text-dot-blue hover:underline"><i class="fas fa-reply mr-0.5"></i>Reply</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function filterMessages() {
+        const filter = document.getElementById('msgFilter').value;
+        let filtered = allMessages;
+        if (filter === 'unread') filtered = allMessages.filter(m => !m.read);
+        else if (filter === 'admin') filtered = allMessages.filter(m => m.recipient === 'admin');
+        else if (filter === 'team') filtered = allMessages.filter(m => m.recipient === 'all');
+        renderMessages(filtered);
+    }
+
+    function getSenderName(deviceId) {
+        if (!deviceId) return 'Unknown';
+        if (deviceId === 'admin') return 'Admin';
+        return userProfilesMap[deviceId] || deviceId.slice(0, 12) + '...';
+    }
+
+    async function markRead(msgId) {
+        try {
+            await supabaseClient.from('messages').update({ read: true }).eq('id', msgId);
+            // Update local state
+            const msg = allMessages.find(m => m.id === msgId);
+            if (msg) msg.read = true;
+            // Update badge
+            const unread = allMessages.filter(m => !m.read);
+            const badge = document.getElementById('msgBadge');
+            if (unread.length > 0) {
+                badge.textContent = unread.length;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+            filterMessages(); // re-render with current filter
+        } catch (e) {
+            console.error('Mark read error:', e);
+        }
+    }
+
+    function openReply(deviceId, name) {
+        replyTargetDeviceId = deviceId;
+        document.getElementById('replyToName').textContent = name;
+        document.getElementById('replyComposer').classList.remove('hidden');
+        document.getElementById('replyInput').focus();
+    }
+
+    function closeReply() {
+        replyTargetDeviceId = null;
+        document.getElementById('replyComposer').classList.add('hidden');
+        document.getElementById('replyInput').value = '';
+    }
+
+    async function sendReply() {
+        const text = document.getElementById('replyInput').value.trim();
+        if (!text || !replyTargetDeviceId) return;
+
+        try {
+            await supabaseClient.from('messages').insert({
+                sender_device_id: 'admin',
+                recipient: replyTargetDeviceId,
+                message: text
+            });
+            closeReply();
+            await loadMessages();
+        } catch (e) {
+            alert('Failed to send reply: ' + e.message);
+        }
+    }
+
+    async function sendBroadcast() {
+        const text = document.getElementById('broadcastInput').value.trim();
+        if (!text) return;
+
+        try {
+            await supabaseClient.from('messages').insert({
+                sender_device_id: 'admin',
+                recipient: 'all',
+                message: text
+            });
+            document.getElementById('broadcastInput').value = '';
+            await loadMessages();
+        } catch (e) {
+            alert('Failed to broadcast: ' + e.message);
+        }
+    }
+
+    function escHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str || '';
+        return d.innerHTML;
+    }
+
+    function escAttr(str) {
+        return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
     }
     </script>
 

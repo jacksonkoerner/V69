@@ -213,12 +213,12 @@
         if (conversation.length === 0) {
             // Welcome message
             container.innerHTML = makeBubble('assistant',
-                "Hey! I'm your AI field assistant. I can open any tool, navigate anywhere, and answer questions about your project.\n\n" +
+                "Hey! I'm your AI field assistant. I can open any tool, navigate anywhere, send messages, and answer questions about your project.\n\n" +
                 "Try saying:\n" +
                 "• \"Open compass\" or \"Open calculator\"\n" +
-                "• \"Show me the weather radar\"\n" +
                 "• \"Start a new report\"\n" +
-                "• \"Check weather\" or \"Drone ops\"\n\n" +
+                "• \"Send message to admin: running late\"\n" +
+                "• \"Check messages\"\n\n" +
                 "Say \"help\" for the full list!");
             return;
         }
@@ -339,6 +339,11 @@
             "• \"Open admin\" / \"Admin dashboard\"\n" +
             "• \"Check weather\" / \"Drone ops\"\n" +
             "• \"Emergency info\"\n\n" +
+            "💬 Messaging:\n" +
+            "• \"Send message to admin: running late\"\n" +
+            "• \"Message team: concrete pour done\"\n" +
+            "• \"Tell admin: need materials\"\n" +
+            "• \"Check messages\" / \"My messages\"\n\n" +
             "🤖 AI-Powered:\n" +
             "• Ask about your project or reports\n" +
             "• \"What work was done yesterday?\"\n" +
