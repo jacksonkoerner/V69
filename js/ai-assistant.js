@@ -378,8 +378,8 @@
             return "Opening the report editor...";
         }
         if (lower.includes('final review') || lower.includes('preview report') || lower.includes('review report')) {
-            setTimeout(() => window.location.href = 'finalreview.html', 500);
-            return "Opening the final review...";
+            setTimeout(() => window.location.href = 'report.html?tab=preview', 500);
+            return "Opening the report preview...";
         }
         if (lower.includes('my profile') || lower.includes('open settings') || lower.includes('go to settings') || lower.includes('user settings') || lower.includes('my settings')) {
             setTimeout(() => window.location.href = 'settings.html', 500);
