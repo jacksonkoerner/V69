@@ -408,19 +408,20 @@
             color: #78350f;
         }
         /* ============ PREVIEW TAB STYLES ============ */
-        /* Render at exact 8.5in paper width, then scale to fit viewport */
+        /* Render at exact 8.5in paper width, then CSS-scale to fit viewport */
         .preview-wrapper {
+            width: 100%;
+            overflow: hidden;
             padding: 8px 0;
-            overflow: visible;
         }
         .preview-scaler {
-            width: 8.5in;
-            transform-origin: top center;
-            margin: 0 auto;
+            width: 816px; /* 8.5in at 96dpi */
+            transform-origin: top left;
+            /* scale + left margin set by JS */
         }
         .preview-page {
             background: white;
-            width: 8.5in;
+            width: 816px;
             padding: 0.4in 0.5in;
             margin-bottom: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);

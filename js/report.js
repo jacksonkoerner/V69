@@ -1253,13 +1253,29 @@
             expectedInput.value = activeProject.expectedCompletion;
         }
 
-        // Contract Day (editable, format as "Day X of Y")
-        const contractDayValue = getValue('overview.contractDay', activeProject?.contractDayNo || '');
+        // Contract Day — auto-calculate from Notice to Proceed date
         const contractDayInput = document.getElementById('contractDay');
-        if (contractDayValue && activeProject?.contractDuration) {
-            contractDayInput.value = `Day ${contractDayValue} of ${activeProject.contractDuration}`;
-        } else if (contractDayValue) {
-            contractDayInput.value = contractDayValue;
+        const userContractDay = getValue('overview.contractDay', '');
+        if (userContractDay) {
+            // User manually set it
+            contractDayInput.value = userContractDay;
+        } else if (activeProject?.noticeToProceed) {
+            // Auto-calculate: days between NTP and report date
+            try {
+                const ntpParts = activeProject.noticeToProceed.split('-');
+                const ntpDateObj = new Date(ntpParts[0], ntpParts[1] - 1, ntpParts[2]);
+                const reportDateStr = getReportDateStr();
+                const rdParts = reportDateStr.split('-');
+                const reportDateObj = new Date(rdParts[0], rdParts[1] - 1, rdParts[2]);
+                const diffMs = reportDateObj - ntpDateObj;
+                const dayNum = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1; // Day 1 = NTP date
+                if (dayNum > 0) {
+                    const totalDays = activeProject.contractDuration || '';
+                    contractDayInput.value = totalDays ? `Day ${dayNum} of ${totalDays}` : `Day ${dayNum}`;
+                }
+            } catch (e) {
+                console.warn('[CONTRACT DAY] Could not calculate:', e);
+            }
         }
 
         // Weather Days (editable)
@@ -1287,7 +1303,7 @@
         // Calculate and display shift duration
         calculateShiftDuration();
 
-        document.getElementById('completedBy').value = getValue('overview.completedBy', '');
+        document.getElementById('completedBy').value = getValue('overview.completedBy', userSettings?.fullName || '');
 
         // Weather
         document.getElementById('weatherHigh').value = getValue('overview.weather.highTemp', '');
@@ -1318,10 +1334,10 @@
         document.getElementById('safetyNoIncident').checked = !hasIncident;
         document.getElementById('safetyHasIncident').checked = hasIncident;
 
-        // Signature
-        document.getElementById('signatureName').value = getValue('signature.name', '');
-        document.getElementById('signatureTitle').value = getValue('signature.title', '');
-        document.getElementById('signatureCompany').value = getValue('signature.company', '');
+        // Signature — default to user settings if no manual entry
+        document.getElementById('signatureName').value = getValue('signature.name', userSettings?.fullName || '');
+        document.getElementById('signatureTitle').value = getValue('signature.title', userSettings?.title || '');
+        document.getElementById('signatureCompany').value = getValue('signature.company', userSettings?.company || '');
         document.getElementById('signatureDate').textContent = new Date().toLocaleDateString();
 
         // Render dynamic sections
@@ -2318,7 +2334,7 @@
                 user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
                 device_id: getDeviceId(),
                 report_date: reportDateStr,
-                inspector_name: report.overview?.completedBy || userSettings?.full_name || '',
+                inspector_name: report.overview?.completedBy || userSettings?.fullName || '',
                 status: report.meta?.status || 'draft',
                 updated_at: new Date().toISOString()
             };
@@ -3046,7 +3062,7 @@
         const shiftDuration = previewCalcShift(formVal('startTime'), formVal('endTime'));
         const contractDayVal = formVal('contractDay');
         const weatherDaysVal = formVal('weatherDaysCount', '0') + ' days';
-        const completedBy = formVal('completedBy', userSettings?.full_name || '');
+        const completedBy = formVal('completedBy', userSettings?.fullName || '');
 
         // Weather
         const highTemp = cleanW(formVal('weatherHigh'), 'N/A');
@@ -3359,22 +3375,29 @@
 
     /**
      * Scale the preview pages to fit the viewport width exactly.
-     * The pages are rendered at 8.5in (816px), then CSS-transformed
-     * to fit whatever screen width is available.
+     * Pages render at 816px (8.5in), then CSS-scale to fit the screen.
+     * Centered via left margin. Wrapper height adjusted to prevent dead space.
      */
     function scalePreviewToFit() {
         const scaler = document.getElementById('previewScaler');
         if (!scaler) return;
 
         const wrapper = scaler.parentElement;
-        const pageWidthPx = 816; // 8.5in at 96dpi
+        const pageWidthPx = 816;
         const availWidth = wrapper.clientWidth || window.innerWidth;
         const scale = Math.min(1, availWidth / pageWidthPx);
 
+        // Center horizontally: offset = (availWidth - scaledWidth) / 2
+        const scaledWidth = pageWidthPx * scale;
+        const leftOffset = Math.max(0, (availWidth - scaledWidth) / 2);
+
         scaler.style.transform = `scale(${scale})`;
-        scaler.style.transformOrigin = 'top center';
-        // Adjust wrapper height so it doesn't leave dead space below
-        scaler.style.marginBottom = `-${scaler.scrollHeight * (1 - scale)}px`;
+        scaler.style.transformOrigin = 'top left';
+        scaler.style.marginLeft = `${leftOffset}px`;
+
+        // Shrink the wrapper's effective height so no dead space below
+        const scaledHeight = scaler.scrollHeight * scale;
+        wrapper.style.height = `${scaledHeight + 16}px`; // +16 for padding
     }
 
     // ============ CREW ACTIVITY HELPER ============
@@ -3646,7 +3669,7 @@
         const shiftDuration = pdfCalcShift(formVal('startTime'), formVal('endTime'));
         const contractDayVal = formVal('contractDay');
         const weatherDays = formVal('weatherDaysCount', '0') + ' days';
-        const completedBy = formVal('completedBy', userSettings?.full_name || '');
+        const completedBy = formVal('completedBy', userSettings?.fullName || '');
         const weather = report.overview?.weather || {};
         const highTemp = cleanW(formVal('weatherHigh'), 'N/A');
         const lowTemp = cleanW(formVal('weatherLow'), 'N/A');
