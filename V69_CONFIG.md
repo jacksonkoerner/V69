@@ -17,7 +17,7 @@
 
 ⚠️ This is a completely separate project from production (wejwhplqnhciyxbinivx). No shared data.
 
-## Tables (11 total — standard names, no prefix)
+## Tables (12 total — standard names, no prefix)
 
 | # | Table | Notes |
 |---|---|---|
@@ -32,6 +32,7 @@
 | 9 | `report_activities` | FK → report_submissions, contractors |
 | 10 | `report_operations` | FK → report_submissions, contractors |
 | 11 | `report_equipment` | FK → report_submissions, contractors |
+| 12 | `messages` | AI messaging — sender_device_id, recipient, message, read |
 
 ## Storage Buckets (3 total — standard names)
 
@@ -50,6 +51,7 @@ All buckets have full anon CRUD policies.
 | Refine Report v6.9 | `s2SuH3Xklenn04Mq` | `https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-report` |
 | Project Extractor v6.9 | `tDsPjNQYfyUHno6y` | `https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-project-extractor` |
 | Refine Text v6.9 | `X1DozSLoGtQSYr91` | `https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-text` |
+| AI Chat v6.9 | `t7vzrP6BWJC2Lm0r` | `https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-ai-chat` |
 
 ## Local Repo
 
