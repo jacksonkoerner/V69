@@ -289,11 +289,13 @@
         
         /**
          * Initialize auto-save for contractor work entry textareas
+         * v6.9: Also supports crew-level textareas via optional crewId
          * @param {string} contractorId - The contractor ID
+         * @param {string} [crewId] - Optional crew ID for crew-level entries
          */
-        function initContractorWorkAutoSave(contractorId) {
-            const textareaId = `work-input-${contractorId}`;
-            const section = `work_${contractorId}`;
+        function initContractorWorkAutoSave(contractorId, crewId) {
+            const textareaId = crewId ? `work-input-${contractorId}-crew-${crewId}` : `work-input-${contractorId}`;
+            const section = crewId ? `work_${contractorId}_crew_${crewId}` : `work_${contractorId}`;
             
             const textarea = document.getElementById(textareaId);
             if (!textarea) return;
@@ -334,7 +336,7 @@
                         saveReport();
                         // Track in shared state so "+" button knows entry exists
                         autoSaveState[section] = { entryId: currentEntryId, saved: true };
-                        console.log('[AUTOSAVE] Created contractor work entry:', contractorId, currentEntryId);
+                        console.log('[AUTOSAVE] Created contractor work entry:', contractorId, crewId || '', currentEntryId);
                     } else {
                         // Update existing entry
                         const entry = report.entries?.find(e => e.id === currentEntryId);
@@ -346,7 +348,7 @@
                             saveReport();
                             // Keep shared state updated
                             autoSaveState[section] = { entryId: currentEntryId, saved: true };
-                            console.log('[AUTOSAVE] Updated contractor work entry:', contractorId, currentEntryId);
+                            console.log('[AUTOSAVE] Updated contractor work entry:', contractorId, crewId || '', currentEntryId);
                         }
                     }
                 }, 500);
@@ -378,7 +380,7 @@
                     currentEntryId = entry.id;  // Track for subsequent updates
                     // Track in shared state so "+" button knows entry exists
                     autoSaveState[section] = { entryId: currentEntryId, saved: true };
-                    console.log('[AUTOSAVE] Contractor work entry saved on blur:', contractorId);
+                    console.log('[AUTOSAVE] Contractor work entry saved on blur:', contractorId, crewId || '');
                 }
             });
         }
@@ -1556,17 +1558,30 @@
         }
 
         /**
-         * v6.6: Add a work entry for a specific contractor
+         * v6.9: Get work entries for a specific crew
          * @param {string} contractorId - The contractor ID
+         * @param {string} crewId - The crew ID
+         * @returns {Array} Array of entry objects for this crew
          */
-        function addContractorWorkEntry(contractorId) {
-            const input = document.getElementById(`work-input-${contractorId}`);
+        function getCrewWorkEntries(contractorId, crewId) {
+            return getEntriesForSection(`work_${contractorId}_crew_${crewId}`);
+        }
+
+        /**
+         * v6.6: Add a work entry for a specific contractor
+         * v6.9: Also supports crew-level entries via optional crewId
+         * @param {string} contractorId - The contractor ID
+         * @param {string} [crewId] - Optional crew ID for crew-level entries
+         */
+        function addContractorWorkEntry(contractorId, crewId) {
+            const inputId = crewId ? `work-input-${contractorId}-crew-${crewId}` : `work-input-${contractorId}`;
+            const input = document.getElementById(inputId);
             if (!input) return;
             
             const text = input.value.trim();
             if (!text) return;
             
-            const stateKey = `work_${contractorId}`;
+            const stateKey = crewId ? `work_${contractorId}_crew_${crewId}` : `work_${contractorId}`;
             
             // If auto-save already created an entry for this content, just clear and render
             if (autoSaveState[stateKey]?.saved) {
@@ -1598,7 +1613,7 @@
         }
 
         /**
-         * v6.6: Update the activities section preview based on contractor work
+         * v6.6/v6.9: Update the activities section preview based on contractor work
          * Format: "X contractors, Y no work" or "Tap to add"
          */
         function updateActivitiesPreview() {
@@ -1611,18 +1626,34 @@
                 return;
             }
 
-            // Count contractors with work logged
+            // Count contractors with work logged (including crew-level entries)
             let withWork = 0;
             let noWork = 0;
 
             projectContractors.forEach(contractor => {
                 const activity = getContractorActivity(contractor.id);
-                const entries = getContractorWorkEntries(contractor.id);
+                const crews = contractor.crews || [];
                 
-                if (activity?.noWork && entries.length === 0) {
-                    noWork++;
-                } else if (entries.length > 0 || !activity?.noWork) {
-                    withWork++;
+                if (crews.length === 0) {
+                    // No crews: check contractor-level entries
+                    const entries = getContractorWorkEntries(contractor.id);
+                    if (activity?.noWork && entries.length === 0) {
+                        noWork++;
+                    } else if (entries.length > 0 || !activity?.noWork) {
+                        withWork++;
+                    }
+                } else {
+                    // Has crews: check across all crews
+                    let crewsWithWork = 0;
+                    crews.forEach(crew => {
+                        const crewEntries = getCrewWorkEntries(contractor.id, crew.id);
+                        if (crewEntries.length > 0) crewsWithWork++;
+                    });
+                    if (activity?.noWork && crewsWithWork === 0) {
+                        noWork++;
+                    } else if (crewsWithWork > 0 || !activity?.noWork) {
+                        withWork++;
+                    }
                 }
             });
 
@@ -2083,7 +2114,7 @@
         }
 
         // ============ AI PROCESSING WEBHOOK ============
-        const N8N_PROCESS_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-refine-v6.6';
+        const N8N_PROCESS_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-report';
 
         /**
          * Build the payload for AI processing
@@ -2103,7 +2134,10 @@
                     location: activeProject?.location || '',
                     engineer: activeProject?.engineer || '',
                     primeContractor: activeProject?.primeContractor || '',
-                    contractors: activeProject?.contractors || [],
+                    contractors: (activeProject?.contractors || []).map(c => ({
+                        ...c,
+                        crews: c.crews || []
+                    })),
                     equipment: activeProject?.equipment || []
                 },
 
@@ -2564,23 +2598,13 @@
 
                 activeProject = fromSupabaseProject(projectRow);
 
-                // Fetch contractors for this project
-                const { data: contractorRows, error: contractorError } = await supabaseClient
-                    .from('contractors')
-                    .select('*')
-                    .eq('project_id', activeId);
-
-                if (!contractorError && contractorRows) {
-                    activeProject.contractors = contractorRows.map(fromSupabaseContractor);
-                    // Sort: prime contractors first, then subcontractors
-                    projectContractors = [...activeProject.contractors].sort((a, b) => {
-                        if (a.type === 'prime' && b.type !== 'prime') return -1;
-                        if (a.type !== 'prime' && b.type === 'prime') return 1;
-                        return 0;
-                    });
-                } else {
-                    projectContractors = [];
-                }
+                // Contractors (with crews) come from JSONB column — already parsed
+                // Sort: prime contractors first, then subcontractors
+                projectContractors = [...(activeProject.contractors || [])].sort((a, b) => {
+                    if (a.type === 'prime' && b.type !== 'prime') return -1;
+                    if (a.type !== 'prime' && b.type === 'prime') return 1;
+                    return 0;
+                });
 
                 // v6: Equipment is now entered per-report, not loaded from project
                 // Equipment functions removed - see renderEquipmentInput() for per-report entry
@@ -2657,7 +2681,42 @@
         }
 
         /**
-         * v6.6: Render contractor work cards with timestamped entries
+         * v6.9: Build entries HTML for a set of work entries
+         */
+        function buildEntriesHtml(entries) {
+            if (entries.length === 0) return '';
+            return entries.map(entry => {
+                const time = new Date(entry.timestamp).toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit',
+                    hour12: true 
+                });
+                return `
+                    <div class="bg-white border border-slate-200 p-3 relative group" data-entry-id="${entry.id}">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex-1">
+                                <p class="text-[10px] font-medium text-slate-400 uppercase">${time}</p>
+                                <p class="entry-content text-sm text-slate-700 mt-1">${escapeHtml(entry.content)}</p>
+                            </div>
+                            <div class="flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+                                <button onclick="startEditEntry('${entry.id}', 'contractor-work')" 
+                                        class="edit-btn text-slate-400 hover:text-dot-blue p-1">
+                                    <i class="fas fa-pencil-alt text-xs"></i>
+                                </button>
+                                <button onclick="deleteContractorWorkEntry('${entry.id}')" 
+                                        class="text-red-400 hover:text-red-600 p-1">
+                                    <i class="fas fa-trash text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /**
+         * v6.6/v6.9: Render contractor work cards with timestamped entries
+         * v6.9: If a contractor has crews, render one card per crew instead of one per contractor
          */
         function renderContractorWorkCards() {
             const container = document.getElementById('contractor-work-list');
@@ -2676,114 +2735,153 @@
             initializeContractorActivities();
 
             const todayDate = getTodayDateFormatted();
+            let cardsHtml = '';
 
-            container.innerHTML = projectContractors.map((contractor) => {
+            projectContractors.forEach((contractor) => {
+                const crews = contractor.crews || [];
                 const activity = getContractorActivity(contractor.id) || { noWork: true };
-                const entries = getContractorWorkEntries(contractor.id);
-                const hasWork = !activity.noWork || entries.length > 0;
-                const isExpanded = hasWork || !activity.noWork;
-                
-                const typeLabel = contractor.type === 'prime' ? 'PRIME' : 'SUB';
-                const tradesText = contractor.trades ? ` • ${contractor.trades.toUpperCase()}` : '';
-                const headerText = `${contractor.name.toUpperCase()} – ${typeLabel}${tradesText}`;
                 const borderColor = contractor.type === 'prime' ? 'border-safety-green' : 'border-dot-blue';
                 const bgColor = contractor.type === 'prime' ? 'bg-safety-green' : 'bg-dot-blue';
                 const textColor = contractor.type === 'prime' ? 'text-safety-green' : 'text-dot-blue';
+                const typeLabel = contractor.type === 'prime' ? 'PRIME' : 'SUB';
+                const tradesText = contractor.trades ? ` • ${contractor.trades.toUpperCase()}` : '';
 
-                // Build entries HTML
-                const entriesHtml = entries.length > 0 ? entries.map(entry => {
-                    const time = new Date(entry.timestamp).toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit',
-                        hour12: true 
-                    });
-                    return `
-                        <div class="bg-white border border-slate-200 p-3 relative group" data-entry-id="${entry.id}">
-                            <div class="flex items-start justify-between gap-2">
-                                <div class="flex-1">
-                                    <p class="text-[10px] font-medium text-slate-400 uppercase">${time}</p>
-                                    <p class="entry-content text-sm text-slate-700 mt-1">${escapeHtml(entry.content)}</p>
+                if (crews.length === 0) {
+                    // === NO CREWS: render exactly like before (one card per contractor) ===
+                    const entries = getContractorWorkEntries(contractor.id);
+                    const hasWork = !activity.noWork || entries.length > 0;
+                    const isExpanded = hasWork || !activity.noWork;
+                    const headerText = `${contractor.name.toUpperCase()} – ${typeLabel}${tradesText}`;
+                    const entriesHtml = buildEntriesHtml(entries);
+
+                    let subtitleText = 'Tap to add work';
+                    if (activity.noWork && entries.length === 0) {
+                        subtitleText = 'No work performed';
+                    } else if (entries.length > 0) {
+                        subtitleText = `${entries.length} note${entries.length === 1 ? '' : 's'} logged`;
+                    }
+
+                    cardsHtml += `
+                        <div class="contractor-work-card border-2 ${hasWork ? borderColor : 'border-slate-200'} rounded-lg overflow-hidden" data-contractor-id="${contractor.id}">
+                            <button onclick="toggleContractorCard('${contractor.id}')" class="w-full p-3 flex items-center gap-3 text-left ${hasWork ? bgColor + '/10' : 'bg-slate-50'}">
+                                <div class="w-8 h-8 ${hasWork ? bgColor : 'bg-slate-300'} rounded flex items-center justify-center shrink-0">
+                                    <i class="fas ${hasWork ? 'fa-hard-hat' : 'fa-minus'} text-white text-sm"></i>
                                 </div>
-                                <div class="flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                                    <button onclick="startEditEntry('${entry.id}', 'contractor-work')" 
-                                            class="edit-btn text-slate-400 hover:text-dot-blue p-1">
-                                        <i class="fas fa-pencil-alt text-xs"></i>
-                                    </button>
-                                    <button onclick="deleteContractorWorkEntry('${entry.id}')" 
-                                            class="text-red-400 hover:text-red-600 p-1">
-                                        <i class="fas fa-trash text-xs"></i>
-                                    </button>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-xs font-bold ${hasWork ? textColor : 'text-slate-500'} uppercase leading-tight truncate">${escapeHtml(headerText)}</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5">${subtitleText}</p>
+                                </div>
+                                <i id="contractor-chevron-${contractor.id}" class="fas fa-chevron-down text-slate-400 text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}"></i>
+                            </button>
+                            <div id="contractor-content-${contractor.id}" class="contractor-content ${isExpanded ? '' : 'hidden'} border-t border-slate-200 p-3 space-y-3">
+                                <label class="flex items-center gap-3 p-3 bg-slate-100 border border-slate-300 rounded cursor-pointer hover:bg-slate-200 transition-colors">
+                                    <input type="checkbox" id="no-work-${contractor.id}" ${activity.noWork ? 'checked' : ''} onchange="toggleNoWork('${contractor.id}', this.checked)" class="w-5 h-5 accent-slate-600">
+                                    <span class="text-sm font-medium text-slate-600">No work performed on ${todayDate}</span>
+                                </label>
+                                <div id="work-fields-${contractor.id}" class="${activity.noWork ? 'hidden' : ''} space-y-3">
+                                    ${entriesHtml ? `<div class="space-y-2">${entriesHtml}</div>` : ''}
+                                    <div class="flex items-start gap-2">
+                                        <textarea id="work-input-${contractor.id}" class="flex-1 bg-white border-2 border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-${contractor.type === 'prime' ? 'safety-green' : 'dot-blue'} rounded auto-expand" rows="2" placeholder="Describe work performed..."></textarea>
+                                        <button onclick="addContractorWorkEntry('${contractor.id}')" class="px-4 py-2 ${bgColor} hover:opacity-90 text-white font-bold rounded transition-colors"><i class="fas fa-plus"></i></button>
+                                    </div>
+                                    <p class="text-xs text-slate-400"><i class="fas fa-microphone mr-1"></i>Tap keyboard mic to dictate</p>
                                 </div>
                             </div>
                         </div>
                     `;
-                }).join('') : '';
+                } else {
+                    // === HAS CREWS: render a master card with crew sub-cards ===
+                    // Count total entries across all crews
+                    let totalEntries = 0;
+                    crews.forEach(crew => {
+                        totalEntries += getCrewWorkEntries(contractor.id, crew.id).length;
+                    });
+                    const hasAnyWork = !activity.noWork || totalEntries > 0;
+                    const isExpanded = hasAnyWork || !activity.noWork;
+                    const headerText = `${contractor.name.toUpperCase()} – ${typeLabel}${tradesText}`;
 
-                // Subtitle text
-                let subtitleText = 'Tap to add work';
-                if (activity.noWork && entries.length === 0) {
-                    subtitleText = 'No work performed';
-                } else if (entries.length > 0) {
-                    subtitleText = `${entries.length} note${entries.length === 1 ? '' : 's'} logged`;
-                }
+                    let subtitleText = 'Tap to add work';
+                    if (activity.noWork && totalEntries === 0) {
+                        subtitleText = `No work performed (${crews.length} crew${crews.length > 1 ? 's' : ''})`;
+                    } else if (totalEntries > 0) {
+                        subtitleText = `${totalEntries} note${totalEntries === 1 ? '' : 's'} across ${crews.length} crew${crews.length > 1 ? 's' : ''}`;
+                    } else {
+                        subtitleText = `${crews.length} crew${crews.length > 1 ? 's' : ''} — tap to add work`;
+                    }
 
-                return `
-                    <div class="contractor-work-card border-2 ${hasWork ? borderColor : 'border-slate-200'} rounded-lg overflow-hidden" data-contractor-id="${contractor.id}">
-                        <!-- Header -->
-                        <button onclick="toggleContractorCard('${contractor.id}')" class="w-full p-3 flex items-center gap-3 text-left ${hasWork ? bgColor + '/10' : 'bg-slate-50'}">
-                            <div class="w-8 h-8 ${hasWork ? bgColor : 'bg-slate-300'} rounded flex items-center justify-center shrink-0">
-                                <i class="fas ${hasWork ? 'fa-hard-hat' : 'fa-minus'} text-white text-sm"></i>
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-xs font-bold ${hasWork ? textColor : 'text-slate-500'} uppercase leading-tight truncate">${escapeHtml(headerText)}</p>
-                                <p class="text-[10px] text-slate-500 mt-0.5">${subtitleText}</p>
-                            </div>
-                            <i id="contractor-chevron-${contractor.id}" class="fas fa-chevron-down text-slate-400 text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}"></i>
-                        </button>
+                    // Build crew sub-cards
+                    const crewCardsHtml = crews.map(crew => {
+                        const crewSection = `work_${contractor.id}_crew_${crew.id}`;
+                        const crewEntries = getCrewWorkEntries(contractor.id, crew.id);
+                        // Each crew gets its own noWork tracking via activities
+                        const crewActivity = report.activities?.find(a => a.contractorId === contractor.id && a.crewId === crew.id);
+                        const crewNoWork = crewActivity?.noWork ?? false;
+                        const crewHasWork = !crewNoWork || crewEntries.length > 0;
+                        const crewEntriesHtml = buildEntriesHtml(crewEntries);
 
-                        <!-- Expandable Content -->
-                        <div id="contractor-content-${contractor.id}" class="contractor-content ${isExpanded ? '' : 'hidden'} border-t border-slate-200 p-3 space-y-3">
-                            <!-- No Work Toggle -->
-                            <label class="flex items-center gap-3 p-3 bg-slate-100 border border-slate-300 rounded cursor-pointer hover:bg-slate-200 transition-colors">
-                                <input type="checkbox"
-                                    id="no-work-${contractor.id}"
-                                    ${activity.noWork ? 'checked' : ''}
-                                    onchange="toggleNoWork('${contractor.id}', this.checked)"
-                                    class="w-5 h-5 accent-slate-600">
-                                <span class="text-sm font-medium text-slate-600">No work performed on ${todayDate}</span>
-                            </label>
-
-                            <!-- Work Entry Fields (hidden when no work checked) -->
-                            <div id="work-fields-${contractor.id}" class="${activity.noWork ? 'hidden' : ''} space-y-3">
-                                <!-- Existing entries -->
-                                ${entriesHtml ? `<div class="space-y-2">${entriesHtml}</div>` : ''}
-                                
-                                <!-- Add new entry -->
-                                <div class="flex items-start gap-2">
-                                    <textarea
-                                        id="work-input-${contractor.id}"
-                                        class="flex-1 bg-white border-2 border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-${contractor.type === 'prime' ? 'safety-green' : 'dot-blue'} rounded auto-expand"
-                                        rows="2"
-                                        placeholder="Describe work performed..."
-                                    ></textarea>
-                                    <button onclick="addContractorWorkEntry('${contractor.id}')" 
-                                            class="px-4 py-2 ${bgColor} hover:opacity-90 text-white font-bold rounded transition-colors">
-                                        <i class="fas fa-plus"></i>
-                                    </button>
+                        return `
+                            <div class="crew-work-card border border-slate-200 rounded-lg overflow-hidden ml-2 ${crewHasWork ? 'border-l-4 ' + borderColor.replace('border-', 'border-l-') : ''}">
+                                <div class="p-2 bg-slate-50 flex items-center gap-2">
+                                    <i class="fas fa-users text-slate-400 text-xs"></i>
+                                    <span class="text-xs font-bold ${crewHasWork ? textColor : 'text-slate-500'} uppercase flex-1">${escapeHtml(crew.name)}</span>
+                                    <label class="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer">
+                                        <input type="checkbox" id="no-work-crew-${contractor.id}-${crew.id}" ${crewNoWork ? 'checked' : ''} onchange="toggleCrewNoWork('${contractor.id}', '${crew.id}', this.checked)" class="w-3.5 h-3.5 accent-slate-600">
+                                        <span>No work</span>
+                                    </label>
                                 </div>
-                                <p class="text-xs text-slate-400"><i class="fas fa-microphone mr-1"></i>Tap keyboard mic to dictate</p>
+                                <div id="crew-work-fields-${contractor.id}-${crew.id}" class="${crewNoWork ? 'hidden' : ''} p-2 space-y-2">
+                                    ${crewEntriesHtml ? `<div class="space-y-2">${crewEntriesHtml}</div>` : ''}
+                                    <div class="flex items-start gap-2">
+                                        <textarea id="work-input-${contractor.id}-crew-${crew.id}" class="flex-1 bg-white border-2 border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-${contractor.type === 'prime' ? 'safety-green' : 'dot-blue'} rounded auto-expand" rows="2" placeholder="Describe ${escapeHtml(crew.name)} work..."></textarea>
+                                        <button onclick="addContractorWorkEntry('${contractor.id}', '${crew.id}')" class="px-4 py-2 ${bgColor} hover:opacity-90 text-white font-bold rounded transition-colors"><i class="fas fa-plus"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    cardsHtml += `
+                        <div class="contractor-work-card border-2 ${hasAnyWork ? borderColor : 'border-slate-200'} rounded-lg overflow-hidden" data-contractor-id="${contractor.id}">
+                            <button onclick="toggleContractorCard('${contractor.id}')" class="w-full p-3 flex items-center gap-3 text-left ${hasAnyWork ? bgColor + '/10' : 'bg-slate-50'}">
+                                <div class="w-8 h-8 ${hasAnyWork ? bgColor : 'bg-slate-300'} rounded flex items-center justify-center shrink-0">
+                                    <i class="fas ${hasAnyWork ? 'fa-hard-hat' : 'fa-minus'} text-white text-sm"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-xs font-bold ${hasAnyWork ? textColor : 'text-slate-500'} uppercase leading-tight truncate">${escapeHtml(headerText)}</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5">${subtitleText}</p>
+                                </div>
+                                <i id="contractor-chevron-${contractor.id}" class="fas fa-chevron-down text-slate-400 text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}"></i>
+                            </button>
+                            <div id="contractor-content-${contractor.id}" class="contractor-content ${isExpanded ? '' : 'hidden'} border-t border-slate-200 p-3 space-y-3">
+                                <!-- Master No Work Toggle for entire contractor -->
+                                <label class="flex items-center gap-3 p-3 bg-slate-100 border border-slate-300 rounded cursor-pointer hover:bg-slate-200 transition-colors">
+                                    <input type="checkbox" id="no-work-${contractor.id}" ${activity.noWork ? 'checked' : ''} onchange="toggleNoWork('${contractor.id}', this.checked)" class="w-5 h-5 accent-slate-600">
+                                    <span class="text-sm font-medium text-slate-600">No work performed on ${todayDate} (all crews)</span>
+                                </label>
+                                <div id="work-fields-${contractor.id}" class="${activity.noWork ? 'hidden' : ''} space-y-3">
+                                    ${crewCardsHtml}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
-            }).join('');
+                    `;
+                }
+            });
+
+            container.innerHTML = cardsHtml;
 
             // Initialize auto-expand for dynamically created textareas
             initAllAutoExpandTextareas();
             
-            // v6.6: Initialize auto-save for contractor work entry textareas
+            // v6.9: Initialize auto-save for contractor AND crew work entry textareas
             projectContractors.forEach(contractor => {
-                initContractorWorkAutoSave(contractor.id);
+                const crews = contractor.crews || [];
+                if (crews.length === 0) {
+                    initContractorWorkAutoSave(contractor.id);
+                } else {
+                    crews.forEach(crew => {
+                        initContractorWorkAutoSave(contractor.id, crew.id);
+                    });
+                }
             });
         }
 
@@ -2820,6 +2918,35 @@
                 // Focus the input field
                 setTimeout(() => {
                     document.getElementById(`work-input-${contractorId}`)?.focus();
+                }, 100);
+            }
+
+            saveReport();
+            renderContractorWorkCards();
+            updateAllPreviews();
+        }
+
+        /**
+         * v6.9: Toggle "no work performed" for a specific crew
+         */
+        function toggleCrewNoWork(contractorId, crewId, isNoWork) {
+            if (!report.activities) report.activities = [];
+            
+            // Find or create crew-specific activity entry
+            let crewActivity = report.activities.find(a => a.contractorId === contractorId && a.crewId === crewId);
+            if (!crewActivity) {
+                crewActivity = { contractorId, crewId, noWork: false };
+                report.activities.push(crewActivity);
+            }
+            crewActivity.noWork = isNoWork;
+
+            const crewWorkFields = document.getElementById(`crew-work-fields-${contractorId}-${crewId}`);
+            if (isNoWork) {
+                crewWorkFields?.classList.add('hidden');
+            } else {
+                crewWorkFields?.classList.remove('hidden');
+                setTimeout(() => {
+                    document.getElementById(`work-input-${contractorId}-crew-${crewId}`)?.focus();
                 }, 100);
             }
 
@@ -4720,11 +4847,17 @@
             const qaqcToggle = getToggleState('qaqc_performed');
             const visitorsToggle = getToggleState('visitors_present');
 
-            // v6.6: Check if any contractor has work logged
+            // v6.9: Check if any contractor has work logged (including crew-level entries)
             const hasContractorWork = projectContractors?.some(contractor => {
                 const activity = getContractorActivity(contractor.id);
-                const entries = getContractorWorkEntries(contractor.id);
-                return (activity?.noWork) || entries.length > 0;
+                const crews = contractor.crews || [];
+                if (crews.length === 0) {
+                    const entries = getContractorWorkEntries(contractor.id);
+                    return (activity?.noWork) || entries.length > 0;
+                } else {
+                    if (activity?.noWork) return true;
+                    return crews.some(crew => getCrewWorkEntries(contractor.id, crew.id).length > 0);
+                }
             }) || false;
 
             // Sections with status icons
@@ -4763,12 +4896,18 @@
             // Weather - has site condition text
             if (report.overview.weather.jobSiteCondition) filled++;
 
-            // v6.6: Work Summary - contractor work entries or all marked no work
+            // v6.9: Work Summary - contractor/crew work entries or all marked no work
             if (projectContractors && projectContractors.length > 0) {
                 const anyAccountedFor = projectContractors.some(contractor => {
                     const activity = getContractorActivity(contractor.id);
-                    const entries = getContractorWorkEntries(contractor.id);
-                    return (activity?.noWork) || entries.length > 0;
+                    const crews = contractor.crews || [];
+                    if (crews.length === 0) {
+                        const entries = getContractorWorkEntries(contractor.id);
+                        return (activity?.noWork) || entries.length > 0;
+                    } else {
+                        if (activity?.noWork) return true;
+                        return crews.some(crew => getCrewWorkEntries(contractor.id, crew.id).length > 0);
+                    }
                 });
                 if (anyAccountedFor) filled++;
             }
@@ -4968,18 +5107,30 @@
                 return;
             }
 
-            // v6.6: Validate required fields - check contractor work entries
+            // v6.9: Validate required fields - check contractor/crew work entries
             let hasWorkSummary = false;
             if (projectContractors && projectContractors.length > 0) {
                 // Check if any contractor has work logged OR all marked as no work
                 const allAccountedFor = projectContractors.every(contractor => {
                     const activity = getContractorActivity(contractor.id);
-                    const entries = getContractorWorkEntries(contractor.id);
-                    return (activity?.noWork && entries.length === 0) || entries.length > 0;
+                    const crews = contractor.crews || [];
+                    if (crews.length === 0) {
+                        const entries = getContractorWorkEntries(contractor.id);
+                        return (activity?.noWork && entries.length === 0) || entries.length > 0;
+                    } else {
+                        // For crew-based contractors: master no-work or at least one crew has entries
+                        if (activity?.noWork) return true;
+                        return crews.some(crew => getCrewWorkEntries(contractor.id, crew.id).length > 0);
+                    }
                 });
                 // Check if at least one has entries OR all are marked no work
                 const anyWork = projectContractors.some(contractor => {
-                    return getContractorWorkEntries(contractor.id).length > 0;
+                    const crews = contractor.crews || [];
+                    if (crews.length === 0) {
+                        return getContractorWorkEntries(contractor.id).length > 0;
+                    } else {
+                        return crews.some(crew => getCrewWorkEntries(contractor.id, crew.id).length > 0);
+                    }
                 });
                 const allNoWork = projectContractors.every(contractor => {
                     const activity = getContractorActivity(contractor.id);

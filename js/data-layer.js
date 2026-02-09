@@ -63,25 +63,17 @@
         }
 
         try {
-            // Fetch ALL projects WITH contractors using Supabase join
+            // Fetch ALL projects (contractors + crews are in the JSONB column)
             // All users see all projects (no user_id filtering)
             const { data, error } = await supabaseClient
                 .from('projects')
-                .select(`
-                    *,
-                    contractors (*)
-                `)
+                .select('*')
                 .order('project_name');
 
             if (error) throw error;
 
-            // Convert to JS format with contractors
-            const projects = (data || []).map(row => {
-                const project = fromSupabaseProject(row);
-                // Include contractors from the join
-                project.contractors = (row.contractors || []).map(c => fromSupabaseContractor(c));
-                return project;
-            });
+            // Convert to JS format (contractors already parsed from JSONB by fromSupabaseProject)
+            const projects = (data || []).map(row => fromSupabaseProject(row));
 
             // Cache to IndexedDB (with contractors)
             for (const project of projects) {
@@ -122,7 +114,8 @@
             if (localProject) {
                 console.log('[DATA] Loaded active project from IndexedDB:', activeId);
                 const project = normalizeProject(localProject);
-                project.contractors = (localProject.contractors || []).map(c => normalizeContractor(c));
+                // Contractors (with crews) come from JSONB — already structured
+                project.contractors = localProject.contractors || [];
                 return project;
             }
         } catch (e) {
@@ -140,7 +133,7 @@
             console.log('[DATA] Active project not in IndexedDB, fetching from Supabase...');
             const { data, error } = await supabaseClient
                 .from('projects')
-                .select('*, contractors(*)')
+                .select('*')
                 .eq('id', activeId)
                 .single();
 
@@ -149,9 +142,8 @@
                 return null;
             }
 
-            // Convert from Supabase format and cache to IndexedDB
+            // Convert from Supabase format (contractors parsed from JSONB)
             const normalized = fromSupabaseProject(data);
-            normalized.contractors = (data.contractors || []).map(c => fromSupabaseContractor(c));
 
             await window.idb.saveProject(normalized);
             console.log('[DATA] Fetched and cached active project from Supabase:', activeId);

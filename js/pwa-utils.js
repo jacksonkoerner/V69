@@ -45,7 +45,7 @@ function setupPWANavigation() {
 function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./js/sw.js', { scope: '/' })
+            navigator.serviceWorker.register('./sw.js', { scope: '/' })
                 .then(registration => {
                     console.log('[PWA] Service Worker registered:', registration.scope);
 

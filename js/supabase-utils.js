@@ -48,6 +48,8 @@ function fromSupabaseProject(row) {
         logo: row.logo || null,
         status: row.status || 'active',
         userId: row.user_id || null,
+        // Contractors + crews from JSONB (single table approach)
+        contractors: (typeof row.contractors === 'string' ? JSON.parse(row.contractors) : row.contractors) || [],
         createdAt: row.created_at,
         updatedAt: row.updated_at
     };
@@ -77,7 +79,9 @@ function toSupabaseProject(project) {
         // New logo fields
         logo_thumbnail: project.logoThumbnail || null,
         logo_url: project.logoUrl || null,
-        status: project.status || 'active'
+        status: project.status || 'active',
+        // Contractors + crews as JSONB blob (single table approach)
+        contractors: JSON.stringify(project.contractors || [])
     };
 
     // Only include id if it exists (for updates/upserts)
@@ -704,6 +708,53 @@ function toSupabaseEquipment(equipment, projectId) {
 }
 
 // ============================================================================
+// CREW CONVERTERS
+// ============================================================================
+
+/**
+ * Convert Supabase crew row to JS format
+ *
+ * DB columns: id, contractor_id, name, status, sort_order, created_at
+ *
+ * @param {Object} row - Supabase crew row
+ * @returns {Object} JS crew object
+ */
+function fromSupabaseCrew(row) {
+    if (!row) return null;
+    return {
+        id: row.id,
+        contractorId: row.contractor_id || '',
+        name: row.name || '',
+        status: row.status || 'active',
+        sortOrder: row.sort_order ?? 0,
+        createdAt: row.created_at
+    };
+}
+
+/**
+ * Convert JS crew object to Supabase format
+ *
+ * @param {Object} crew - JS crew object
+ * @param {string} contractorId - Contractor ID
+ * @returns {Object} Supabase row format
+ */
+function toSupabaseCrew(crew, contractorId) {
+    if (!crew) return null;
+    const row = {
+        contractor_id: contractorId || crew.contractorId,
+        name: crew.name || '',
+        status: crew.status || 'active',
+        sort_order: crew.sortOrder ?? 0
+    };
+
+    if (crew.id) {
+        row.id = crew.id;
+    }
+
+    return row;
+}
+
+// ============================================================================
 // GLOBAL EXPORTS
 // ============================================================================
 // Make functions globally available (loaded as regular script, not ES module)
@@ -712,6 +763,8 @@ window.fromSupabaseProject = fromSupabaseProject;
 window.toSupabaseProject = toSupabaseProject;
 window.fromSupabaseContractor = fromSupabaseContractor;
 window.toSupabaseContractor = toSupabaseContractor;
+window.fromSupabaseCrew = fromSupabaseCrew;
+window.toSupabaseCrew = toSupabaseCrew;
 window.fromSupabaseReport = fromSupabaseReport;
 window.toSupabaseReport = toSupabaseReport;
 window.fromSupabaseEntry = fromSupabaseEntry;

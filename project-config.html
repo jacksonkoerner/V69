@@ -436,6 +436,30 @@
                     </div>
                 </section>
 
+                <!-- Add Crew Form (hidden by default) -->
+                <section id="addCrewForm" class="hidden bg-white border-2 border-dot-blue">
+                    <div class="bg-dot-blue/10 p-4 border-b border-dot-blue">
+                        <h3 class="text-sm font-bold text-dot-blue uppercase tracking-wider flex items-center gap-2">
+                            <i class="fas fa-users"></i>
+                            <span id="crewFormTitle">Add Crew</span>
+                        </h3>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <div>
+                            <label class="text-xs font-bold text-dot-blue uppercase tracking-wider">Crew Name <span class="text-red-500">*</span></label>
+                            <input type="text" id="crewName" class="w-full mt-2 bg-white border-2 border-slate-300 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-dot-blue" placeholder="e.g., SD Crew 1">
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="saveCrew()" class="flex-1 p-3 bg-safety-green hover:bg-green-700 text-white font-bold uppercase transition-colors text-sm">
+                                <i class="fas fa-save mr-2"></i>Save
+                            </button>
+                            <button onclick="hideAddCrewForm()" class="flex-1 p-3 bg-slate-400 hover:bg-slate-500 text-white font-bold uppercase transition-colors text-sm">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Save/Delete Project Actions -->
                 <div class="space-y-3">
                     <button onclick="saveProject()" class="w-full p-4 bg-safety-green hover:bg-green-700 text-white font-bold uppercase transition-colors flex items-center justify-center gap-2">

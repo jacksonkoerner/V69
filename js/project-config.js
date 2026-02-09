@@ -1,5 +1,5 @@
 // ============ CONSTANTS ============
-const EXTRACT_WEBHOOK_URL = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-project-extractor-6.5';
+const EXTRACT_WEBHOOK_URL = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-project-extractor';
 
 // ============ STATE ============
 let currentProject = null;
@@ -149,7 +149,7 @@ async function getProjects() {
 
 async function saveProjectToSupabase(project) {
     try {
-        // 1. Upsert the project
+        // Single table approach: project + contractors + crews all in one row
         const projectData = toSupabaseProject(project);
 
         // Add user_id from localStorage
@@ -158,48 +158,13 @@ async function saveProjectToSupabase(project) {
             projectData.user_id = userId;
         }
 
-        const { error: projectError } = await supabaseClient
+        const { error } = await supabaseClient
             .from('projects')
             .upsert(projectData, { onConflict: 'id' });
 
-        if (projectError) {
-            console.error('Error saving project:', projectError);
+        if (error) {
+            console.error('Error saving project:', error);
             throw new Error('Failed to save project');
-        }
-
-        // 2. Handle contractors - get existing ones first
-        const { data: existingContractors } = await supabaseClient
-            .from('contractors')
-            .select('id')
-            .eq('project_id', project.id);
-
-        const existingContractorIds = new Set((existingContractors || []).map(c => c.id));
-        const currentContractorIds = new Set((project.contractors || []).map(c => c.id));
-
-        // Delete removed contractors
-        const contractorsToDelete = [...existingContractorIds].filter(id => !currentContractorIds.has(id));
-        if (contractorsToDelete.length > 0) {
-            const { error: deleteContractorError } = await supabaseClient
-                .from('contractors')
-                .delete()
-                .in('id', contractorsToDelete);
-
-            if (deleteContractorError) {
-                console.error('Error deleting contractors:', deleteContractorError);
-            }
-        }
-
-        // Upsert current contractors
-        if (project.contractors && project.contractors.length > 0) {
-            const contractorData = project.contractors.map(c => toSupabaseContractor(c, project.id));
-            const { error: contractorError } = await supabaseClient
-                .from('contractors')
-                .upsert(contractorData, { onConflict: 'id' });
-
-            if (contractorError) {
-                console.error('Error saving contractors:', contractorError);
-                throw new Error('Failed to save contractors');
-            }
         }
 
         return true;
@@ -421,20 +386,7 @@ async function confirmDeleteProject() {
     text.textContent = 'Deleting...';
 
     try {
-        // 2. Delete from Supabase FIRST (contractors, then project)
-        // Delete contractors first
-        const { error: contractorError } = await supabaseClient
-            .from('contractors')
-            .delete()
-            .eq('project_id', projectId);
-
-        if (contractorError) {
-            console.error('[deleteProject] Failed to delete contractors from Supabase:', contractorError);
-            throw new Error('Failed to delete project contractors');
-        }
-        console.log('[deleteProject] Deleted contractors from Supabase for project:', projectId);
-
-        // Then delete the project
+        // 2. Delete from Supabase (single table — contractors are JSONB, no separate delete needed)
         const { error: projectError } = await supabaseClient
             .from('projects')
             .delete()
@@ -597,7 +549,28 @@ function renderContractors() {
         return 0;
     });
 
-    container.innerHTML = sortedContractors.map((contractor, index) => `
+    container.innerHTML = sortedContractors.map((contractor, index) => {
+        // Ensure crews array exists
+        contractor.crews = contractor.crews || [];
+
+        const crewsHtml = contractor.crews.length > 0 ? `
+            <div class="mt-2 ml-2 space-y-1">
+                ${contractor.crews.map((crew, crewIdx) => `
+                    <div class="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded text-xs" data-crew-id="${crew.id}">
+                        <i class="fas fa-users text-slate-400 text-[10px]"></i>
+                        <span class="flex-1 text-slate-700 font-medium">${escapeHtml(crew.name)}</span>
+                        <button onclick="editCrew('${contractor.id}', '${crew.id}')" class="text-dot-blue hover:text-blue-800 p-0.5" title="Edit Crew">
+                            <i class="fas fa-edit text-[10px]"></i>
+                        </button>
+                        <button onclick="deleteCrew('${contractor.id}', '${crew.id}')" class="text-red-500 hover:text-red-700 p-0.5" title="Delete Crew">
+                            <i class="fas fa-trash text-[10px]"></i>
+                        </button>
+                    </div>
+                `).join('')}
+            </div>
+        ` : '';
+
+        return `
         <div class="p-4 flex items-start gap-3" data-contractor-id="${contractor.id}" draggable="true">
             <div class="drag-handle w-8 h-8 bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
                 <i class="fas fa-grip-vertical"></i>
@@ -611,6 +584,10 @@ function renderContractors() {
                     <span class="${contractor.type === 'prime' ? 'text-safety-green font-bold' : 'text-slate-500'}">${contractor.type === 'prime' ? 'PRIME' : 'Subcontractor'}</span>
                     ${contractor.trades ? ` • ${escapeHtml(contractor.trades)}` : ''}
                 </p>
+                ${crewsHtml}
+                <button onclick="showAddCrewForm('${contractor.id}')" class="mt-2 text-xs text-dot-blue hover:text-blue-800 flex items-center gap-1">
+                    <i class="fas fa-plus text-[10px]"></i> Add Crew
+                </button>
             </div>
             <div class="flex items-center gap-1 shrink-0">
                 <button onclick="editContractor('${contractor.id}')" class="w-8 h-8 text-dot-blue hover:bg-dot-blue/10 flex items-center justify-center transition-colors" title="Edit">
@@ -621,7 +598,8 @@ function renderContractors() {
                 </button>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 
     // Setup drag and drop
     setupContractorDragDrop();
@@ -684,7 +662,8 @@ function saveContractor() {
             name,
             abbreviation: abbr,
             type,
-            trades
+            trades,
+            crews: []
         });
     }
 
@@ -700,6 +679,89 @@ function deleteContractor(contractorId) {
         renderContractors();
         markDirty();
         showToast('Contractor deleted');
+    });
+}
+
+// ============ CREW MANAGEMENT ============
+function showAddCrewForm(contractorId) {
+    const form = document.getElementById('addCrewForm');
+    form.classList.remove('hidden');
+    form.dataset.contractorId = contractorId;
+    form.dataset.editCrewId = '';
+    document.getElementById('crewFormTitle').textContent = 'Add Crew';
+    document.getElementById('crewName').value = '';
+    form.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('crewName').focus();
+}
+
+function hideAddCrewForm() {
+    document.getElementById('addCrewForm').classList.add('hidden');
+}
+
+function saveCrew() {
+    const form = document.getElementById('addCrewForm');
+    const contractorId = form.dataset.contractorId;
+    const editCrewId = form.dataset.editCrewId;
+    const crewName = document.getElementById('crewName').value.trim();
+
+    if (!crewName) {
+        showToast('Crew name is required', 'error');
+        return;
+    }
+
+    const contractor = currentProject.contractors.find(c => c.id === contractorId);
+    if (!contractor) return;
+
+    contractor.crews = contractor.crews || [];
+
+    if (editCrewId) {
+        // Edit existing crew
+        const crew = contractor.crews.find(cr => cr.id === editCrewId);
+        if (crew) {
+            crew.name = crewName;
+        }
+    } else {
+        // Add new crew
+        contractor.crews.push({
+            id: generateId(),
+            contractorId: contractorId,
+            name: crewName,
+            status: 'active',
+            sortOrder: contractor.crews.length
+        });
+    }
+
+    hideAddCrewForm();
+    renderContractors();
+    markDirty();
+    showToast(editCrewId ? 'Crew updated' : 'Crew added');
+}
+
+function editCrew(contractorId, crewId) {
+    const contractor = currentProject.contractors.find(c => c.id === contractorId);
+    if (!contractor) return;
+    contractor.crews = contractor.crews || [];
+    const crew = contractor.crews.find(cr => cr.id === crewId);
+    if (!crew) return;
+
+    const form = document.getElementById('addCrewForm');
+    form.classList.remove('hidden');
+    form.dataset.contractorId = contractorId;
+    form.dataset.editCrewId = crewId;
+    document.getElementById('crewFormTitle').textContent = 'Edit Crew';
+    document.getElementById('crewName').value = crew.name;
+    form.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('crewName').focus();
+}
+
+function deleteCrew(contractorId, crewId) {
+    showDeleteModal('Delete this crew?', () => {
+        const contractor = currentProject.contractors.find(c => c.id === contractorId);
+        if (!contractor) return;
+        contractor.crews = (contractor.crews || []).filter(cr => cr.id !== crewId);
+        renderContractors();
+        markDirty();
+        showToast('Crew deleted');
     });
 }
 
@@ -1155,7 +1217,8 @@ function populateFormWithExtractedData(data) {
                 name: contractor.name || '',
                 abbreviation: contractor.abbreviation || generateAbbreviation(contractor.name),
                 type: contractor.type || 'subcontractor',
-                trades: contractor.trades || ''
+                trades: contractor.trades || '',
+                crews: []
             };
         });
 

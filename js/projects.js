@@ -26,13 +26,10 @@ async function loadProjectsFromIndexedDB() {
 
 async function fetchProjectsFromSupabase() {
     try {
-        // Fetch projects WITH contractors using Supabase join
+        // Fetch projects — contractors are stored as JSONB inside the projects table
         const { data, error } = await supabaseClient
             .from('projects')
-            .select(`
-                *,
-                contractors (*)
-            `)
+            .select('*')
             .order('project_name', { ascending: true });
 
         if (error) {
@@ -40,8 +37,17 @@ async function fetchProjectsFromSupabase() {
             throw new Error(error.message || 'Failed to load projects');
         }
 
-        console.log('[SUPABASE] Fetched projects with contractors:', data?.length || 0);
-        return data || [];
+        // Parse contractors JSONB if it's a string
+        const projects = (data || []).map(p => {
+            if (typeof p.contractors === 'string') {
+                try { p.contractors = JSON.parse(p.contractors); } catch(e) { p.contractors = []; }
+            }
+            p.contractors = p.contractors || [];
+            return p;
+        });
+
+        console.log('[SUPABASE] Fetched projects:', projects.length);
+        return projects;
     } catch (e) {
         console.error('[SUPABASE] Failed to load projects:', e);
         throw e;

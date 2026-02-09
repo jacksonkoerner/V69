@@ -2840,8 +2840,1386 @@
 
     // ============ EXPORT ============
     function exportPDF() {
-        // TODO: Implement PDF export
-        alert('PDF export coming soon!');
+        // Use the preview tab for PDF export
+        goToFinalReview();
+    }
+
+    // ============ PREVIEW RENDERING ============
+    /**
+     * Render the RPR Daily Report preview from live form data.
+     * This reads from report, activeProject, projectContractors, userEdits, userSettings.
+     */
+    function renderPreview() {
+        const container = document.getElementById('previewContent');
+        if (!container) return;
+
+        const o = report.overview || {};
+        const ai = report.aiGenerated || {};
+        const ue = report.userEdits || {};
+
+        // Helper: clean weather display values
+        function cleanW(value, defaultVal) {
+            if (!value || value === '--' || value === 'Syncing...' || value === 'N/A' || String(value).trim() === '') {
+                return defaultVal || 'N/A';
+            }
+            return value;
+        }
+
+        // Read current form field values directly from DOM for live preview
+        function formVal(id, fallback) {
+            const el = document.getElementById(id);
+            if (!el) return fallback || '';
+            return el.value || el.textContent || fallback || '';
+        }
+
+        // Utility functions for preview
+        function previewFormatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            try {
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    const [year, month, day] = dateStr.split('-');
+                    const d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                    return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+                }
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return dateStr;
+                return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+            } catch (e) { return dateStr; }
+        }
+
+        function previewFormatTime(timeStr) {
+            if (!timeStr) return '';
+            if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr;
+            const parts = timeStr.split(':');
+            if (parts.length < 2) return timeStr;
+            const hours = parseInt(parts[0], 10);
+            const minutes = parseInt(parts[1], 10);
+            if (isNaN(hours) || isNaN(minutes)) return timeStr;
+            const period = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`;
+        }
+
+        function previewCalcShift(start, end) {
+            if (!start || !end) return '';
+            try {
+                let sH, sM, eH, eM;
+                if (start.includes(':')) { const p = start.split(':'); sH = parseInt(p[0]); sM = parseInt(p[1]) || 0; } else return '';
+                if (end.includes(':')) { const p = end.split(':'); eH = parseInt(p[0]); eM = parseInt(p[1]) || 0; } else return '';
+                if (isNaN(sH) || isNaN(eH)) return '';
+                let diff = (eH * 60 + eM) - (sH * 60 + sM);
+                if (diff < 0) diff += 24 * 60;
+                return `${(diff / 60).toFixed(2)} hours`;
+            } catch (e) { return ''; }
+        }
+
+        function previewFormatText(text) {
+            if (!text || text.trim() === '') return '<ul><li class="rpr-na">N/A.</li></ul>';
+            const lines = text.split('\n').filter(l => l.trim());
+            if (lines.length === 0) return '<ul><li class="rpr-na">N/A.</li></ul>';
+            return '<ul>' + lines.map(l => `<li>${escapeHtml(l)}</li>`).join('') + '</ul>';
+        }
+
+        function previewFormatTradesAbbrev(trades) {
+            if (!trades) return '-';
+            const abbrevMap = {
+                'construction management': 'CM', 'project management': 'PM',
+                'pile driving': 'PLE', 'concrete': 'CONC', 'asphalt': 'ASP',
+                'utilities': 'UTL', 'earthwork': 'ERTHWRK', 'electrical': 'ELEC',
+                'communications': 'COMM', 'fence': 'FENCE', 'pavement markings': 'PVMNT MRK',
+                'hauling': 'HAUL', 'pavement subgrade': 'PVMT SUB', 'demo': 'DEMO',
+                'demolition': 'DEMO', 'general': 'GEN'
+            };
+            const parts = trades.split(/[;,]/).map(t => t.trim().toLowerCase());
+            return parts.map(t => abbrevMap[t] || t.substring(0, 6).toUpperCase()).join('; ');
+        }
+
+        function previewGetContractorName(contractorId, fallbackName) {
+            const c = projectContractors.find(c => c.id === contractorId);
+            if (c) return c.abbreviation || c.name.substring(0, 15).toUpperCase();
+            if (fallbackName) return fallbackName.substring(0, 15).toUpperCase();
+            return 'UNKNOWN';
+        }
+
+        function previewFormatEquipNotes(status, hoursUsed) {
+            if (!status || status.toLowerCase() === 'idle' || status === '0' || status === '0 hrs') return 'IDLE';
+            let hours = hoursUsed;
+            if (!hours && status) {
+                const m = status.match(/(\d+(?:\.\d+)?)/);
+                if (m) hours = parseFloat(m[1]);
+            }
+            if (hours && hours > 0) return `${hours} HRS UTILIZED`;
+            return 'IDLE';
+        }
+
+        // Gather current form data
+        const projectName = formVal('projectName', activeProject?.projectName || '');
+        const reportDate = previewFormatDate(formVal('reportDate'));
+        const noabNo = formVal('noabProjectNo', activeProject?.noabProjectNo || '');
+        const location = formVal('projectLocation', activeProject?.location || '');
+        const cnoNo = formVal('cnoSolicitationNo', activeProject?.cnoSolicitationNo || 'N/A');
+        const engineer = formVal('engineer', activeProject?.engineer || '');
+        const ntpDate = activeProject?.noticeToProceed ? previewFormatDate(activeProject.noticeToProceed) : '';
+        const primeContractor = formVal('contractor', activeProject?.primeContractor || '');
+        const duration = activeProject?.contractDuration ? `${activeProject.contractDuration} days` : '';
+        const startTime = previewFormatTime(formVal('startTime'));
+        const endTime = previewFormatTime(formVal('endTime'));
+        const expectedCompletion = activeProject?.expectedCompletion ? previewFormatDate(activeProject.expectedCompletion) : '';
+        const shiftDuration = previewCalcShift(formVal('startTime'), formVal('endTime'));
+        const contractDayVal = formVal('contractDay');
+        const weatherDaysVal = formVal('weatherDaysCount', '0') + ' days';
+        const completedBy = formVal('completedBy', userSettings?.full_name || '');
+
+        // Weather
+        const highTemp = cleanW(formVal('weatherHigh'), 'N/A');
+        const lowTemp = cleanW(formVal('weatherLow'), 'N/A');
+        const precipitation = cleanW(formVal('weatherPrecip'), '0.00"');
+        const generalCondition = cleanW(formVal('weatherCondition'), 'Not recorded');
+        const jobSiteCondition = cleanW(formVal('weatherJobSite'), 'N/A');
+        const adverseConditions = cleanW(formVal('weatherAdverse'), 'None');
+
+        // Signature
+        const sigName = formVal('signatureName', completedBy);
+        const sigTitle = formVal('signatureTitle', userSettings?.title || '');
+        const sigCompany = formVal('signatureCompany', userSettings?.company || '');
+        let sigDetails = '';
+        if (sigTitle || sigCompany) {
+            sigDetails = `Digitally signed by ${sigName}<br>DN: cn=${sigName}, c=US,<br>o=${sigCompany}, ou=${sigTitle}`;
+        }
+
+        // Logo
+        const logoSrc = activeProject?.logoUrl || activeProject?.logoThumbnail || activeProject?.logo;
+        const logoHtml = logoSrc
+            ? `<img src="${logoSrc}" class="rpr-logo" alt="Project Logo">`
+            : `<div class="rpr-logo-placeholder">LOUIS ARMSTRONG<br>NEW ORLEANS<br>INTERNATIONAL AIRPORT</div>`;
+
+        // Helper for header on each page
+        function pageHeader() {
+            return `<div class="rpr-header">
+                <div>${logoHtml}</div>
+                <div class="rpr-title">RPR DAILY REPORT</div>
+            </div>`;
+        }
+
+        // ────── PAGE 1: Overview + Work Summary ──────
+        let page1 = `<div class="preview-page">${pageHeader()}`;
+
+        // Section Header: Project Overview
+        page1 += `<div class="rpr-section-header">Project Overview</div>`;
+
+        // Overview table
+        page1 += `<table class="rpr-overview-table">
+            <tr><td class="rpr-label">PROJECT NAME:</td><td>${escapeHtml(projectName)}</td><td class="rpr-label">DATE:</td><td>${escapeHtml(reportDate)}</td></tr>
+            <tr><td class="rpr-label">NOAB PROJECT NO.:</td><td>${escapeHtml(noabNo)}</td><td class="rpr-label">LOCATION:</td><td>${escapeHtml(location)}</td></tr>
+            <tr><td class="rpr-label">CNO SOLICITATION NO.:</td><td>${escapeHtml(cnoNo)}</td><td class="rpr-label">ENGINEER:</td><td>${escapeHtml(engineer)}</td></tr>
+            <tr><td class="rpr-label">NOTICE TO PROCEED:</td><td>${escapeHtml(ntpDate)}</td><td class="rpr-label">CONTRACTOR:</td><td>${escapeHtml(primeContractor)}</td></tr>
+            <tr><td class="rpr-label">CONTRACT DURATION:</td><td>${escapeHtml(duration)}</td><td class="rpr-label">START TIME:</td><td>${escapeHtml(startTime)}</td></tr>
+            <tr><td class="rpr-label">EXPECTED COMPLETION:</td><td>${escapeHtml(expectedCompletion)}</td><td class="rpr-label">END TIME:</td><td>${escapeHtml(endTime)}</td></tr>
+            <tr><td class="rpr-label">CONTRACT DAY #:</td><td>${escapeHtml(contractDayVal)}</td><td class="rpr-label">SHIFT DURATION:</td><td>${escapeHtml(shiftDuration)}</td></tr>
+            <tr><td class="rpr-label">WEATHER DAYS:</td><td>${escapeHtml(weatherDaysVal)}</td><td class="rpr-label">COMPLETED BY:</td><td>${escapeHtml(completedBy)}</td></tr>
+            <tr>
+                <td class="rpr-label" rowspan="5">WEATHER:</td>
+                <td>High Temp: ${escapeHtml(highTemp)} Low Temp: ${escapeHtml(lowTemp)}</td>
+                <td class="rpr-label" rowspan="5">SIGNATURE:</td>
+                <td rowspan="5" style="text-align:center; vertical-align:middle;">
+                    <div class="rpr-signature-name">${escapeHtml(sigName)}</div>
+                    <div class="rpr-signature-details">${sigDetails}</div>
+                </td>
+            </tr>
+            <tr><td style="padding-left:20px; background:#fafafa;">Precipitation: ${escapeHtml(precipitation)}</td></tr>
+            <tr><td style="padding-left:20px; background:#fafafa;">General Condition: ${escapeHtml(generalCondition)}</td></tr>
+            <tr><td style="padding-left:20px; background:#fafafa;">Job Site Condition: ${escapeHtml(jobSiteCondition)}</td></tr>
+            <tr><td style="padding-left:20px; background:#fafafa;">Adverse Conditions: ${escapeHtml(adverseConditions)}</td></tr>
+        </table>`;
+
+        // Daily Work Summary
+        page1 += `<div class="rpr-section-header">Daily Work Summary</div>`;
+        page1 += `<div class="rpr-work-summary">`;
+        page1 += `<p style="font-weight:bold; margin-bottom:8px;">Construction Activities Performed and Observed on this Date:</p>`;
+
+        const displayDate = formVal('reportDate') ? previewFormatDate(formVal('reportDate')) : 'this date';
+
+        if (projectContractors.length === 0) {
+            const workText = getValue('guidedNotes.workSummary', '');
+            page1 += workText ? `<p>${escapeHtml(workText)}</p>` : `<p class="rpr-na">N/A.</p>`;
+        } else {
+            projectContractors.forEach(contractor => {
+                const activity = getContractorActivity(contractor.id);
+                const crews = contractor.crews || [];
+                const typeLabel = contractor.type === 'prime' ? 'PRIME CONTRACTOR' : 'SUBCONTRACTOR';
+                const trades = contractor.trades ? ` (${contractor.trades.toUpperCase()})` : '';
+                const narrative = activity?.narrative || '';
+                const isNoWork = activity?.noWork === true || !narrative.trim();
+
+                page1 += `<div class="rpr-contractor-block">`;
+                page1 += `<div class="rpr-contractor-name">${escapeHtml(contractor.name)} – ${typeLabel}${escapeHtml(trades)}</div>`;
+
+                if (crews.length === 0) {
+                    if (isNoWork) {
+                        page1 += `<p style="font-style:italic; color:#333;">No work performed on ${escapeHtml(displayDate)}.</p>`;
+                    } else {
+                        const lines = narrative.split('\n').filter(l => l.trim());
+                        page1 += '<ul>';
+                        lines.forEach(line => {
+                            const prefix = (line.startsWith('•') || line.startsWith('-')) ? '' : '• ';
+                            page1 += `<li>${escapeHtml(prefix + line.trim())}</li>`;
+                        });
+                        page1 += '</ul>';
+                        if (activity?.equipmentUsed || activity?.crew) {
+                            page1 += `<div style="font-size:8pt; text-transform:uppercase; margin-top:4px;">`;
+                            if (activity.equipmentUsed) page1 += `EQUIPMENT: ${escapeHtml(activity.equipmentUsed)} `;
+                            if (activity.crew) page1 += `CREW: ${escapeHtml(activity.crew)}`;
+                            page1 += `</div>`;
+                        }
+                    }
+                } else {
+                    // Has crews
+                    if (isNoWork) {
+                        page1 += `<p style="font-style:italic; color:#333;">No work performed on ${escapeHtml(displayDate)}.</p>`;
+                    } else {
+                        crews.forEach(crewObj => {
+                            const crewActivity = getCrewActivity(contractor.id, crewObj.id);
+                            const crewNarrative = crewActivity?.narrative || '';
+                            const crewIsNoWork = !crewNarrative.trim();
+
+                            page1 += `<div style="margin-left:12px; margin-bottom:8px; border-left:3px solid ${contractor.type === 'prime' ? '#16a34a' : '#1d4ed8'}; padding-left:10px;">`;
+                            page1 += `<div style="font-weight:600; font-size:10pt; margin-bottom:4px;">${escapeHtml(crewObj.name)}</div>`;
+
+                            if (crewIsNoWork) {
+                                page1 += `<p style="font-style:italic; color:#333; font-size:9pt;">No work performed on ${escapeHtml(displayDate)}.</p>`;
+                            } else {
+                                const cLines = crewNarrative.split('\n').filter(l => l.trim());
+                                page1 += '<ul>';
+                                cLines.forEach(line => {
+                                    const prefix = (line.startsWith('•') || line.startsWith('-')) ? '' : '• ';
+                                    page1 += `<li>${escapeHtml(prefix + line.trim())}</li>`;
+                                });
+                                page1 += '</ul>';
+                            }
+                            page1 += '</div>';
+                        });
+                    }
+                }
+                page1 += '</div>';
+            });
+        }
+
+        page1 += `</div>`; // end work-summary
+        page1 += `<div class="rpr-page-footer">Page 1</div>`;
+        page1 += `</div>`; // end page 1
+
+        // ────── PAGE 2: Operations + Equipment + Issues + Communications ──────
+        let page2 = `<div class="preview-page">${pageHeader()}`;
+
+        // Daily Operations
+        page2 += `<div class="rpr-section-header">Daily Operations</div>`;
+        page2 += `<table class="rpr-ops-table"><thead><tr>
+            <th>CONTRACTOR</th><th>TRADE</th><th>SUPER(S)</th><th>FOREMAN</th>
+            <th>OPERATOR(S)</th><th>LABORER(S)</th><th>SURVEYOR(S)</th><th>OTHER(S)</th>
+        </tr></thead><tbody>`;
+
+        if (projectContractors.length === 0) {
+            page2 += `<tr><td colspan="8" style="text-align:center; color:#666;">No contractors defined</td></tr>`;
+        } else {
+            projectContractors.forEach(contractor => {
+                const ops = getContractorOperations(contractor.id);
+                const abbrev = contractor.abbreviation || contractor.name.substring(0, 10).toUpperCase();
+                const trades = previewFormatTradesAbbrev(contractor.trades);
+                page2 += `<tr>
+                    <td>${escapeHtml(abbrev)}</td>
+                    <td>${escapeHtml(trades)}</td>
+                    <td>${ops?.superintendents || 'N/A'}</td>
+                    <td>${ops?.foremen || 'N/A'}</td>
+                    <td>${ops?.operators || 'N/A'}</td>
+                    <td>${ops?.laborers || 'N/A'}</td>
+                    <td>${ops?.surveyors || 'N/A'}</td>
+                    <td>${ops?.others || 'N/A'}</td>
+                </tr>`;
+            });
+        }
+        page2 += `</tbody></table>`;
+
+        // Equipment
+        page2 += `<div class="rpr-section-header">Mobilized Equipment &amp; Daily Utilization</div>`;
+        page2 += `<table class="rpr-equip-table"><thead><tr>
+            <th>CONTRACTOR</th><th>EQUIPMENT TYPE / MODEL #</th><th>QTY</th><th>NOTES</th>
+        </tr></thead><tbody>`;
+
+        const equipData = getEquipmentData();
+        if (equipData.length === 0) {
+            page2 += `<tr><td colspan="4" style="text-align:center; color:#666;">No equipment mobilized</td></tr>`;
+        } else {
+            equipData.forEach((item, idx) => {
+                const cName = previewGetContractorName(item.contractorId, item.contractorName);
+                const eqNotes = previewFormatEquipNotes(item.status, item.hoursUsed);
+                const editKey = `equipment_${idx}`;
+                const editedType = ue[editKey]?.type || item.type || '';
+                const editedQty = ue[editKey]?.qty || item.qty || 1;
+                const editedNotes = ue[editKey]?.notes || eqNotes;
+                page2 += `<tr>
+                    <td>${escapeHtml(cName)}</td>
+                    <td>${escapeHtml(editedType)}</td>
+                    <td>${editedQty}</td>
+                    <td>${escapeHtml(editedNotes)}</td>
+                </tr>`;
+            });
+        }
+        page2 += `</tbody></table>`;
+
+        // Issues
+        const issuesText = formVal('issuesText', '');
+        page2 += `<div class="rpr-section-header">General Issues; Unforeseen Conditions; Notices Given</div>`;
+        page2 += `<div class="rpr-text-section">${previewFormatText(issuesText)}</div>`;
+
+        // Communications
+        const commsText = formVal('communicationsText', '');
+        page2 += `<div class="rpr-section-header">Communications with the Contractor</div>`;
+        page2 += `<div class="rpr-text-section">${previewFormatText(commsText)}</div>`;
+
+        page2 += `<div class="rpr-page-footer">Page 2</div>`;
+        page2 += `</div>`; // end page 2
+
+        // ────── PAGE 3: QA/QC + Safety + Visitors ──────
+        let page3 = `<div class="preview-page">${pageHeader()}`;
+
+        // QA/QC
+        const qaqcText = formVal('qaqcText', '');
+        page3 += `<div class="rpr-section-header">QA/QC Testing and/or Inspections</div>`;
+        page3 += `<div class="rpr-text-section">${previewFormatText(qaqcText)}</div>`;
+
+        // Safety
+        const hasIncident = document.getElementById('safetyHasIncident')?.checked || false;
+        const safetyText = formVal('safetyText', '');
+        page3 += `<div class="rpr-section-header">Safety Report</div>`;
+        page3 += `<div class="rpr-text-section">`;
+        page3 += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">`;
+        page3 += `<span style="font-weight:bold;">Incident(s) on this Date:</span>`;
+        page3 += `<div class="rpr-safety-checkboxes">
+            <span style="display:flex; align-items:center; gap:4px;">
+                <span class="rpr-checkbox-box ${hasIncident ? 'checked' : ''}">${hasIncident ? 'X' : ''}</span> Yes
+            </span>
+            <span style="display:flex; align-items:center; gap:4px;">
+                <span class="rpr-checkbox-box ${!hasIncident ? 'checked' : ''}">${!hasIncident ? 'X' : ''}</span> No
+            </span>
+        </div></div>`;
+        page3 += previewFormatText(safetyText);
+        page3 += `</div>`;
+
+        // Visitors
+        const visitorsText = formVal('visitorsText', '');
+        page3 += `<div class="rpr-section-header">Visitors; Deliveries; Additional Contract and/or Change Order Activities; Other Remarks</div>`;
+        page3 += `<div class="rpr-text-section">${previewFormatText(visitorsText)}</div>`;
+
+        page3 += `<div class="rpr-page-footer">Page 3</div>`;
+        page3 += `</div>`; // end page 3
+
+        // ────── PAGE 4: Photos ──────
+        const photos = report.photos || [];
+        let photoPagesHtml = '';
+
+        if (photos.length > 0) {
+            const photosPerPage = 4;
+            const totalPhotoPages = Math.ceil(photos.length / photosPerPage);
+
+            for (let pp = 0; pp < totalPhotoPages; pp++) {
+                const pagePhotos = photos.slice(pp * photosPerPage, (pp + 1) * photosPerPage);
+                const headerTitle = pp === 0 ? 'Daily Photos' : 'Daily Photos (Continued)';
+                const pageNum = 4 + pp;
+
+                let photoPage = `<div class="preview-page">${pageHeader()}`;
+                photoPage += `<div class="rpr-section-header">${headerTitle}</div>`;
+                photoPage += `<div style="border:1px solid #000; border-bottom:none; padding:6px 10px; font-size:9pt;">
+                    <table><tr><td style="font-weight:bold; padding-right:10px;">Project Name:</td><td>${escapeHtml(projectName)}</td></tr>
+                    <tr><td style="font-weight:bold; padding-right:10px;">Project #:</td><td>${escapeHtml(noabNo)}</td></tr></table>
+                </div>`;
+
+                photoPage += `<div class="rpr-photos-grid">`;
+                pagePhotos.forEach((photo, i) => {
+                    photoPage += `<div class="rpr-photo-cell">
+                        <div class="rpr-photo-image">
+                            <img src="${photo.url}" alt="Photo">
+                        </div>
+                        <div style="font-size:8pt; margin-bottom:4px;"><span style="font-weight:bold;">Date:</span> ${photo.date || reportDate}</div>
+                        <div style="font-size:8pt; font-style:italic; color:#333;">${escapeHtml(photo.caption || '')}</div>
+                    </div>`;
+                });
+                photoPage += `</div>`;
+
+                photoPage += `<div class="rpr-page-footer">Page ${pageNum}</div>`;
+                photoPage += `</div>`;
+                photoPagesHtml += photoPage;
+            }
+        }
+
+        // Assemble all pages
+        container.innerHTML = `<div class="preview-wrapper">
+            ${page1}
+            ${page2}
+            ${page3}
+            ${photoPagesHtml}
+        </div>`;
+    }
+
+    // ============ CREW ACTIVITY HELPER ============
+    /**
+     * Get crew-specific activity data for preview/PDF
+     * Checks userEdits > aiGenerated > report.activities
+     */
+    function getCrewActivity(contractorId, crewId) {
+        const userEditKey = `activity_${contractorId}_crew_${crewId}`;
+        if (userEdits[userEditKey]) {
+            return userEdits[userEditKey];
+        }
+
+        // Check AI-generated activities for crew-level data
+        if (report.aiGenerated?.activities) {
+            const aiActivity = report.aiGenerated.activities.find(a =>
+                a.contractorId === contractorId && a.crewId === crewId
+            );
+            if (aiActivity) return aiActivity;
+        }
+
+        // Fall back to report.activities
+        if (report.activities) {
+            return report.activities.find(a => a.contractorId === contractorId && a.crewId === crewId);
+        }
+        return null;
+    }
+
+    // ============ PDF GENERATION (VECTOR) ============
+    /**
+     * Generate PDF with crisp vector text using jsPDF direct drawing.
+     * Copied from finalreview.js with adaptations to use report.js scope variables.
+     */
+    async function generateVectorPDF() {
+        console.log('[PDF-VECTOR] Starting vector PDF generation');
+
+        const jsPDFConstructor = (typeof jspdf !== 'undefined' && jspdf.jsPDF)
+            || (typeof jsPDF !== 'undefined' && jsPDF)
+            || (typeof window !== 'undefined' && window.jspdf && window.jspdf.jsPDF)
+            || (typeof window !== 'undefined' && window.jsPDF);
+
+        if (!jsPDFConstructor) {
+            throw new Error('jsPDF library not found.');
+        }
+
+        const doc = new jsPDFConstructor({
+            orientation: 'portrait',
+            unit: 'pt',
+            format: 'letter',
+            compress: true
+        });
+
+        // ── Constants ──
+        const PW = 612, PH = 792, ML = 36, MR = 36, MT = 30;
+        const CW = PW - ML - MR;
+        const GREEN = [74, 124, 52];
+        const GRAY_BG = [245, 245, 245];
+        const BLACK = [0, 0, 0];
+        const WHITE = [255, 255, 255];
+        const DARK_BLUE = [30, 58, 95];
+
+        let curY = MT;
+        let pageNum = 1;
+
+        const TITLE_SIZE = 18, SECTION_HEADER_SIZE = 10, LABEL_SIZE = 8, VALUE_SIZE = 9;
+        const TABLE_HEADER_SIZE = 6, TABLE_CELL_SIZE = 8, BODY_SIZE = 9, FOOTER_SIZE = 8;
+
+        // ── Helpers ──
+        function setFont(style, size) { doc.setFont('helvetica', style); doc.setFontSize(size); }
+        function setTextColor(r, g, b) { doc.setTextColor(r, g, b); }
+        function setDrawColor(r, g, b) { doc.setDrawColor(r, g, b); }
+        function setFillColor(r, g, b) { doc.setFillColor(r, g, b); }
+
+        function wrapText(text, maxWidth, fontSize, fontStyle) {
+            if (!text) return [''];
+            setFont(fontStyle || 'normal', fontSize || BODY_SIZE);
+            const lines = doc.splitTextToSize(String(text), maxWidth);
+            return lines.length > 0 ? lines : [''];
+        }
+
+        function checkPageBreak(neededHeight) {
+            if (curY + neededHeight > PH - MT - 30) {
+                drawPageFooter();
+                doc.addPage();
+                pageNum++;
+                curY = MT;
+                drawReportHeader();
+                return true;
+            }
+            return false;
+        }
+
+        function drawPageFooter() {
+            const footerY = PH - 25;
+            setDrawColor(200, 200, 200);
+            doc.setLineWidth(0.5);
+            doc.line(ML, footerY - 4, ML + CW, footerY - 4);
+            setFont('normal', FOOTER_SIZE);
+            setTextColor(102, 102, 102);
+            doc.text(`${pageNum} of {{TOTAL}}`, PW / 2, footerY, { align: 'center' });
+        }
+
+        function drawReportHeader() {
+            const logoSrc = activeProject?.logoUrl || activeProject?.logoThumbnail || activeProject?.logo;
+            if (!logoSrc) {
+                setFont('bold', 9);
+                setTextColor(...DARK_BLUE);
+                doc.text('LOUIS ARMSTRONG', ML, curY + 12);
+                doc.text('NEW ORLEANS', ML, curY + 22);
+                doc.text('INTERNATIONAL AIRPORT', ML, curY + 32);
+            }
+            setFont('bold', TITLE_SIZE);
+            setTextColor(...GREEN);
+            doc.text('RPR DAILY REPORT', ML + CW, curY + 22, { align: 'right' });
+            curY += 42;
+            setDrawColor(...GREEN);
+            doc.setLineWidth(2.5);
+            doc.line(ML, curY, ML + CW, curY);
+            curY += 8;
+        }
+
+        function drawSectionHeader(title) {
+            const h = 20;
+            checkPageBreak(h + 10);
+            setFillColor(...GREEN);
+            setDrawColor(...BLACK);
+            doc.setLineWidth(0.5);
+            doc.rect(ML, curY, CW, h, 'FD');
+            setFont('bold', SECTION_HEADER_SIZE);
+            setTextColor(...WHITE);
+            doc.text(title.toUpperCase(), PW / 2, curY + 14, { align: 'center' });
+            curY += h;
+            setTextColor(...BLACK);
+        }
+
+        function drawCell(x, y, w, h, text, options) {
+            const opts = { fill: null, bold: false, fontSize: VALUE_SIZE, align: 'left', padding: 4, border: true, ...options };
+            if (opts.fill) { setFillColor(...opts.fill); doc.rect(x, y, w, h, 'F'); }
+            if (opts.border) { setDrawColor(...BLACK); doc.setLineWidth(0.5); doc.rect(x, y, w, h, 'S'); }
+            if (text !== undefined && text !== null) {
+                setFont(opts.bold ? 'bold' : 'normal', opts.fontSize);
+                setTextColor(...BLACK);
+                const textX = opts.align === 'center' ? x + w / 2 : x + opts.padding;
+                const textY = y + h / 2 + opts.fontSize * 0.3;
+                const maxW = w - opts.padding * 2;
+                doc.text(String(text), textX, textY, { align: opts.align === 'center' ? 'center' : undefined, maxWidth: maxW });
+            }
+        }
+
+        function drawTextBox(text, x, y, w, options) {
+            const opts = { fontSize: BODY_SIZE, fontStyle: 'normal', padding: 8, bulletPoints: false, ...options };
+            const innerW = w - opts.padding * 2;
+            let lines;
+            if (opts.bulletPoints && text) {
+                const rawLines = String(text).split('\n').filter(l => l.trim());
+                lines = [];
+                rawLines.forEach(line => {
+                    const prefixed = line.startsWith('•') || line.startsWith('-') ? line : `• ${line}`;
+                    lines.push(...wrapText(prefixed, innerW, opts.fontSize, opts.fontStyle));
+                });
+            } else {
+                lines = wrapText(text || 'N/A.', innerW, opts.fontSize, opts.fontStyle);
+            }
+            const lineH = opts.fontSize * 1.3;
+            const contentH = lines.length * lineH + opts.padding * 2;
+            setDrawColor(...BLACK);
+            doc.setLineWidth(0.5);
+            doc.line(x, y, x, y + contentH);
+            doc.line(x + w, y, x + w, y + contentH);
+            doc.line(x, y + contentH, x + w, y + contentH);
+            setFont(opts.fontStyle, opts.fontSize);
+            setTextColor(...BLACK);
+            let textY = y + opts.padding + opts.fontSize;
+            lines.forEach(line => { doc.text(line, x + opts.padding, textY); textY += lineH; });
+            return contentH;
+        }
+
+        // ── Gather data from current form state ──
+        function formVal(id, fallback) {
+            const el = document.getElementById(id);
+            if (!el) return fallback || '';
+            return el.value || el.textContent || fallback || '';
+        }
+
+        function pdfFormatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            try {
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    const [yr, mo, dy] = dateStr.split('-');
+                    return new Date(parseInt(yr), parseInt(mo) - 1, parseInt(dy)).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+                }
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return dateStr;
+                return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+            } catch (e) { return dateStr; }
+        }
+
+        function pdfFormatTime(timeStr) {
+            if (!timeStr) return '';
+            if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr;
+            const parts = timeStr.split(':');
+            if (parts.length < 2) return timeStr;
+            const h = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+            if (isNaN(h) || isNaN(m)) return timeStr;
+            return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+        }
+
+        function pdfCalcShift(start, end) {
+            if (!start || !end) return '';
+            try {
+                const sp = start.split(':'), ep = end.split(':');
+                let diff = (parseInt(ep[0]) * 60 + (parseInt(ep[1]) || 0)) - (parseInt(sp[0]) * 60 + (parseInt(sp[1]) || 0));
+                if (diff < 0) diff += 1440;
+                return `${(diff / 60).toFixed(2)} hours`;
+            } catch (e) { return ''; }
+        }
+
+        function pdfFormatTradesAbbrev(trades) {
+            if (!trades) return '-';
+            const abbrevMap = {
+                'construction management': 'CM', 'project management': 'PM',
+                'pile driving': 'PLE', 'concrete': 'CONC', 'asphalt': 'ASP',
+                'utilities': 'UTL', 'earthwork': 'ERTHWRK', 'electrical': 'ELEC',
+                'communications': 'COMM', 'fence': 'FENCE', 'pavement markings': 'PVMNT MRK',
+                'hauling': 'HAUL', 'pavement subgrade': 'PVMT SUB', 'demo': 'DEMO',
+                'demolition': 'DEMO', 'general': 'GEN'
+            };
+            return trades.split(/[;,]/).map(t => {
+                const lower = t.trim().toLowerCase();
+                return abbrevMap[lower] || lower.substring(0, 6).toUpperCase();
+            }).join('; ');
+        }
+
+        function pdfGetContractorName(contractorId, fallbackName) {
+            const c = projectContractors.find(c => c.id === contractorId);
+            if (c) return c.abbreviation || c.name.substring(0, 15).toUpperCase();
+            if (fallbackName) return fallbackName.substring(0, 15).toUpperCase();
+            return 'UNKNOWN';
+        }
+
+        function pdfFormatEquipNotes(status, hoursUsed) {
+            if (!status || status.toLowerCase() === 'idle' || status === '0' || status === '0 hrs') return 'IDLE';
+            let h = hoursUsed;
+            if (!h && status) { const m = status.match(/(\d+(?:\.\d+)?)/); if (m) h = parseFloat(m[1]); }
+            if (h && h > 0) return `${h} HRS UTILIZED`;
+            return 'IDLE';
+        }
+
+        const cleanW = (v, d) => (!v || v === '--' || v === 'Syncing...' || v === 'N/A' || String(v).trim() === '') ? (d || 'N/A') : v;
+
+        const ue = report.userEdits || {};
+
+        const projectName = formVal('projectName', activeProject?.projectName || '');
+        const reportDate = pdfFormatDate(formVal('reportDate'));
+        const noabNo = formVal('noabProjectNo', activeProject?.noabProjectNo || '');
+        const location = formVal('projectLocation', activeProject?.location || '');
+        const cnoNo = formVal('cnoSolicitationNo', activeProject?.cnoSolicitationNo || 'N/A');
+        const engineer = formVal('engineer', activeProject?.engineer || '');
+        const ntpDate = activeProject?.noticeToProceed ? pdfFormatDate(activeProject.noticeToProceed) : '';
+        const contractorName = formVal('contractor', activeProject?.primeContractor || '');
+        const duration = activeProject?.contractDuration ? `${activeProject.contractDuration} days` : '';
+        const startTime = pdfFormatTime(formVal('startTime'));
+        const endTime = pdfFormatTime(formVal('endTime'));
+        const expectedCompletion = activeProject?.expectedCompletion ? pdfFormatDate(activeProject.expectedCompletion) : '';
+        const shiftDuration = pdfCalcShift(formVal('startTime'), formVal('endTime'));
+        const contractDayVal = formVal('contractDay');
+        const weatherDays = formVal('weatherDaysCount', '0') + ' days';
+        const completedBy = formVal('completedBy', userSettings?.full_name || '');
+        const weather = report.overview?.weather || {};
+        const highTemp = cleanW(formVal('weatherHigh'), 'N/A');
+        const lowTemp = cleanW(formVal('weatherLow'), 'N/A');
+        const precipitation = cleanW(formVal('weatherPrecip'), '0.00"');
+        const generalCondition = cleanW(formVal('weatherCondition'), 'Not recorded');
+        const jobSiteCondition = cleanW(formVal('weatherJobSite'), 'N/A');
+        const adverseConditions = cleanW(formVal('weatherAdverse'), 'None');
+
+        // ═══ PAGE 1: Header + Overview + Work Summary ═══
+        curY = MT;
+        drawReportHeader();
+        drawSectionHeader('PROJECT OVERVIEW');
+
+        const colW = [115, 155, 115, 155];
+        const rowH = 16;
+        const tableX = ML;
+
+        function drawOverviewRow(l1, v1, l2, v2, opts) {
+            const rh = opts?.height || rowH;
+            let x = tableX;
+            drawCell(x, curY, colW[0], rh, l1, { fill: GRAY_BG, bold: true, fontSize: LABEL_SIZE });
+            x += colW[0];
+            drawCell(x, curY, colW[1], rh, v1, { fontSize: VALUE_SIZE });
+            x += colW[1];
+            drawCell(x, curY, colW[2], rh, l2, { fill: GRAY_BG, bold: true, fontSize: LABEL_SIZE });
+            x += colW[2];
+            drawCell(x, curY, colW[3], rh, v2, { fontSize: VALUE_SIZE, ...opts?.lastCell });
+            curY += rh;
+        }
+
+        drawOverviewRow('PROJECT NAME:', projectName, 'DATE:', reportDate);
+        drawOverviewRow('NOAB PROJECT NO.:', noabNo, 'LOCATION:', location);
+        drawOverviewRow('CNO SOLICITATION NO.:', cnoNo, 'ENGINEER:', engineer);
+        drawOverviewRow('NOTICE TO PROCEED:', ntpDate, 'CONTRACTOR:', contractorName);
+        drawOverviewRow('CONTRACT DURATION:', duration, 'START TIME:', startTime);
+        drawOverviewRow('EXPECTED COMPLETION:', expectedCompletion, 'END TIME:', endTime);
+        drawOverviewRow('CONTRACT DAY #:', contractDayVal, 'SHIFT DURATION:', shiftDuration);
+        drawOverviewRow('WEATHER DAYS:', weatherDays, 'COMPLETED BY:', completedBy);
+
+        // Weather + Signature rows
+        const weatherRowH = 13;
+        const totalSigH = weatherRowH * 5;
+        drawCell(tableX, curY, colW[0], totalSigH, 'WEATHER:', { fill: GRAY_BG, bold: true, fontSize: LABEL_SIZE });
+        drawCell(tableX + colW[0] + colW[1], curY, colW[2], totalSigH, 'SIGNATURE:', { fill: GRAY_BG, bold: true, fontSize: LABEL_SIZE });
+
+        const sigX = tableX + colW[0] + colW[1] + colW[2];
+        setDrawColor(...BLACK); doc.setLineWidth(0.5); doc.rect(sigX, curY, colW[3], totalSigH, 'S');
+
+        const sigName = completedBy;
+        setFont('italic', 14); setTextColor(...DARK_BLUE);
+        doc.text(sigName, sigX + colW[3] / 2, curY + totalSigH / 2 - 4, { align: 'center' });
+
+        const sigCompany = formVal('signatureCompany', userSettings?.company || '');
+        const sigTitle = formVal('signatureTitle', userSettings?.title || '');
+        if (sigCompany || sigTitle) {
+            setFont('normal', 6); setTextColor(102, 102, 102);
+            doc.text(`Digitally signed by ${sigName}`, sigX + colW[3] / 2, curY + totalSigH / 2 + 8, { align: 'center' });
+        }
+
+        const weatherTexts = [
+            `High Temp: ${highTemp}  Low Temp: ${lowTemp}`,
+            `Precipitation: ${precipitation}`,
+            `General Condition: ${generalCondition}`,
+            `Job Site Condition: ${jobSiteCondition}`,
+            `Adverse Conditions: ${adverseConditions}`
+        ];
+        const weatherValX = tableX + colW[0];
+        weatherTexts.forEach((wText, i) => {
+            const wy = curY + i * weatherRowH;
+            setDrawColor(...BLACK); doc.setLineWidth(0.5); doc.rect(weatherValX, wy, colW[1], weatherRowH, 'S');
+            setFont('normal', VALUE_SIZE); setTextColor(...BLACK);
+            doc.text(wText, weatherValX + 4, wy + weatherRowH / 2 + 3);
+        });
+        curY += totalSigH;
+
+        // Daily Work Summary
+        drawSectionHeader('DAILY WORK SUMMARY');
+        const wsStartY = curY;
+        const wsPadding = 8;
+        let wsContentY = curY + wsPadding;
+
+        setFont('bold', BODY_SIZE); setTextColor(...BLACK);
+        doc.text('Construction Activities Performed and Observed on this Date:', ML + wsPadding, wsContentY + BODY_SIZE);
+        wsContentY += BODY_SIZE + 8;
+
+        const pdfDisplayDate = reportDate || 'this date';
+
+        projectContractors.forEach(contractor => {
+            if (wsContentY > curY) curY = wsContentY;
+            checkPageBreak(60);
+            wsContentY = curY;
+
+            const activity = getContractorActivity(contractor.id);
+            const crews = contractor.crews || [];
+            const typeLabel = contractor.type === 'prime' ? 'PRIME CONTRACTOR' : 'SUBCONTRACTOR';
+            const trades = contractor.trades ? ` (${contractor.trades.toUpperCase()})` : '';
+            const abbrev = contractor.abbreviation ? ` (${contractor.abbreviation})` : '';
+
+            setFont('bold', BODY_SIZE); setTextColor(...BLACK);
+            const cTitle = `${contractor.name.toUpperCase()}${abbrev} – ${typeLabel}${trades}`;
+            wrapText(cTitle, CW - wsPadding * 2, BODY_SIZE, 'bold').forEach(line => {
+                doc.text(line, ML + wsPadding, wsContentY + BODY_SIZE);
+                wsContentY += BODY_SIZE * 1.3;
+            });
+
+            const narrative = activity?.narrative || '';
+            const isNoWork = activity?.noWork === true || !narrative.trim();
+
+            if (crews.length === 0) {
+                if (isNoWork) {
+                    setFont('normal', BODY_SIZE);
+                    doc.text('No work performed', ML + wsPadding, wsContentY + BODY_SIZE);
+                    wsContentY += BODY_SIZE * 1.5;
+                } else {
+                    narrative.split('\n').filter(l => l.trim()).forEach(line => {
+                        const prefix = (line.startsWith('•') || line.startsWith('-')) ? '' : '• ';
+                        setFont('normal', BODY_SIZE);
+                        wrapText(prefix + line.trim(), CW - wsPadding * 2 - 10, BODY_SIZE, 'normal').forEach((wl, i) => {
+                            if (wsContentY + BODY_SIZE > PH - 55) {
+                                const boxH = wsContentY - wsStartY + wsPadding;
+                                setDrawColor(...BLACK); doc.setLineWidth(0.5);
+                                doc.line(ML, wsStartY, ML, wsStartY + boxH);
+                                doc.line(ML + CW, wsStartY, ML + CW, wsStartY + boxH);
+                                doc.line(ML, wsStartY + boxH, ML + CW, wsStartY + boxH);
+                                drawPageFooter(); doc.addPage(); pageNum++; curY = MT;
+                                drawReportHeader(); wsContentY = curY + wsPadding;
+                            }
+                            doc.text(i === 0 ? wl : '  ' + wl, ML + wsPadding + 5, wsContentY + BODY_SIZE);
+                            wsContentY += BODY_SIZE * 1.3;
+                        });
+                    });
+                    wsContentY += 3;
+                }
+            } else {
+                crews.forEach(crewObj => {
+                    const crewActivity = getCrewActivity(contractor.id, crewObj.id);
+                    const crewNarrative = crewActivity?.narrative || '';
+                    const crewIsNoWork = !crewNarrative.trim();
+
+                    if (wsContentY + 30 > PH - 55) {
+                        const boxH = wsContentY - wsStartY + wsPadding;
+                        setDrawColor(...BLACK); doc.setLineWidth(0.5);
+                        doc.line(ML, wsStartY, ML, wsStartY + boxH);
+                        doc.line(ML + CW, wsStartY, ML + CW, wsStartY + boxH);
+                        doc.line(ML, wsStartY + boxH, ML + CW, wsStartY + boxH);
+                        drawPageFooter(); doc.addPage(); pageNum++; curY = MT;
+                        drawReportHeader(); wsContentY = curY + wsPadding;
+                    }
+
+                    setFont('bold', BODY_SIZE);
+                    doc.text(crewObj.name, ML + wsPadding + 5, wsContentY + BODY_SIZE);
+                    wsContentY += BODY_SIZE * 1.4;
+
+                    if (crewIsNoWork) {
+                        setFont('italic', BODY_SIZE);
+                        doc.text(`No work performed on ${pdfDisplayDate}.`, ML + wsPadding + 10, wsContentY + BODY_SIZE);
+                        wsContentY += BODY_SIZE * 1.5;
+                    } else {
+                        crewNarrative.split('\n').filter(l => l.trim()).forEach(line => {
+                            const prefix = (line.startsWith('•') || line.startsWith('-')) ? '' : '• ';
+                            setFont('normal', BODY_SIZE);
+                            wrapText(prefix + line.trim(), CW - wsPadding * 2 - 15, BODY_SIZE, 'normal').forEach((wl, i) => {
+                                doc.text(i === 0 ? wl : '  ' + wl, ML + wsPadding + 10, wsContentY + BODY_SIZE);
+                                wsContentY += BODY_SIZE * 1.3;
+                            });
+                        });
+                        wsContentY += 3;
+                    }
+                });
+            }
+            wsContentY += 4;
+        });
+
+        wsContentY += wsPadding;
+        const wsBoxH = wsContentY - wsStartY;
+        setDrawColor(...BLACK); doc.setLineWidth(0.5);
+        doc.line(ML, wsStartY, ML, wsStartY + wsBoxH);
+        doc.line(ML + CW, wsStartY, ML + CW, wsStartY + wsBoxH);
+        doc.line(ML, wsStartY + wsBoxH, ML + CW, wsStartY + wsBoxH);
+        curY = wsStartY + wsBoxH;
+
+        // ═══ DAILY OPERATIONS TABLE ═══
+        drawSectionHeader('DAILY OPERATIONS');
+        const opsColWidths = [60, 70, 55, 55, 60, 85, 65, 90];
+        const opsHeaders = ['CONTRACTOR', 'TRADE', 'SUPER(S)', 'FOREMAN', 'OPERATOR(S)', 'LABORER(S) /\nELECTRICIAN(S)', 'SURVEYOR(S)', 'OTHER(S)'];
+        const opsHeaderH = 22;
+        let ox = ML;
+        opsHeaders.forEach((hdr, i) => {
+            drawCell(ox, curY, opsColWidths[i], opsHeaderH, hdr, { fill: GRAY_BG, bold: true, fontSize: TABLE_HEADER_SIZE, align: 'center' });
+            ox += opsColWidths[i];
+        });
+        curY += opsHeaderH;
+
+        projectContractors.forEach(contractor => {
+            checkPageBreak(18);
+            const ops = getContractorOperations(contractor.id);
+            const abbrev = contractor.abbreviation || contractor.name.substring(0, 10).toUpperCase();
+            const trades = pdfFormatTradesAbbrev(contractor.trades);
+            const opsRowH = 16;
+            const rowData = [abbrev, trades, ops?.superintendents || 'N/A', ops?.foremen || 'N/A', ops?.operators || 'N/A', ops?.laborers || 'N/A', ops?.surveyors || 'N/A', ops?.others || 'N/A'];
+            let rx = ML;
+            rowData.forEach((val, i) => {
+                drawCell(rx, curY, opsColWidths[i], opsRowH, val, { fontSize: TABLE_CELL_SIZE, align: i < 2 ? 'left' : 'center' });
+                rx += opsColWidths[i];
+            });
+            curY += opsRowH;
+        });
+
+        // ═══ EQUIPMENT TABLE ═══
+        drawSectionHeader('MOBILIZED EQUIPMENT & DAILY UTILIZATION');
+        const eqColWidths = [100, 240, 60, 140];
+        const eqHeaders = ['CONTRACTOR', 'EQUIPMENT TYPE / MODEL #', 'QUANTITY', 'NOTES'];
+        const eqHeaderH = 20;
+        let ex = ML;
+        eqHeaders.forEach((hdr, i) => {
+            drawCell(ex, curY, eqColWidths[i], eqHeaderH, hdr, { fill: GRAY_BG, bold: true, fontSize: TABLE_HEADER_SIZE, align: 'center' });
+            ex += eqColWidths[i];
+        });
+        curY += eqHeaderH;
+
+        const equipmentData = getEquipmentData();
+        if (equipmentData.length === 0) {
+            drawCell(ML, curY, CW, 16, 'No equipment mobilized', { fontSize: TABLE_CELL_SIZE, align: 'center' });
+            curY += 16;
+        } else {
+            equipmentData.forEach((item, idx) => {
+                checkPageBreak(16);
+                const cName = pdfGetContractorName(item.contractorId, item.contractorName);
+                const eqNotes = pdfFormatEquipNotes(item.status, item.hoursUsed);
+                const editKey = `equipment_${idx}`;
+                const editedType = ue[editKey]?.type || item.type || '';
+                const editedQty = ue[editKey]?.qty || item.qty || 1;
+                const editedNotes = ue[editKey]?.notes || eqNotes;
+                const rowData = [cName, editedType, String(editedQty), editedNotes];
+                let rx = ML;
+                rowData.forEach((val, i) => {
+                    drawCell(rx, curY, eqColWidths[i], 16, val, { fontSize: TABLE_CELL_SIZE, align: i < 2 ? 'left' : 'center' });
+                    rx += eqColWidths[i];
+                });
+                curY += 16;
+            });
+        }
+
+        // ═══ ISSUES ═══
+        drawSectionHeader('GENERAL ISSUES; UNFORESEEN CONDITIONS; VISITORS');
+        const issuesText = formVal('issuesText', '');
+        curY += drawTextBox(issuesText || 'N/A.', ML, curY, CW, { bulletPoints: !!issuesText });
+
+        // ═══ DELIVERIES ═══
+        drawSectionHeader('DELIVERIES');
+        const deliveriesText = report.aiGenerated?.deliveries || '';
+        curY += drawTextBox(deliveriesText || 'N/A.', ML, curY, CW, { bulletPoints: !!deliveriesText });
+
+        // ═══ QA/QC ═══
+        drawSectionHeader('QA/QC TESTING AND/OR INSPECTIONS');
+        const qaqcText = formVal('qaqcText', '');
+        curY += drawTextBox(qaqcText || 'N/A.', ML, curY, CW, { bulletPoints: !!qaqcText });
+
+        // ═══ SAFETY ═══
+        drawSectionHeader('SAFETY REPORT');
+        const hasIncident = document.getElementById('safetyHasIncident')?.checked || false;
+        const safetyBoxStartY = curY;
+        setDrawColor(...BLACK); doc.setLineWidth(0.5);
+
+        setFont('bold', BODY_SIZE); setTextColor(...BLACK);
+        doc.text('Incident(s) on this Date:', ML + 8, curY + 14);
+
+        const cbSize = 10, cbY = curY + 6, yesX = ML + CW - 120;
+        doc.rect(yesX, cbY, cbSize, cbSize, 'S');
+        if (hasIncident) { setFont('bold', 8); doc.text('X', yesX + 2.5, cbY + 8.5); }
+        setFont('normal', BODY_SIZE); doc.text('Yes', yesX + cbSize + 4, curY + 14);
+
+        const noX = yesX + 50;
+        doc.rect(noX, cbY, cbSize, cbSize, 'S');
+        if (!hasIncident) { setFont('bold', 8); doc.text('X', noX + 2.5, cbY + 8.5); }
+        setFont('normal', BODY_SIZE); doc.text('No', noX + cbSize + 4, curY + 14);
+
+        curY += 22;
+
+        const safetyNotes = formVal('safetyText', '');
+        const safetyLines = wrapText(safetyNotes || 'N/A.', CW - 16, BODY_SIZE, 'normal');
+        const safetyLineH = BODY_SIZE * 1.3;
+        const safetyTextH = safetyLines.length * safetyLineH + 8;
+        setFont('normal', BODY_SIZE);
+        let safetyTextY = curY + 4 + BODY_SIZE;
+        safetyLines.forEach(line => { doc.text(line, ML + 8, safetyTextY); safetyTextY += safetyLineH; });
+        curY += safetyTextH;
+
+        doc.line(ML, safetyBoxStartY, ML, curY);
+        doc.line(ML + CW, safetyBoxStartY, ML + CW, curY);
+        doc.line(ML, curY, ML + CW, curY);
+
+        // ═══ VISITORS ═══
+        drawSectionHeader('VISITORS; DELIVERIES; ADDITIONAL CONTRACT AND/OR CHANGE ORDER ACTIVITIES; OTHER REMARKS');
+        const visitorsText = formVal('visitorsText', '');
+        curY += drawTextBox(visitorsText || 'N/A.', ML, curY, CW, { bulletPoints: !!visitorsText });
+
+        drawPageFooter();
+
+        // ═══ PHOTO PAGES ═══
+        const photos = report.photos || [];
+        if (photos.length > 0) {
+            const photosPerPage = 4;
+            const totalPhotoPages = Math.ceil(photos.length / photosPerPage);
+
+            for (let pp = 0; pp < totalPhotoPages; pp++) {
+                doc.addPage(); pageNum++; curY = MT;
+                drawReportHeader();
+                drawSectionHeader(pp === 0 ? 'DAILY PHOTOS' : 'DAILY PHOTOS (CONTINUED)');
+
+                const infoH = 30;
+                setDrawColor(...BLACK); doc.setLineWidth(0.5); doc.rect(ML, curY, CW, infoH, 'S');
+                setFont('bold', VALUE_SIZE); setTextColor(...BLACK);
+                doc.text('Project Name:', ML + 8, curY + 12);
+                setFont('normal', VALUE_SIZE); doc.text(projectName, ML + 85, curY + 12);
+                setFont('bold', VALUE_SIZE); doc.text('Project #:', ML + 8, curY + 24);
+                setFont('normal', VALUE_SIZE); doc.text(noabNo, ML + 85, curY + 24);
+                curY += infoH;
+
+                const pagePhotos = photos.slice(pp * photosPerPage, (pp + 1) * photosPerPage);
+                const photoCellW = CW / 2, photoCellH = 165, photoImgH = 120;
+
+                for (let pi = 0; pi < pagePhotos.length; pi++) {
+                    const photo = pagePhotos[pi];
+                    const col = pi % 2, row = Math.floor(pi / 2);
+                    const cx = ML + col * photoCellW, cy = curY + row * photoCellH;
+
+                    setDrawColor(...BLACK); doc.setLineWidth(0.5); doc.rect(cx, cy, photoCellW, photoCellH, 'S');
+
+                    if (photo.url) {
+                        try {
+                            const imgData = await loadImageAsDataURL(photo.url);
+                            if (imgData) {
+                                const imgPad = 8, imgW = photoCellW - imgPad * 2, imgH = photoImgH - imgPad;
+                                doc.addImage(imgData, 'JPEG', cx + imgPad, cy + imgPad, imgW, imgH);
+                            }
+                        } catch (imgErr) {
+                            console.warn('[PDF-VECTOR] Failed to load photo:', imgErr);
+                            setFont('italic', 8); setTextColor(150, 150, 150);
+                            doc.text('Photo unavailable', cx + photoCellW / 2, cy + photoImgH / 2, { align: 'center' });
+                        }
+                    }
+
+                    const metaY = cy + photoImgH + 4;
+                    setFont('bold', 7); setTextColor(...BLACK);
+                    doc.text('Date:', cx + 8, metaY);
+                    setFont('normal', 7);
+                    doc.text(photo.date || reportDate, cx + 30, metaY);
+
+                    if (photo.caption) {
+                        setFont('italic', 7); setTextColor(51, 51, 51);
+                        const capLines = wrapText(photo.caption, photoCellW - 16, 7, 'italic');
+                        let capY = metaY + 10;
+                        capLines.forEach(cl => { doc.text(cl, cx + 8, capY); capY += 9; });
+                    }
+                }
+
+                curY += Math.ceil(pagePhotos.length / 2) * photoCellH;
+                drawPageFooter();
+            }
+        }
+
+        // Fix total page count
+        const numPages = doc.internal.getNumberOfPages();
+        for (let p = 1; p <= numPages; p++) {
+            doc.setPage(p);
+            const footerY = PH - 25;
+            setFillColor(...WHITE);
+            doc.rect(ML, footerY - 2, CW, 14, 'F');
+            setFont('normal', FOOTER_SIZE);
+            setTextColor(102, 102, 102);
+            doc.text(`${p} of ${numPages}`, PW / 2, footerY, { align: 'center' });
+        }
+
+        // Generate output
+        const pName = (projectName || 'Report').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+        const rDate = formVal('reportDate') || getReportDateStr() || getLocalDateString();
+        const filename = `${pName}_${rDate}.pdf`;
+
+        console.log('[PDF-VECTOR] PDF generation complete:', filename, '(' + numPages + ' pages)');
+
+        const blob = doc.output('blob');
+        console.log('[PDF-VECTOR] Blob size:', blob.size, 'bytes');
+
+        return { blob, filename };
+    }
+
+    /**
+     * Load an image URL as a data URL for embedding in jsPDF
+     */
+    async function loadImageAsDataURL(url) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const maxDim = 800;
+                    let w = img.naturalWidth, h = img.naturalHeight;
+                    if (w > maxDim || h > maxDim) {
+                        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                        else { w = Math.round(w * maxDim / h); h = maxDim; }
+                    }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', 0.85));
+                } catch (e) { resolve(null); }
+            };
+            img.onerror = () => resolve(null);
+            setTimeout(() => resolve(null), 10000);
+            img.src = url;
+        });
+    }
+
+    // ============ SUBMIT FLOW ============
+    /**
+     * Main submit handler - orchestrates PDF generation, upload, and finalization
+     */
+    async function handleSubmit() {
+        if (!navigator.onLine) {
+            showSubmitError('Cannot submit offline. Please connect to internet.');
+            return;
+        }
+
+        if (!report) {
+            showSubmitError('No report data found.');
+            return;
+        }
+
+        if (!currentReportId) {
+            showSubmitError('No report ID found. Cannot submit.');
+            return;
+        }
+
+        // Show loading overlay
+        showSubmitLoadingOverlay(true, 'Generating PDF...');
+
+        try {
+            console.log('[SUBMIT] Starting report submission for:', currentReportId);
+
+            // Save current form data first
+            saveReportToLocalStorage();
+
+            // Generate PDF
+            showSubmitLoadingOverlay(true, 'Generating PDF...');
+            const pdf = await generateVectorPDF();
+            console.log('[SUBMIT] PDF generated:', pdf.filename);
+
+            // Upload PDF
+            showSubmitLoadingOverlay(true, 'Uploading PDF...');
+            const pdfUrl = await uploadPDFToStorage(pdf);
+            console.log('[SUBMIT] PDF uploaded:', pdfUrl);
+
+            // Ensure report exists
+            showSubmitLoadingOverlay(true, 'Saving report...');
+            await ensureReportExists();
+
+            // Save to final_reports
+            await saveToFinalReports(pdfUrl);
+
+            // Update status
+            await updateReportStatus('submitted', pdfUrl);
+
+            // Cleanup
+            showSubmitLoadingOverlay(true, 'Cleaning up...');
+            await cleanupLocalStorage();
+
+            console.log('[SUBMIT] Submit complete!');
+            window.location.href = 'archives.html?submitted=true';
+
+        } catch (error) {
+            console.error('[SUBMIT] Error:', error);
+            showSubmitLoadingOverlay(false);
+            showSubmitError('Submit failed: ' + error.message);
+        }
+    }
+
+    /**
+     * Upload PDF to Supabase Storage
+     */
+    async function uploadPDFToStorage(pdf) {
+        const storagePath = `${currentReportId}/${pdf.filename}`;
+
+        const { data, error } = await supabaseClient
+            .storage
+            .from('report-pdfs')
+            .upload(storagePath, pdf.blob, {
+                contentType: 'application/pdf',
+                upsert: true
+            });
+
+        if (error) throw new Error('PDF upload failed: ' + error.message);
+
+        const { data: urlData } = supabaseClient
+            .storage
+            .from('report-pdfs')
+            .getPublicUrl(storagePath);
+
+        return urlData.publicUrl;
+    }
+
+    /**
+     * Ensure report exists in reports table (foreign key requirement)
+     */
+    async function ensureReportExists() {
+        const reportData = getReportData(currentReportId) || {};
+        const reportDate = formVal('reportDate') || getReportDateStr();
+
+        const reportRow = {
+            id: currentReportId,
+            project_id: activeProject?.id || null,
+            device_id: getDeviceId(),
+            user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
+            report_date: reportDate,
+            status: 'draft',
+            capture_mode: reportData.captureMode || 'guided',
+            created_at: reportData.createdAt || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
+        const { error } = await supabaseClient
+            .from('reports')
+            .upsert(reportRow, { onConflict: 'id' });
+
+        if (error) throw new Error('Failed to create report record: ' + error.message);
+    }
+
+    /**
+     * Save report metadata to final_reports table
+     */
+    async function saveToFinalReports(pdfUrl) {
+        const weather = report.overview?.weather || {};
+        const submittedAt = new Date().toISOString();
+
+        function cleanWeatherValue(val) {
+            if (val === null || val === undefined || val === '' || val === '--' || val === 'N/A') return null;
+            const numMatch = String(val).match(/^[\d.]+/);
+            if (numMatch) { const num = parseFloat(numMatch[0]); return isNaN(num) ? null : num; }
+            return null;
+        }
+
+        const finalReportData = {
+            report_id: currentReportId,
+            pdf_url: pdfUrl,
+            submitted_at: submittedAt,
+            weather_high_temp: cleanWeatherValue(formVal('weatherHigh')),
+            weather_low_temp: cleanWeatherValue(formVal('weatherLow')),
+            weather_precipitation: cleanWeatherValue(formVal('weatherPrecip')),
+            weather_general_condition: cleanWeatherValue(formVal('weatherCondition')),
+            weather_job_site_condition: cleanWeatherValue(formVal('weatherJobSite')),
+            weather_adverse_conditions: cleanWeatherValue(formVal('weatherAdverse')),
+            executive_summary: report.aiGenerated?.executive_summary || report.aiGenerated?.executiveSummary || '',
+            work_performed: report.aiGenerated?.work_performed || report.aiGenerated?.workPerformed || '',
+            safety_observations: formVal('safetyText', ''),
+            delays_issues: formVal('issuesText', ''),
+            qaqc_notes: formVal('qaqcText', ''),
+            communications_notes: formVal('communicationsText', ''),
+            visitors_deliveries_notes: formVal('visitorsText', ''),
+            inspector_notes: report.aiGenerated?.inspector_notes || '',
+            contractors_json: report.aiGenerated?.activities || report.activities || [],
+            personnel_json: report.aiGenerated?.operations || report.operations || [],
+            equipment_json: report.aiGenerated?.equipment || report.equipment || [],
+            has_contractor_personnel: (report.aiGenerated?.activities?.length > 0) || (report.aiGenerated?.operations?.length > 0),
+            has_equipment: (report.aiGenerated?.equipment?.length > 0) || (report.equipment?.length > 0),
+            has_issues: !!formVal('issuesText'),
+            has_communications: !!formVal('communicationsText'),
+            has_qaqc: !!formVal('qaqcText'),
+            has_safety_incidents: document.getElementById('safetyHasIncident')?.checked || false,
+            has_visitors_deliveries: !!formVal('visitorsText'),
+            has_photos: report.photos?.length > 0
+        };
+
+        const { error } = await supabaseClient
+            .from('final_reports')
+            .upsert(finalReportData, { onConflict: 'report_id' });
+
+        if (error) throw new Error('Failed to save report: ' + error.message);
+    }
+
+    /**
+     * Update reports table status
+     */
+    async function updateReportStatus(status, pdfUrl) {
+        const submittedAt = new Date().toISOString();
+        const { error } = await supabaseClient
+            .from('reports')
+            .update({
+                status: status,
+                submitted_at: submittedAt,
+                updated_at: submittedAt,
+                pdf_url: pdfUrl
+            })
+            .eq('id', currentReportId);
+
+        if (error) throw new Error('Failed to update status: ' + error.message);
+
+        report.meta = report.meta || {};
+        report.meta.submitted = true;
+        report.meta.submittedAt = submittedAt;
+        report.meta.status = 'submitted';
+    }
+
+    /**
+     * Clean up local storage after successful submit
+     */
+    async function cleanupLocalStorage() {
+        deleteReportData(currentReportId);
+
+        const currentReports = JSON.parse(localStorage.getItem('fvp_current_reports') || '{}');
+        delete currentReports[currentReportId];
+        localStorage.setItem('fvp_current_reports', JSON.stringify(currentReports));
+
+        if (window.idb && typeof window.idb.deletePhotosByReportId === 'function') {
+            try {
+                await window.idb.deletePhotosByReportId(currentReportId);
+            } catch (e) {
+                console.warn('[SUBMIT] Could not clean IndexedDB photos:', e);
+            }
+        }
+    }
+
+    /**
+     * Helper to read form field value (for submit/PDF functions)
+     */
+    function formVal(id, fallback) {
+        const el = document.getElementById(id);
+        if (!el) return fallback || '';
+        return el.value || el.textContent || fallback || '';
+    }
+
+    /**
+     * Show/hide submit loading overlay
+     */
+    function showSubmitLoadingOverlay(show, statusText) {
+        let overlay = document.getElementById('submitLoadingOverlay');
+
+        if (show) {
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'submitLoadingOverlay';
+                overlay.className = 'submit-overlay';
+                overlay.innerHTML = `
+                    <div class="submit-spinner"><i class="fas fa-spinner fa-spin"></i></div>
+                    <div class="submit-status" id="submitStatusText">${statusText || 'Processing...'}</div>
+                `;
+                document.body.appendChild(overlay);
+            } else {
+                const statusEl = document.getElementById('submitStatusText');
+                if (statusEl) statusEl.textContent = statusText || 'Processing...';
+                overlay.style.display = 'flex';
+            }
+
+            // Disable submit button
+            const btn = document.getElementById('submitReportBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+            }
+        } else {
+            if (overlay) overlay.style.display = 'none';
+
+            // Re-enable submit button
+            const btn = document.getElementById('submitReportBtn');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Report';
+            }
+        }
+    }
+
+    /**
+     * Show error message
+     */
+    function showSubmitError(message) {
+        const existingToast = document.getElementById('submitErrorToast');
+        if (existingToast) existingToast.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'submitErrorToast';
+        toast.style.cssText = `
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: #dc2626; color: white; padding: 16px 24px; border-radius: 8px;
+            font-size: 14px; font-weight: 500; z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 12px; max-width: 90vw;
+        `;
+        toast.innerHTML = `
+            <i class="fas fa-exclamation-circle"></i>
+            <span>${escapeHtml(message)}</span>
+            <button onclick="this.parentElement.remove()" style="background:transparent; border:none; color:white; cursor:pointer; padding:4px; margin-left:8px;">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => { if (toast.parentElement) toast.remove(); }, 8000);
     }
 
     // ============ EXPOSE FUNCTIONS TO WINDOW ============
@@ -2865,6 +4243,8 @@
     window.toggleNoWork = toggleNoWork;
     window.handlePhotoLoad = handlePhotoLoad;
     window.handlePhotoError = handlePhotoError;
+    window.handleSubmit = handleSubmit;
+    window.renderPreview = renderPreview;
 
     // Debug access for development
     window.__fvp_debug = {

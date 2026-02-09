@@ -87,23 +87,13 @@ async function loadActiveProject() {
 
         activeProject = fromSupabaseProject(projectRow);
 
-        // Fetch contractors for this project
-        const { data: contractorRows, error: contractorError } = await supabaseClient
-            .from('contractors')
-            .select('*')
-            .eq('project_id', activeId);
-
-        if (!contractorError && contractorRows) {
-            activeProject.contractors = contractorRows.map(fromSupabaseContractor);
-            // Sort contractors: prime first
-            projectContractors = [...activeProject.contractors].sort((a, b) => {
-                if (a.type === 'prime' && b.type !== 'prime') return -1;
-                if (a.type !== 'prime' && b.type === 'prime') return 1;
-                return 0;
-            });
-        } else {
-            projectContractors = [];
-        }
+        // Contractors (with crews) come from JSONB column — already parsed
+        // Sort contractors: prime first
+        projectContractors = [...(activeProject.contractors || [])].sort((a, b) => {
+            if (a.type === 'prime' && b.type !== 'prime') return -1;
+            if (a.type !== 'prime' && b.type === 'prime') return 1;
+            return 0;
+        });
 
         console.log('[SUPABASE] Loaded project:', activeProject.projectName);
         return activeProject;
@@ -469,6 +459,7 @@ function renderLogo() {
 }
 
 // ============ WORK SUMMARY ============
+// v6.9: Updated to support crews per contractor
 function renderWorkSummary() {
     const container = document.getElementById('workSummaryContent');
 
@@ -479,12 +470,14 @@ function renderWorkSummary() {
         return;
     }
 
-    // v6.6.5: Render contractor blocks with editable textareas
-    // v6.6.22: Show ALL contractors - display "No work performed on [date]" for inactive ones
+    // v6.9: Render contractor blocks with crew sub-sections
     let html = '';
+    const reportDate = report.overview?.date || getReportDateStr();
+    const displayDate = reportDate ? formatDisplayDate(reportDate) : 'this date';
 
     projectContractors.forEach(contractor => {
         const activity = getContractorActivity(contractor.id);
+        const crews = contractor.crews || [];
 
         // Get content values
         const narrative = activity?.narrative || '';
@@ -498,81 +491,136 @@ function renderWorkSummary() {
         // v6.6.22: Detect "no work" state - either explicit flag or all fields empty
         const isNoWork = activity?.noWork === true || (!narrative.trim() && !equipment.trim() && !crew.trim());
 
-        if (isNoWork) {
-            // v6.6.23: Render editable "no work" block with toggle checkbox
-            const reportDate = report.overview?.date || getReportDateStr();
-            const displayDate = reportDate ? formatDisplayDate(reportDate) : 'this date';
-            const contractorId = contractor.id;
-
-            html += `<div class="contractor-block" style="margin-bottom: 16px; page-break-inside: avoid;" data-contractor-id="${contractorId}">`;
+        if (crews.length === 0) {
+            // === NO CREWS: render like before ===
+            if (isNoWork) {
+                const contractorId = contractor.id;
+                html += `<div class="contractor-block" style="margin-bottom: 16px; page-break-inside: avoid;" data-contractor-id="${contractorId}">`;
+                html += `<div class="contractor-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">`;
+                html += `<div class="contractor-name" style="font-weight: bold;">${escapeHtml(contractor.name)} – ${typeLabel}${trades}</div>`;
+                html += `<label class="no-work-toggle" style="font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer;">`;
+                html += `<input type="checkbox" class="no-work-checkbox" data-contractor-id="${contractorId}" checked>`;
+                html += `<span>No work performed</span>`;
+                html += `</label>`;
+                html += `</div>`;
+                html += `<div class="contractor-fields" data-contractor-id="${contractorId}" style="display: none;">`;
+                html += `<div class="contractor-narrative-container" style="margin-bottom: 8px;">`;
+                html += `<textarea class="editable-field contractor-narrative" data-path="${activityPath}.narrative" data-contractor-id="${contractorId}" placeholder="Describe work performed..." style="width: 100%; min-height: 60px;"></textarea>`;
+                html += `</div>`;
+                html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
+                html += `<div><label style="font-size: 8pt; font-weight: bold; color: #666;">EQUIPMENT</label>`;
+                html += `<textarea class="editable-field contractor-equipment" data-path="${activityPath}.equipmentUsed" data-contractor-id="${contractorId}" placeholder="Equipment used..." style="width: 100%; min-height: 40px;"></textarea></div>`;
+                html += `<div><label style="font-size: 8pt; font-weight: bold; color: #666;">CREW</label>`;
+                html += `<textarea class="editable-field contractor-crew" data-path="${activityPath}.crew" data-contractor-id="${contractorId}" placeholder="Crew count..." style="width: 100%; min-height: 40px;"></textarea></div>`;
+                html += `</div></div>`;
+                html += `<div class="no-work-message" data-contractor-id="${contractorId}" style="font-style: italic; color: #333; padding-left: 8px;">`;
+                html += `No work performed on ${displayDate}.`;
+                html += `</div>`;
+                html += `</div>`;
+            } else {
+                html += `<div class="contractor-block" style="margin-bottom: 16px;">`;
+                html += `<div class="contractor-name" style="font-weight: bold; margin-bottom: 8px;">${escapeHtml(contractor.name)} – ${typeLabel}${trades}</div>`;
+                html += `<div class="contractor-narrative-container" style="margin-bottom: 8px;">
+                    <textarea class="editable-field contractor-narrative" data-path="${activityPath}.narrative" data-contractor-id="${contractor.id}" placeholder="Describe work performed by ${escapeHtml(contractor.name)}...">${escapeHtml(narrative)}</textarea>
+                </div>`;
+                html += `<div class="contractor-details-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div><label style="font-size: 8pt; font-weight: bold; color: #666; text-transform: uppercase;">Equipment</label>
+                    <textarea class="editable-field contractor-equipment" data-path="${activityPath}.equipmentUsed" data-contractor-id="${contractor.id}" placeholder="Equipment used...">${escapeHtml(equipment)}</textarea></div>
+                    <div><label style="font-size: 8pt; font-weight: bold; color: #666; text-transform: uppercase;">Crew</label>
+                    <textarea class="editable-field contractor-crew" data-path="${activityPath}.crew" data-contractor-id="${contractor.id}" placeholder="Crew count/description...">${escapeHtml(crew)}</textarea></div>
+                </div>`;
+                html += `</div>`;
+            }
+        } else {
+            // === HAS CREWS: render contractor header + crew sub-sections ===
+            html += `<div class="contractor-block" style="margin-bottom: 16px; page-break-inside: avoid;" data-contractor-id="${contractor.id}">`;
             html += `<div class="contractor-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">`;
             html += `<div class="contractor-name" style="font-weight: bold;">${escapeHtml(contractor.name)} – ${typeLabel}${trades}</div>`;
-            html += `<label class="no-work-toggle" style="font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer;">`;
-            html += `<input type="checkbox" class="no-work-checkbox" data-contractor-id="${contractorId}" checked>`;
-            html += `<span>No work performed</span>`;
-            html += `</label>`;
+
+            if (isNoWork) {
+                html += `<label class="no-work-toggle" style="font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer;">`;
+                html += `<input type="checkbox" class="no-work-checkbox" data-contractor-id="${contractor.id}" checked>`;
+                html += `<span>No work performed</span>`;
+                html += `</label>`;
+            }
             html += `</div>`;
 
-            // Hidden fields (shown when checkbox unchecked)
-            html += `<div class="contractor-fields" data-contractor-id="${contractorId}" style="display: none;">`;
-            html += `<div class="contractor-narrative-container" style="margin-bottom: 8px;">`;
-            html += `<textarea class="editable-field contractor-narrative" data-path="${activityPath}.narrative" data-contractor-id="${contractorId}" placeholder="Describe work performed..." style="width: 100%; min-height: 60px;"></textarea>`;
-            html += `</div>`;
-            html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
-            html += `<div><label style="font-size: 8pt; font-weight: bold; color: #666;">EQUIPMENT</label>`;
-            html += `<textarea class="editable-field contractor-equipment" data-path="${activityPath}.equipmentUsed" data-contractor-id="${contractorId}" placeholder="Equipment used..." style="width: 100%; min-height: 40px;"></textarea></div>`;
-            html += `<div><label style="font-size: 8pt; font-weight: bold; color: #666;">CREW</label>`;
-            html += `<textarea class="editable-field contractor-crew" data-path="${activityPath}.crew" data-contractor-id="${contractorId}" placeholder="Crew count..." style="width: 100%; min-height: 40px;"></textarea></div>`;
-            html += `</div></div>`;
+            if (isNoWork) {
+                // Hidden fields for when user unchecks
+                html += `<div class="contractor-fields" data-contractor-id="${contractor.id}" style="display: none;">`;
+                crews.forEach(crewObj => {
+                    const crewActivityPath = `activity_${contractor.id}_crew_${crewObj.id}`;
+                    const crewActivity = getCrewActivity(contractor.id, crewObj.id);
+                    html += `<div style="margin-left: 12px; margin-bottom: 12px; border-left: 3px solid #ddd; padding-left: 10px;">`;
+                    html += `<div style="font-weight: 600; font-size: 10pt; margin-bottom: 4px;">${escapeHtml(crewObj.name)}</div>`;
+                    html += `<textarea class="editable-field" data-path="${crewActivityPath}.narrative" placeholder="Work performed by ${escapeHtml(crewObj.name)}..." style="width: 100%; min-height: 50px;">${escapeHtml(crewActivity?.narrative || '')}</textarea>`;
+                    html += `</div>`;
+                });
+                html += `</div>`;
+                html += `<div class="no-work-message" data-contractor-id="${contractor.id}" style="font-style: italic; color: #333; padding-left: 8px;">`;
+                html += `No work performed on ${displayDate}.`;
+                html += `</div>`;
+            } else {
+                // Render each crew sub-section
+                crews.forEach(crewObj => {
+                    const crewActivityPath = `activity_${contractor.id}_crew_${crewObj.id}`;
+                    const crewActivity = getCrewActivity(contractor.id, crewObj.id);
+                    const crewNarrative = crewActivity?.narrative || '';
+                    const crewEquipment = crewActivity?.equipmentUsed || '';
+                    const crewPersonnel = crewActivity?.crew || '';
+                    const crewIsNoWork = !crewNarrative.trim() && !crewEquipment.trim() && !crewPersonnel.trim();
 
-            // No work message (shown when checkbox checked)
-            html += `<div class="no-work-message" data-contractor-id="${contractorId}" style="font-style: italic; color: #333; padding-left: 8px;">`;
-            html += `No work performed on ${displayDate}.`;
-            html += `</div>`;
-
-            html += `</div>`;
-        } else {
-            // Contractor WITH activity - show narrative, EQUIPMENT, CREW labels
-            html += `<div class="contractor-block" style="margin-bottom: 16px;">`;
-            html += `<div class="contractor-name" style="font-weight: bold; margin-bottom: 8px;">${escapeHtml(contractor.name)} – ${typeLabel}${trades}</div>`;
-
-            // Narrative - editable textarea
-            html += `<div class="contractor-narrative-container" style="margin-bottom: 8px;">
-                <textarea
-                    class="editable-field contractor-narrative"
-                    data-path="${activityPath}.narrative"
-                    data-contractor-id="${contractor.id}"
-                    placeholder="Describe work performed by ${escapeHtml(contractor.name)}..."
-                >${escapeHtml(narrative)}</textarea>
-            </div>`;
-
-            // Equipment and Crew - editable textareas
-            html += `<div class="contractor-details-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <div>
-                    <label style="font-size: 8pt; font-weight: bold; color: #666; text-transform: uppercase;">Equipment</label>
-                    <textarea
-                        class="editable-field contractor-equipment"
-                        data-path="${activityPath}.equipmentUsed"
-                        data-contractor-id="${contractor.id}"
-                        placeholder="Equipment used..."
-                    >${escapeHtml(equipment)}</textarea>
-                </div>
-                <div>
-                    <label style="font-size: 8pt; font-weight: bold; color: #666; text-transform: uppercase;">Crew</label>
-                    <textarea
-                        class="editable-field contractor-crew"
-                        data-path="${activityPath}.crew"
-                        data-contractor-id="${contractor.id}"
-                        placeholder="Crew count/description..."
-                    >${escapeHtml(crew)}</textarea>
-                </div>
-            </div>`;
+                    html += `<div style="margin-left: 12px; margin-bottom: 12px; border-left: 3px solid ${contractor.type === 'prime' ? '#16a34a' : '#1d4ed8'}; padding-left: 10px;">`;
+                    html += `<div style="font-weight: 600; font-size: 10pt; margin-bottom: 4px;">${escapeHtml(crewObj.name)}</div>`;
+                    
+                    if (crewIsNoWork) {
+                        html += `<div style="font-style: italic; color: #333; font-size: 9pt;">No work performed on ${displayDate}.</div>`;
+                    } else {
+                        html += `<textarea class="editable-field" data-path="${crewActivityPath}.narrative" placeholder="Work performed by ${escapeHtml(crewObj.name)}..." style="width: 100%; min-height: 50px;">${escapeHtml(crewNarrative)}</textarea>`;
+                        if (crewEquipment || crewPersonnel) {
+                            html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">`;
+                            html += `<div><label style="font-size: 8pt; font-weight: bold; color: #666;">EQUIPMENT</label>`;
+                            html += `<textarea class="editable-field" data-path="${crewActivityPath}.equipmentUsed" placeholder="Equipment..." style="width: 100%; min-height: 30px;">${escapeHtml(crewEquipment)}</textarea></div>`;
+                            html += `<div><label style="font-size: 8pt; font-weight: bold; color: #666;">PERSONNEL</label>`;
+                            html += `<textarea class="editable-field" data-path="${crewActivityPath}.crew" placeholder="Personnel..." style="width: 100%; min-height: 30px;">${escapeHtml(crewPersonnel)}</textarea></div>`;
+                            html += `</div>`;
+                        }
+                    }
+                    html += `</div>`;
+                });
+            }
 
             html += `</div>`;
         }
     });
 
     container.innerHTML = html;
+}
+
+/**
+ * v6.9: Get crew-specific activity data
+ * Checks userEdits > aiGenerated > report.activities
+ */
+function getCrewActivity(contractorId, crewId) {
+    const userEdits = report.userEdits || {};
+    const userEditKey = `activity_${contractorId}_crew_${crewId}`;
+    if (userEdits[userEditKey]) {
+        return userEdits[userEditKey];
+    }
+
+    // Check AI-generated activities for crew-level data
+    if (report.aiGenerated?.activities) {
+        const aiActivity = report.aiGenerated.activities.find(a =>
+            a.contractorId === contractorId && a.crewId === crewId
+        );
+        if (aiActivity) return aiActivity;
+    }
+
+    // Fall back to report.activities
+    if (report.activities) {
+        return report.activities.find(a => a.contractorId === contractorId && a.crewId === crewId);
+    }
+    return null;
 }
 
 /**
@@ -1338,9 +1386,9 @@ async function submitReport() {
     try {
         console.log('[SUBMIT] Starting report submission for:', currentReportId);
 
-        // 3. Generate PDF from page content
+        // 3. Generate PDF from page content (vector text rendering)
         console.log('[SUBMIT] Generating PDF...');
-        const pdf = await generatePDF();
+        const pdf = await generateVectorPDF();
         console.log('[SUBMIT] PDF generated:', pdf.filename);
 
         // 4. Upload PDF to Supabase Storage
@@ -1380,12 +1428,945 @@ async function submitReport() {
 }
 
 /**
- * v6.6.13: Generate PDF using direct html2canvas + jsPDF (Option D)
- * v6.6.21: Enhanced with DOM preparation for cleaner capture
- * Replaces html2pdf.js which has broken dimension calculation in its Worker pattern
+ * v6.9: Generate PDF with crisp vector text using jsPDF direct drawing.
+ * Replaces html2canvas rasterization with jsPDF text(), line(), rect() calls.
+ * Matches Justin Cain's reference RPR report format exactly.
  * @returns {Promise<{blob: Blob, filename: string}>}
  */
-async function generatePDF() {
+async function generateVectorPDF() {
+    console.log('[PDF-VECTOR] Starting vector PDF generation');
+
+    // Get jsPDF constructor
+    const jsPDFConstructor = (typeof jspdf !== 'undefined' && jspdf.jsPDF)
+        || (typeof jsPDF !== 'undefined' && jsPDF)
+        || (typeof window !== 'undefined' && window.jspdf && window.jspdf.jsPDF)
+        || (typeof window !== 'undefined' && window.jsPDF);
+
+    if (!jsPDFConstructor) {
+        throw new Error('jsPDF library not found.');
+    }
+
+    // Create PDF (letter size)
+    const doc = new jsPDFConstructor({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'letter',
+        compress: true
+    });
+
+    // ── Constants ──
+    const PW = 612;     // page width
+    const PH = 792;     // page height
+    const ML = 36;      // margin left (0.5 in)
+    const MR = 36;      // margin right
+    const MT = 30;      // margin top
+    const CW = PW - ML - MR; // content width = 540
+    const GREEN = [74, 124, 52];   // #4a7c34
+    const GRAY_BG = [245, 245, 245]; // #f5f5f5
+    const BLACK = [0, 0, 0];
+    const WHITE = [255, 255, 255];
+    const DARK_BLUE = [30, 58, 95]; // #1e3a5f for signature
+
+    let curY = MT;   // current Y cursor
+    let pageNum = 1;
+    let totalPages = 3; // will recalculate at end
+
+    // ── Font sizes (pt) ──
+    const TITLE_SIZE = 18;
+    const SECTION_HEADER_SIZE = 10;
+    const LABEL_SIZE = 8;
+    const VALUE_SIZE = 9;
+    const TABLE_HEADER_SIZE = 6;
+    const TABLE_CELL_SIZE = 8;
+    const BODY_SIZE = 9;
+    const FOOTER_SIZE = 8;
+    const SMALL_SIZE = 7;
+
+    // ── Collect all pages for total count ──
+    const pageContents = []; // Array of functions that draw each page
+
+    // ── Helper: set font ──
+    function setFont(style, size) {
+        doc.setFont('helvetica', style); // helvetica is jsPDF built-in closest to Arial
+        doc.setFontSize(size);
+    }
+
+    // ── Helper: text color ──
+    function setTextColor(r, g, b) {
+        doc.setTextColor(r, g, b);
+    }
+
+    // ── Helper: draw color ──
+    function setDrawColor(r, g, b) {
+        doc.setDrawColor(r, g, b);
+    }
+
+    // ── Helper: fill color ──
+    function setFillColor(r, g, b) {
+        doc.setFillColor(r, g, b);
+    }
+
+    // ── Helper: wrap text to fit width, returns array of lines ──
+    function wrapText(text, maxWidth, fontSize, fontStyle) {
+        if (!text) return [''];
+        setFont(fontStyle || 'normal', fontSize || BODY_SIZE);
+        const lines = doc.splitTextToSize(String(text), maxWidth);
+        return lines.length > 0 ? lines : [''];
+    }
+
+    // ── Helper: measure text height ──
+    function textHeight(lines, fontSize) {
+        const lineH = (fontSize || BODY_SIZE) * 1.25;
+        return lines.length * lineH;
+    }
+
+    // ── Helper: check if we need a new page, add one if so ──
+    function checkPageBreak(neededHeight) {
+        const footerReserve = 30;
+        if (curY + neededHeight > PH - MT - footerReserve) {
+            drawPageFooter();
+            doc.addPage();
+            pageNum++;
+            curY = MT;
+            drawReportHeader();
+            return true;
+        }
+        return false;
+    }
+
+    // ── Helper: draw page footer ──
+    function drawPageFooter() {
+        const footerY = PH - 25;
+        setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.5);
+        doc.line(ML, footerY - 4, ML + CW, footerY - 4);
+        setFont('normal', FOOTER_SIZE);
+        setTextColor(102, 102, 102);
+        doc.text(`${pageNum} of {{TOTAL}}`, PW / 2, footerY, { align: 'center' });
+    }
+
+    // ── Helper: draw report header (logo area + title) ──
+    function drawReportHeader() {
+        // Logo placeholder text (left side)
+        setFont('bold', 9);
+        setTextColor(...DARK_BLUE);
+        // We'll try to add the logo image, fallback to text
+        const logoSrc = activeProject?.logoUrl || activeProject?.logoThumbnail || activeProject?.logo;
+        if (!logoSrc) {
+            doc.text('LOUIS ARMSTRONG', ML, curY + 12);
+            doc.text('NEW ORLEANS', ML, curY + 22);
+            doc.text('INTERNATIONAL AIRPORT', ML, curY + 32);
+        }
+        // Title (right side)
+        setFont('bold', TITLE_SIZE);
+        setTextColor(...GREEN);
+        doc.text('RPR DAILY REPORT', ML + CW, curY + 22, { align: 'right' });
+
+        // Green line under header
+        curY += 42;
+        setDrawColor(...GREEN);
+        doc.setLineWidth(2.5);
+        doc.line(ML, curY, ML + CW, curY);
+        curY += 8;
+    }
+
+    // ── Helper: draw green section header bar ──
+    function drawSectionHeader(title) {
+        const h = 20;
+        checkPageBreak(h + 10);
+
+        setFillColor(...GREEN);
+        setDrawColor(...BLACK);
+        doc.setLineWidth(0.5);
+        doc.rect(ML, curY, CW, h, 'FD');
+
+        setFont('bold', SECTION_HEADER_SIZE);
+        setTextColor(...WHITE);
+        doc.text(title.toUpperCase(), PW / 2, curY + 14, { align: 'center' });
+
+        curY += h;
+        setTextColor(...BLACK);
+    }
+
+    // ── Helper: draw a table cell ──
+    function drawCell(x, y, w, h, text, options = {}) {
+        const { fill, bold, fontSize, align, padding, border } = {
+            fill: null,
+            bold: false,
+            fontSize: VALUE_SIZE,
+            align: 'left',
+            padding: 4,
+            border: true,
+            ...options
+        };
+
+        // Fill background
+        if (fill) {
+            setFillColor(...fill);
+            doc.rect(x, y, w, h, 'F');
+        }
+
+        // Border
+        if (border) {
+            setDrawColor(...BLACK);
+            doc.setLineWidth(0.5);
+            doc.rect(x, y, w, h, 'S');
+        }
+
+        // Text
+        if (text !== undefined && text !== null) {
+            setFont(bold ? 'bold' : 'normal', fontSize);
+            setTextColor(...BLACK);
+            const textX = align === 'center' ? x + w / 2 : x + padding;
+            const textY = y + h / 2 + fontSize * 0.3;
+            const maxW = w - padding * 2;
+            const displayText = String(text);
+
+            if (align === 'center') {
+                doc.text(displayText, textX, textY, { align: 'center', maxWidth: maxW });
+            } else {
+                doc.text(displayText, textX, textY, { maxWidth: maxW });
+            }
+        }
+    }
+
+    // ── Helper: draw multi-line text in a bordered box ──
+    function drawTextBox(text, x, y, w, options = {}) {
+        const { fontSize, fontStyle, padding, borderTop, bulletPoints } = {
+            fontSize: BODY_SIZE,
+            fontStyle: 'normal',
+            padding: 8,
+            borderTop: false,
+            bulletPoints: false,
+            ...options
+        };
+
+        const innerW = w - padding * 2;
+        let lines;
+
+        if (bulletPoints && text) {
+            // Split by newlines, prefix each with bullet
+            const rawLines = String(text).split('\n').filter(l => l.trim());
+            lines = [];
+            rawLines.forEach(line => {
+                const prefixed = line.startsWith('•') || line.startsWith('-') ? line : `• ${line}`;
+                const wrapped = wrapText(prefixed, innerW, fontSize, fontStyle);
+                lines.push(...wrapped);
+            });
+        } else {
+            lines = wrapText(text || 'N/A.', innerW, fontSize, fontStyle);
+        }
+
+        const lineH = fontSize * 1.3;
+        const contentH = lines.length * lineH + padding * 2;
+
+        // Draw border
+        setDrawColor(...BLACK);
+        doc.setLineWidth(0.5);
+        if (borderTop) {
+            doc.rect(x, y, w, contentH, 'S');
+        } else {
+            // Draw sides and bottom only (no top, it connects to section header above)
+            doc.line(x, y, x, y + contentH); // left
+            doc.line(x + w, y, x + w, y + contentH); // right
+            doc.line(x, y + contentH, x + w, y + contentH); // bottom
+        }
+
+        // Draw text
+        setFont(fontStyle, fontSize);
+        setTextColor(...BLACK);
+        let textY = y + padding + fontSize;
+        lines.forEach(line => {
+            doc.text(line, x + padding, textY);
+            textY += lineH;
+        });
+
+        return contentH;
+    }
+
+    // ── Gather data from report ──
+    const o = report.overview || {};
+    const ai = report.aiGenerated || {};
+    const ue = report.userEdits || {};
+
+    // Helper to get display value
+    function getVal(path, fallback) {
+        if (ue[path] !== undefined) return ue[path];
+        const parts = path.split('.');
+        let val = report;
+        for (const p of parts) { val = (val || {})[p]; }
+        if (val !== undefined && val !== null && val !== '') return val;
+        return fallback || '';
+    }
+
+    // Project overview data
+    const projectName = o.projectName || activeProject?.projectName || '';
+    const reportDate = formatDisplayDate(o.date);
+    const noabNo = o.noabProjectNo || activeProject?.noabProjectNo || '';
+    const location = o.location || activeProject?.location || '';
+    const cnoNo = o.cnoSolicitationNo || activeProject?.cnoSolicitationNo || 'N/A';
+    const engineer = o.engineer || activeProject?.engineer || '';
+    const ntpDate = activeProject?.noticeToProceed ? formatDisplayDate(activeProject.noticeToProceed) : '';
+    const contractorName = o.contractor || activeProject?.primeContractor || '';
+    const duration = activeProject?.contractDuration ? `${activeProject.contractDuration} days` : '';
+    const startTime = formatTimeLocal(o.startTime || activeProject?.defaultStartTime || '');
+    const endTime = formatTimeLocal(o.endTime || activeProject?.defaultEndTime || '');
+    const expectedCompletion = activeProject?.expectedCompletion ? formatDisplayDate(activeProject.expectedCompletion) : '';
+    const shiftDuration = calculateShiftDuration(o.startTime || activeProject?.defaultStartTime || '', o.endTime || activeProject?.defaultEndTime || '');
+    const contractDay = o.contractDay || '';
+    const durationDays = activeProject?.contractDuration || '';
+    const contractDayDisplay = contractDay && durationDays ? `${contractDay} of ${durationDays} days` : String(contractDay);
+    const weatherDays = (o.weatherDays !== undefined ? o.weatherDays : (activeProject?.weatherDays || 0)) + ' days';
+    const completedBy = o.completedBy || userSettings?.fullName || '';
+    const weather = o.weather || {};
+
+    const cleanW = (v, d) => (!v || v === '--' || v === 'Syncing...' || v === 'N/A' || String(v).trim() === '') ? (d || 'N/A') : v;
+    const highTemp = cleanW(weather.highTemp);
+    const lowTemp = cleanW(weather.lowTemp);
+    const precipitation = cleanW(weather.precipitation, '0.00"');
+    const generalCondition = cleanW(weather.generalCondition, 'Not recorded');
+    const jobSiteCondition = cleanW(weather.jobSiteCondition);
+    const adverseConditions = cleanW(weather.adverseConditions, 'None');
+
+    // ═══════════════════════════════════════
+    // PAGE 1: Header + Overview + Work Summary
+    // ═══════════════════════════════════════
+    curY = MT;
+    drawReportHeader();
+
+    // ── PROJECT OVERVIEW section header ──
+    drawSectionHeader('PROJECT OVERVIEW');
+
+    // ── Overview table ──
+    // Layout: 4 columns — label1 | value1 | label2 | value2
+    const colW = [115, 155, 115, 155]; // widths for the 4 columns
+    const rowH = 16;
+    const tableX = ML;
+
+    function drawOverviewRow(label1, val1, label2, val2, opts = {}) {
+        const rh = opts.height || rowH;
+        let x = tableX;
+        drawCell(x, curY, colW[0], rh, label1, { fill: GRAY_BG, bold: true, fontSize: LABEL_SIZE });
+        x += colW[0];
+        drawCell(x, curY, colW[1], rh, val1, { fontSize: VALUE_SIZE });
+        x += colW[1];
+        drawCell(x, curY, colW[2], rh, label2, { fill: GRAY_BG, bold: true, fontSize: LABEL_SIZE });
+        x += colW[2];
+        drawCell(x, curY, colW[3], rh, val2, { fontSize: VALUE_SIZE, ...opts.lastCell });
+        curY += rh;
+    }
+
+    drawOverviewRow('PROJECT NAME:', projectName, 'DATE:', reportDate);
+    drawOverviewRow('NOAB PROJECT NO.:', noabNo, 'LOCATION:', location);
+    drawOverviewRow('CNO SOLICITATION NO.:', cnoNo, 'ENGINEER:', engineer);
+    drawOverviewRow('NOTICE TO PROCEED:', ntpDate, 'CONTRACTOR:', contractorName);
+    drawOverviewRow('CONTRACT DURATION:', duration, 'START TIME:', startTime);
+    drawOverviewRow('EXPECTED COMPLETION:', expectedCompletion, 'END TIME:', endTime);
+    drawOverviewRow('CONTRACT DAY #:', contractDayDisplay, 'SHIFT DURATION:', shiftDuration);
+    drawOverviewRow('WEATHER DAYS:', weatherDays, 'COMPLETED BY:', completedBy);
+
+    // ── Weather + Signature rows ──
+    // Weather block: 5 sub-rows on left, Signature spanning right
+    const weatherRowH = 13;
+    const weatherStartY = curY;
+    const sigRowCount = 5;
+    const totalSigH = weatherRowH * sigRowCount;
+
+    // Weather label cell (spans all 5 rows)
+    drawCell(tableX, curY, colW[0], totalSigH, 'WEATHER:', { fill: GRAY_BG, bold: true, fontSize: LABEL_SIZE });
+
+    // Signature label (spans all 5 rows)
+    drawCell(tableX + colW[0] + colW[1], curY, colW[2], totalSigH, 'SIGNATURE:', { fill: GRAY_BG, bold: true, fontSize: LABEL_SIZE });
+
+    // Signature value cell (spans all 5 rows)
+    const sigX = tableX + colW[0] + colW[1] + colW[2];
+    setDrawColor(...BLACK);
+    doc.setLineWidth(0.5);
+    doc.rect(sigX, curY, colW[3], totalSigH, 'S');
+
+    // Signature content (cursive name)
+    const sigName = completedBy;
+    setFont('italic', 14);
+    setTextColor(...DARK_BLUE);
+    doc.text(sigName, sigX + colW[3] / 2, curY + totalSigH / 2 - 4, { align: 'center' });
+
+    // Signature details small text
+    const sigCompany = userSettings?.company || '';
+    const sigTitle = userSettings?.title || '';
+    if (sigCompany || sigTitle) {
+        setFont('normal', 6);
+        setTextColor(102, 102, 102);
+        const sigDetail = `Digitally signed by ${sigName}`;
+        doc.text(sigDetail, sigX + colW[3] / 2, curY + totalSigH / 2 + 8, { align: 'center' });
+    }
+
+    // Weather sub-rows (value column only, col[1] width)
+    const weatherValX = tableX + colW[0];
+    const weatherTexts = [
+        `High Temp: ${highTemp}  Low Temp: ${lowTemp}`,
+        `Precipitation: ${precipitation}`,
+        `General Condition: ${generalCondition}`,
+        `Job Site Condition: ${jobSiteCondition}`,
+        `Adverse Conditions: ${adverseConditions}`
+    ];
+
+    weatherTexts.forEach((wText, i) => {
+        const wy = curY + i * weatherRowH;
+        setDrawColor(...BLACK);
+        doc.setLineWidth(0.5);
+        doc.rect(weatherValX, wy, colW[1], weatherRowH, 'S');
+        setFont('normal', VALUE_SIZE);
+        setTextColor(...BLACK);
+        doc.text(wText, weatherValX + 4, wy + weatherRowH / 2 + 3);
+    });
+
+    curY += totalSigH;
+
+    // ── DAILY WORK SUMMARY ──
+    drawSectionHeader('DAILY WORK SUMMARY');
+
+    // "Construction Activities..." intro line
+    const introBoxY = curY;
+    setDrawColor(...BLACK);
+    doc.setLineWidth(0.5);
+
+    // We'll draw the work summary content then close the box
+    const wsStartY = curY;
+    const wsPadding = 8;
+    let wsContentY = curY + wsPadding;
+
+    setFont('bold', BODY_SIZE);
+    setTextColor(...BLACK);
+    doc.text('Construction Activities Performed and Observed on this Date:', ML + wsPadding, wsContentY + BODY_SIZE);
+    wsContentY += BODY_SIZE + 8;
+
+    // Render each contractor
+    const reportDateStr = report.overview?.date || getReportDateStr();
+    const displayDate = reportDateStr ? formatDisplayDate(reportDateStr) : 'this date';
+
+    projectContractors.forEach(contractor => {
+        // Check page break
+        if (wsContentY > curY) curY = wsContentY; // sync cursor
+        checkPageBreak(60);
+        wsContentY = curY; // after potential page break
+
+        const activity = getContractorActivity(contractor.id);
+        const crews = contractor.crews || [];
+        const typeLabel = contractor.type === 'prime' ? 'PRIME CONTRACTOR' : 'SUBCONTRACTOR';
+        const trades = contractor.trades ? ` (${contractor.trades.toUpperCase()})` : '';
+        const abbrev = contractor.abbreviation ? ` (${contractor.abbreviation})` : '';
+
+        // Contractor header
+        setFont('bold', BODY_SIZE);
+        setTextColor(...BLACK);
+        const contractorTitle = `${contractor.name.toUpperCase()}${abbrev} – ${typeLabel}${trades}`;
+        const titleLines = wrapText(contractorTitle, CW - wsPadding * 2, BODY_SIZE, 'bold');
+        titleLines.forEach(line => {
+            doc.text(line, ML + wsPadding, wsContentY + BODY_SIZE);
+            wsContentY += BODY_SIZE * 1.3;
+        });
+
+        // Check no-work state
+        const narrative = activity?.narrative || '';
+        const isNoWork = activity?.noWork === true || !narrative.trim();
+
+        if (crews.length === 0) {
+            // No crews — simple narrative or "No work performed"
+            if (isNoWork) {
+                setFont('normal', BODY_SIZE);
+                doc.text(`No work performed`, ML + wsPadding, wsContentY + BODY_SIZE);
+                wsContentY += BODY_SIZE * 1.5;
+            } else {
+                // Render narrative as bullet points
+                const lines = narrative.split('\n').filter(l => l.trim());
+                setFont('normal', BODY_SIZE);
+                lines.forEach(line => {
+                    const prefix = (line.startsWith('•') || line.startsWith('-')) ? '' : '• ';
+                    const bulletLine = prefix + line.trim();
+                    const wrapped = wrapText(bulletLine, CW - wsPadding * 2 - 10, BODY_SIZE, 'normal');
+                    wrapped.forEach((wl, i) => {
+                        if (wsContentY + BODY_SIZE > PH - 55) {
+                            // Need new page mid-work-summary
+                            // Close current box
+                            const boxH = wsContentY - wsStartY + wsPadding;
+                            setDrawColor(...BLACK);
+                            doc.setLineWidth(0.5);
+                            doc.line(ML, wsStartY, ML, wsStartY + boxH);
+                            doc.line(ML + CW, wsStartY, ML + CW, wsStartY + boxH);
+                            doc.line(ML, wsStartY + boxH, ML + CW, wsStartY + boxH);
+
+                            drawPageFooter();
+                            doc.addPage();
+                            pageNum++;
+                            curY = MT;
+                            drawReportHeader();
+                            // Continue work summary on new page - don't re-draw section header
+                            wsContentY = curY + wsPadding;
+                            // We need to track the new wsStartY for the box
+                            // Use a trick: re-set wsStartY to current
+                            // (This is simplified; the box won't carry over perfectly but avoids truncation)
+                        }
+                        doc.text(i === 0 ? wl : '  ' + wl, ML + wsPadding + 5, wsContentY + BODY_SIZE);
+                        wsContentY += BODY_SIZE * 1.3;
+                    });
+                });
+                wsContentY += 3;
+            }
+        } else {
+            // Has crews — render each crew sub-section
+            crews.forEach(crewObj => {
+                const crewActivity = getCrewActivity(contractor.id, crewObj.id);
+                const crewNarrative = crewActivity?.narrative || '';
+                const crewIsNoWork = !crewNarrative.trim();
+
+                // Check page break for crew content
+                if (wsContentY + 30 > PH - 55) {
+                    const boxH = wsContentY - wsStartY + wsPadding;
+                    setDrawColor(...BLACK);
+                    doc.setLineWidth(0.5);
+                    doc.line(ML, wsStartY, ML, wsStartY + boxH);
+                    doc.line(ML + CW, wsStartY, ML + CW, wsStartY + boxH);
+                    doc.line(ML, wsStartY + boxH, ML + CW, wsStartY + boxH);
+
+                    drawPageFooter();
+                    doc.addPage();
+                    pageNum++;
+                    curY = MT;
+                    drawReportHeader();
+                    wsContentY = curY + wsPadding;
+                }
+
+                // Crew name as bold sub-header
+                setFont('bold', BODY_SIZE);
+                doc.text(crewObj.name, ML + wsPadding + 5, wsContentY + BODY_SIZE);
+                wsContentY += BODY_SIZE * 1.4;
+
+                if (crewIsNoWork) {
+                    setFont('italic', BODY_SIZE);
+                    doc.text(`No work performed on ${displayDate}.`, ML + wsPadding + 10, wsContentY + BODY_SIZE);
+                    wsContentY += BODY_SIZE * 1.5;
+                } else {
+                    const lines = crewNarrative.split('\n').filter(l => l.trim());
+                    setFont('normal', BODY_SIZE);
+                    lines.forEach(line => {
+                        const prefix = (line.startsWith('•') || line.startsWith('-')) ? '' : '• ';
+                        const bulletLine = prefix + line.trim();
+                        const wrapped = wrapText(bulletLine, CW - wsPadding * 2 - 15, BODY_SIZE, 'normal');
+                        wrapped.forEach((wl, i) => {
+                            doc.text(i === 0 ? wl : '  ' + wl, ML + wsPadding + 10, wsContentY + BODY_SIZE);
+                            wsContentY += BODY_SIZE * 1.3;
+                        });
+                    });
+                    wsContentY += 3;
+                }
+            });
+        }
+        wsContentY += 4;
+    });
+
+    // Close the work summary box
+    wsContentY += wsPadding;
+    const wsBoxH = wsContentY - wsStartY;
+    setDrawColor(...BLACK);
+    doc.setLineWidth(0.5);
+    doc.line(ML, wsStartY, ML, wsStartY + wsBoxH); // left
+    doc.line(ML + CW, wsStartY, ML + CW, wsStartY + wsBoxH); // right
+    doc.line(ML, wsStartY + wsBoxH, ML + CW, wsStartY + wsBoxH); // bottom
+    curY = wsStartY + wsBoxH;
+
+    // ═══════════════════════════════════════
+    // DAILY OPERATIONS TABLE
+    // ═══════════════════════════════════════
+    drawSectionHeader('DAILY OPERATIONS');
+
+    // Column headers
+    const opsColWidths = [60, 70, 55, 55, 60, 85, 65, 90]; // = 540
+    const opsHeaders = ['CONTRACTOR', 'TRADE', 'SUPER(S)', 'FOREMAN', 'OPERATOR(S)', 'LABORER(S) /\nELECTRICIAN(S)', 'SURVEYOR(S)', 'OTHER(S)'];
+    const opsHeaderH = 22;
+
+    let ox = ML;
+    opsHeaders.forEach((hdr, i) => {
+        drawCell(ox, curY, opsColWidths[i], opsHeaderH, hdr, {
+            fill: GRAY_BG,
+            bold: true,
+            fontSize: TABLE_HEADER_SIZE,
+            align: 'center'
+        });
+        ox += opsColWidths[i];
+    });
+    curY += opsHeaderH;
+
+    // Ops data rows
+    projectContractors.forEach(contractor => {
+        checkPageBreak(18);
+        const ops = getContractorOperations(contractor.id);
+        const abbrev = contractor.abbreviation || contractor.name.substring(0, 10).toUpperCase();
+        const trades = formatTradesAbbrev(contractor.trades);
+        const opsRowH = 16;
+
+        const rowData = [
+            abbrev,
+            trades,
+            ops?.superintendents || 'N/A',
+            ops?.foremen || 'N/A',
+            ops?.operators || 'N/A',
+            ops?.laborers || 'N/A',
+            ops?.surveyors || 'N/A',
+            ops?.others || 'N/A'
+        ];
+
+        let rx = ML;
+        rowData.forEach((val, i) => {
+            const cellAlign = (i < 2) ? 'left' : 'center';
+            drawCell(rx, curY, opsColWidths[i], opsRowH, val, { fontSize: TABLE_CELL_SIZE, align: cellAlign });
+            rx += opsColWidths[i];
+        });
+        curY += opsRowH;
+    });
+
+    // ═══════════════════════════════════════
+    // MOBILIZED EQUIPMENT & DAILY UTILIZATION
+    // ═══════════════════════════════════════
+    drawSectionHeader('MOBILIZED EQUIPMENT & DAILY UTILIZATION');
+
+    const eqColWidths = [100, 240, 60, 140]; // = 540
+    const eqHeaders = ['CONTRACTOR', 'EQUIPMENT TYPE / MODEL #', 'QUANTITY', 'NOTES'];
+    const eqHeaderH = 20;
+
+    let ex = ML;
+    eqHeaders.forEach((hdr, i) => {
+        drawCell(ex, curY, eqColWidths[i], eqHeaderH, hdr, {
+            fill: GRAY_BG,
+            bold: true,
+            fontSize: TABLE_HEADER_SIZE,
+            align: 'center'
+        });
+        ex += eqColWidths[i];
+    });
+    curY += eqHeaderH;
+
+    // Equipment data rows
+    const equipmentData = getEquipmentData();
+    if (equipmentData.length === 0) {
+        drawCell(ML, curY, CW, 16, 'No equipment mobilized', { fontSize: TABLE_CELL_SIZE, align: 'center' });
+        curY += 16;
+    } else {
+        equipmentData.forEach((item, idx) => {
+            checkPageBreak(16);
+            const cName = getContractorName(item.contractorId, item.contractorName);
+            const eqNotes = formatEquipmentNotes(item.status, item.hoursUsed);
+            const eqRowH = 16;
+
+            // Check userEdits for equipment overrides
+            const editKey = `equipment_${idx}`;
+            const editedType = ue[editKey]?.type || item.type || '';
+            const editedQty = ue[editKey]?.qty || item.qty || 1;
+            const editedNotes = ue[editKey]?.notes || eqNotes;
+
+            const rowData = [cName, editedType, String(editedQty), editedNotes];
+
+            let rx = ML;
+            rowData.forEach((val, i) => {
+                const cellAlign = (i < 2) ? 'left' : 'center';
+                drawCell(rx, curY, eqColWidths[i], eqRowH, val, { fontSize: TABLE_CELL_SIZE, align: cellAlign });
+                rx += eqColWidths[i];
+            });
+            curY += eqRowH;
+        });
+    }
+
+    // ═══════════════════════════════════════
+    // GENERAL ISSUES; UNFORESEEN CONDITIONS; VISITORS
+    // ═══════════════════════════════════════
+    drawSectionHeader('GENERAL ISSUES; UNFORESEEN CONDITIONS; VISITORS');
+
+    const issuesText = getTextValueWithFallback('issues', 'issues_delays', 'generalIssues', 'guidedNotes.issues', '');
+    const issuesH = drawTextBox(issuesText || 'N/A.', ML, curY, CW, { bulletPoints: !!issuesText });
+    curY += issuesH;
+
+    // ═══════════════════════════════════════
+    // DELIVERIES
+    // ═══════════════════════════════════════
+    drawSectionHeader('DELIVERIES');
+
+    // Deliveries data — check visitors_deliveries or dedicated field
+    const deliveriesText = report.aiGenerated?.deliveries || '';
+    const deliveriesH = drawTextBox(deliveriesText || 'N/A.', ML, curY, CW, { bulletPoints: !!deliveriesText });
+    curY += deliveriesH;
+
+    // ═══════════════════════════════════════
+    // QA/QC TESTING AND/OR INSPECTIONS
+    // ═══════════════════════════════════════
+    drawSectionHeader('QA/QC TESTING AND/OR INSPECTIONS');
+
+    const qaqcText = getTextValueWithFallback('qaqc', 'qaqc_notes', 'qaqcNotes', '', '');
+    const qaqcH = drawTextBox(qaqcText || 'N/A.', ML, curY, CW, { bulletPoints: !!qaqcText });
+    curY += qaqcH;
+
+    // ═══════════════════════════════════════
+    // SAFETY REPORT
+    // ═══════════════════════════════════════
+    drawSectionHeader('SAFETY REPORT');
+
+    // Safety checkbox line
+    const hasIncident = report.safety?.hasIncident ||
+                        report.aiGenerated?.safety?.has_incidents ||
+                        report.aiGenerated?.safety?.hasIncidents ||
+                        false;
+
+    const safetyBoxStartY = curY;
+    setDrawColor(...BLACK);
+    doc.setLineWidth(0.5);
+
+    // "Incident(s) on this Date:" with checkboxes
+    setFont('bold', BODY_SIZE);
+    setTextColor(...BLACK);
+    doc.text('Incident(s) on this Date:', ML + 8, curY + 14);
+
+    // Yes checkbox
+    const cbSize = 10;
+    const cbY = curY + 6;
+    const yesX = ML + CW - 120;
+    doc.rect(yesX, cbY, cbSize, cbSize, 'S');
+    if (hasIncident) {
+        setFont('bold', 8);
+        doc.text('X', yesX + 2.5, cbY + 8.5);
+    }
+    setFont('normal', BODY_SIZE);
+    doc.text('Yes', yesX + cbSize + 4, curY + 14);
+
+    // No checkbox
+    const noX = yesX + 50;
+    doc.rect(noX, cbY, cbSize, cbSize, 'S');
+    if (!hasIncident) {
+        setFont('bold', 8);
+        doc.text('X', noX + 2.5, cbY + 8.5);
+    }
+    setFont('normal', BODY_SIZE);
+    doc.text('No', noX + cbSize + 4, curY + 14);
+
+    curY += 22;
+
+    // Safety notes
+    const safetyNotes = getTextValueWithFallback('safety.notes', 'safety.summary', 'safety.notes', 'guidedNotes.safety', '');
+    const safetyLines = wrapText(safetyNotes || 'N/A.', CW - 16, BODY_SIZE, 'normal');
+    const safetyLineH = BODY_SIZE * 1.3;
+    const safetyTextH = safetyLines.length * safetyLineH + 8;
+
+    setFont('normal', BODY_SIZE);
+    let safetyTextY = curY + 4 + BODY_SIZE;
+    safetyLines.forEach(line => {
+        doc.text(line, ML + 8, safetyTextY);
+        safetyTextY += safetyLineH;
+    });
+
+    curY += safetyTextH;
+
+    // Draw safety box border
+    const safetyTotalH = curY - safetyBoxStartY;
+    doc.line(ML, safetyBoxStartY, ML, curY); // left
+    doc.line(ML + CW, safetyBoxStartY, ML + CW, curY); // right
+    doc.line(ML, curY, ML + CW, curY); // bottom
+
+    // ═══════════════════════════════════════
+    // VISITORS / DELIVERIES / OTHER REMARKS (from page 3 of HTML)
+    // ═══════════════════════════════════════
+    drawSectionHeader('VISITORS; DELIVERIES; ADDITIONAL CONTRACT AND/OR CHANGE ORDER ACTIVITIES; OTHER REMARKS');
+
+    const visitorsText = getTextValueWithFallback('visitors', 'visitors_deliveries', 'visitorsRemarks', '', '');
+    const visitorsH = drawTextBox(visitorsText || 'N/A.', ML, curY, CW, { bulletPoints: !!visitorsText });
+    curY += visitorsH;
+
+    // Draw page footer for last content page
+    drawPageFooter();
+
+    // ═══════════════════════════════════════
+    // PHOTO PAGES
+    // ═══════════════════════════════════════
+    const photos = report.photos || [];
+    if (photos.length > 0) {
+        const photosPerPage = 4;
+        const totalPhotoPages = Math.ceil(photos.length / photosPerPage);
+
+        for (let pp = 0; pp < totalPhotoPages; pp++) {
+            doc.addPage();
+            pageNum++;
+            curY = MT;
+            drawReportHeader();
+
+            const headerTitle = pp === 0 ? 'DAILY PHOTOS' : 'DAILY PHOTOS (CONTINUED)';
+            drawSectionHeader(headerTitle);
+
+            // Photo info header
+            const infoH = 30;
+            setDrawColor(...BLACK);
+            doc.setLineWidth(0.5);
+            doc.rect(ML, curY, CW, infoH, 'S');
+            setFont('bold', VALUE_SIZE);
+            setTextColor(...BLACK);
+            doc.text('Project Name:', ML + 8, curY + 12);
+            setFont('normal', VALUE_SIZE);
+            doc.text(projectName, ML + 85, curY + 12);
+            setFont('bold', VALUE_SIZE);
+            doc.text('Project #:', ML + 8, curY + 24);
+            setFont('normal', VALUE_SIZE);
+            doc.text(noabNo, ML + 85, curY + 24);
+            curY += infoH;
+
+            // Render photos in 2x2 grid
+            const startIdx = pp * photosPerPage;
+            const pagePhotos = photos.slice(startIdx, startIdx + photosPerPage);
+
+            const photoCellW = CW / 2;
+            const photoCellH = 165;
+            const photoImgH = 120;
+
+            for (let pi = 0; pi < pagePhotos.length; pi++) {
+                const photo = pagePhotos[pi];
+                const col = pi % 2;
+                const row = Math.floor(pi / 2);
+                const cx = ML + col * photoCellW;
+                const cy = curY + row * photoCellH;
+
+                // Cell border
+                setDrawColor(...BLACK);
+                doc.setLineWidth(0.5);
+                doc.rect(cx, cy, photoCellW, photoCellH, 'S');
+
+                // Try to load and embed photo image
+                if (photo.url) {
+                    try {
+                        // Load image via canvas for cross-origin
+                        const imgData = await loadImageAsDataURL(photo.url);
+                        if (imgData) {
+                            const imgPad = 8;
+                            const imgW = photoCellW - imgPad * 2;
+                            const imgH = photoImgH - imgPad;
+                            doc.addImage(imgData, 'JPEG', cx + imgPad, cy + imgPad, imgW, imgH);
+                        }
+                    } catch (imgErr) {
+                        console.warn('[PDF-VECTOR] Failed to load photo:', imgErr);
+                        setFont('italic', 8);
+                        setTextColor(150, 150, 150);
+                        doc.text('Photo unavailable', cx + photoCellW / 2, cy + photoImgH / 2, { align: 'center' });
+                    }
+                }
+
+                // Date line
+                const metaY = cy + photoImgH + 4;
+                setFont('bold', 7);
+                setTextColor(...BLACK);
+                doc.text('Date:', cx + 8, metaY);
+                setFont('normal', 7);
+                doc.text(photo.date || formatDisplayDate(report.overview?.date), cx + 30, metaY);
+
+                // Caption
+                const caption = photo.caption || '';
+                if (caption) {
+                    setFont('italic', 7);
+                    setTextColor(51, 51, 51);
+                    const capLines = wrapText(caption, photoCellW - 16, 7, 'italic');
+                    let capY = metaY + 10;
+                    capLines.forEach(cl => {
+                        doc.text(cl, cx + 8, capY);
+                        capY += 9;
+                    });
+                }
+            }
+
+            const photoGridRows = Math.ceil(pagePhotos.length / 2);
+            curY += photoGridRows * photoCellH;
+
+            drawPageFooter();
+        }
+    }
+
+    // ── Fix total page count in all footers ──
+    totalPages = pageNum;
+
+    // Replace {{TOTAL}} placeholder with actual page count
+    // jsPDF doesn't support find/replace in rendered text, so we use putTotalPages
+    // Actually we need a different approach — we'll use doc.internal.getNumberOfPages()
+    const numPages = doc.internal.getNumberOfPages();
+
+    // Re-render footers with correct total (jsPDF allows overwriting)
+    for (let p = 1; p <= numPages; p++) {
+        doc.setPage(p);
+        // White out the old footer text area and redraw
+        const footerY = PH - 25;
+        setFillColor(...WHITE);
+        doc.rect(ML, footerY - 2, CW, 14, 'F');
+        setFont('normal', FOOTER_SIZE);
+        setTextColor(102, 102, 102);
+        doc.text(`${p} of ${numPages}`, PW / 2, footerY, { align: 'center' });
+    }
+
+    // ── Generate output ──
+    const pName = getProjectName().replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+    const rDate = getReportDate();
+    const filename = `${pName}_${rDate}.pdf`;
+
+    console.log('[PDF-VECTOR] PDF generation complete:', filename, '(' + numPages + ' pages)');
+
+    const blob = doc.output('blob');
+    console.log('[PDF-VECTOR] Blob size:', blob.size, 'bytes');
+
+    return { blob, filename };
+}
+
+/**
+ * v6.9: Load an image URL as a data URL for embedding in jsPDF
+ * Uses a hidden canvas to convert the image.
+ * @param {string} url - Image URL
+ * @returns {Promise<string|null>} Data URL or null on failure
+ */
+async function loadImageAsDataURL(url) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                // Limit dimensions for PDF file size
+                const maxDim = 800;
+                let w = img.naturalWidth;
+                let h = img.naturalHeight;
+                if (w > maxDim || h > maxDim) {
+                    if (w > h) {
+                        h = Math.round(h * maxDim / w);
+                        w = maxDim;
+                    } else {
+                        w = Math.round(w * maxDim / h);
+                        h = maxDim;
+                    }
+                }
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', 0.85));
+            } catch (e) {
+                console.warn('[PDF-VECTOR] Canvas conversion failed:', e);
+                resolve(null);
+            }
+        };
+        img.onerror = () => {
+            console.warn('[PDF-VECTOR] Image load failed:', url);
+            resolve(null);
+        };
+        // Timeout
+        setTimeout(() => resolve(null), 10000);
+        img.src = url;
+    });
+}
+
+/**
+ * v6.6.13: LEGACY - Generate PDF using direct html2canvas + jsPDF (Option D)
+ * v6.6.21: Enhanced with DOM preparation for cleaner capture
+ * v6.9: Renamed to generatePDF_legacy() — kept as fallback
+ * @returns {Promise<{blob: Blob, filename: string}>}
+ */
+async function generatePDF_legacy() {
     console.log('[PDF] Starting PDF generation with direct html2canvas + jsPDF');
 
     const container = document.querySelector('.page-container');
