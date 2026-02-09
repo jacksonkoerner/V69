@@ -18,16 +18,16 @@
 
     // ── Inject HTML ──
     function injectUI() {
-        // Floating button
+        // Floating button (draggable, double-tap to open)
         const btn = document.createElement('div');
         btn.id = 'aiAssistantBtn';
         btn.innerHTML = `
             <div style="width:56px;height:56px;border-radius:50%;background:#1e3a5f;color:#fff;
                 box-shadow:0 4px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;
-                cursor:pointer;transition:transform 0.2s;">
+                cursor:grab;transition:transform 0.15s;user-select:none;-webkit-user-select:none;">
                 <i class="fas fa-wand-magic-sparkles" style="font-size:20px;"></i>
             </div>`;
-        btn.style.cssText = 'position:fixed;z-index:90;bottom:70px;right:16px;';
+        btn.style.cssText = 'position:fixed;z-index:90;bottom:70px;right:16px;touch-action:none;';
         document.body.appendChild(btn);
 
         // Full-screen overlay
@@ -73,7 +73,6 @@
         document.body.appendChild(overlay);
 
         // ── Event Listeners ──
-        btn.addEventListener('click', openAssistant);
         document.getElementById('aiCloseBtn').addEventListener('click', closeAssistant);
         document.getElementById('aiHelpBtn').addEventListener('click', showHelp);
         document.getElementById('aiSendBtn').addEventListener('click', sendMessage);
@@ -84,8 +83,94 @@
             }
         });
 
+        // ── Draggable + Double-Tap ──
+        setupDraggable(btn);
+
         // Render existing conversation
         renderMessages();
+    }
+
+    function setupDraggable(btn) {
+        let isDragging = false;
+        let moved = false;
+        let startX = 0, startY = 0;
+        let btnX = 0, btnY = 0;
+        let lastTap = 0;
+        const DRAG_THRESHOLD = 8;
+
+        function positionBtn() {
+            btn.style.left = btnX + 'px';
+            btn.style.top = btnY + 'px';
+            btn.style.right = 'auto';
+            btn.style.bottom = 'auto';
+        }
+
+        function snapToEdge() {
+            const rect = btn.getBoundingClientRect();
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const cx = rect.left + rect.width / 2;
+            btnX = cx < vw / 2 ? 12 : vw - rect.width - 12;
+            btnY = Math.max(12, Math.min(btnY, vh - rect.height - 80));
+            btn.style.transition = 'left 0.25s ease, top 0.25s ease';
+            positionBtn();
+            setTimeout(() => btn.style.transition = '', 300);
+        }
+
+        // Touch events
+        btn.addEventListener('touchstart', function (e) {
+            const t = e.touches[0];
+            const rect = btn.getBoundingClientRect();
+            btnX = rect.left;
+            btnY = rect.top;
+            startX = t.clientX - btnX;
+            startY = t.clientY - btnY;
+            moved = false;
+            isDragging = true;
+            positionBtn();
+        }, { passive: true });
+
+        btn.addEventListener('touchmove', function (e) {
+            if (!isDragging) return;
+            const t = e.touches[0];
+            const nx = t.clientX - startX;
+            const ny = t.clientY - startY;
+            if (Math.abs(nx - btnX) > DRAG_THRESHOLD || Math.abs(ny - btnY) > DRAG_THRESHOLD) {
+                moved = true;
+            }
+            btnX = nx;
+            btnY = ny;
+            positionBtn();
+            e.preventDefault();
+        }, { passive: false });
+
+        btn.addEventListener('touchend', function () {
+            isDragging = false;
+            if (moved) {
+                snapToEdge();
+                return;
+            }
+            // Double-tap detection
+            const now = Date.now();
+            if (now - lastTap < 350) {
+                lastTap = 0;
+                openAssistant();
+            } else {
+                lastTap = now;
+                // Brief scale animation on single tap to hint "double-tap me"
+                const inner = btn.firstElementChild;
+                if (inner) {
+                    inner.style.transform = 'scale(1.15)';
+                    setTimeout(() => inner.style.transform = '', 200);
+                }
+            }
+        }, { passive: true });
+
+        // Mouse: double-click fallback for desktop
+        btn.addEventListener('dblclick', function (e) {
+            e.preventDefault();
+            openAssistant();
+        });
     }
 
     // ── Open / Close ──
