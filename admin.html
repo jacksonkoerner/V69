@@ -131,7 +131,7 @@
 
         <!-- SECONDARY STATS ROW -->
         <section class="px-4 mb-4">
-            <div class="grid grid-cols-4 gap-3">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
                 <div class="bg-white rounded-lg p-3">
                     <span class="text-[9px] font-bold text-slate-400 uppercase">AI</span>
                     <p id="statAI" class="text-lg font-bold text-dot-navy">--</p>
@@ -145,7 +145,7 @@
                     <p id="statSubmissions" class="text-lg font-bold text-dot-navy">--</p>
                 </div>
                 <div class="bg-white rounded-lg p-3 cursor-pointer" onclick="switchTab('messages')">
-                    <span class="text-[9px] font-bold text-slate-400 uppercase">Messages</span>
+                    <span class="text-[9px] font-bold text-slate-400 uppercase">Msgs</span>
                     <p id="statMessages" class="text-lg font-bold text-dot-navy">--</p>
                 </div>
             </div>
