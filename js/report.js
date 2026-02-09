@@ -131,6 +131,13 @@
             tabPreview.classList.remove('border-transparent', 'text-slate-400');
             previewContent.classList.remove('hidden');
             if (previewBottomBar) previewBottomBar.classList.remove('hidden');
+            // Force-save all contractor activities before rendering preview
+            // (in case user didn't blur a field)
+            document.querySelectorAll('.contractor-narrative').forEach(el => {
+                if (el.dataset.contractorId) updateContractorActivity(el.dataset.contractorId);
+            });
+            // Save text field edits
+            saveTextFieldEdits();
             // Render the preview with live data
             renderPreview();
         }
@@ -2059,6 +2066,28 @@
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
         };
+    }
+
+    /**
+     * Force-capture current text field values into userEdits.
+     * Called before preview render to ensure all data is fresh.
+     */
+    function saveTextFieldEdits() {
+        const textFields = {
+            'issuesText': 'issues',
+            'qaqcText': 'qaqc',
+            'safetyText': 'safety.notes',
+            'communicationsText': 'communications',
+            'visitorsText': 'visitors'
+        };
+
+        Object.entries(textFields).forEach(([fieldId, path]) => {
+            const field = document.getElementById(fieldId);
+            if (field && field.value.trim()) {
+                userEdits[path] = field.value;
+                report.userEdits = userEdits;
+            }
+        });
     }
 
     // ============ AUTO-SAVE ============
