@@ -18,13 +18,10 @@ const STORAGE_KEYS = {
   ACTIVE_PROJECT_ID: 'fvp_active_project_id',
   CURRENT_REPORTS: 'fvp_current_reports',
   REPORT_DATA: 'fvp_report_',  // Pattern: fvp_report_{reportId}
-  AI_REPORTS: 'fvp_ai_reports',
-  DRAFTS: 'fvp_drafts',
   SYNC_QUEUE: 'fvp_sync_queue',
   LAST_SYNC: 'fvp_last_sync',
   DEVICE_ID: 'fvp_device_id',
   USER_ID: 'fvp_user_id',
-  OFFLINE_QUEUE: 'fvp_offline_queue',
   MIC_GRANTED: 'fvp_mic_granted',
   MIC_TIMESTAMP: 'fvp_mic_timestamp',
   CAM_GRANTED: 'fvp_cam_granted',
@@ -37,7 +34,6 @@ const STORAGE_KEYS = {
   BANNER_DISMISSED: 'fvp_banner_dismissed',
   BANNER_DISMISSED_DATE: 'fvp_banner_dismissed_date',
   DICTATION_HINT_DISMISSED: 'fvp_dictation_hint_dismissed',
-  QUICK_INTERVIEW_DRAFT: 'fvp_quick_interview_draft',
   PERMISSIONS_DISMISSED: 'fvp_permissions_dismissed'
 };
 

@@ -327,54 +327,6 @@
     }
 
     // ========================================
-    // DRAFTS (localStorage only — temporary data)
-    // ========================================
-
-    /**
-     * Get current draft for a project/date
-     */
-    function getCurrentDraft(projectId, date) {
-        const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
-        const key = `draft_${projectId}_${date}`;
-        return reports[key] || null;
-    }
-
-    /**
-     * Save draft (called on every keystroke, debounced by caller)
-     */
-    function saveDraft(projectId, date, data) {
-        const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
-        const key = `draft_${projectId}_${date}`;
-        reports[key] = {
-            ...data,
-            updatedAt: new Date().toISOString()
-        };
-        setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, reports);
-        console.log('[DATA] Draft saved:', key);
-    }
-
-    /**
-     * Delete a draft
-     */
-    function deleteDraft(projectId, date) {
-        const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
-        const key = `draft_${projectId}_${date}`;
-        delete reports[key];
-        setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, reports);
-        console.log('[DATA] Draft deleted:', key);
-    }
-
-    /**
-     * Get all drafts (for drafts.html)
-     */
-    function getAllDrafts() {
-        const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
-        return Object.entries(reports).map(([key, data]) => ({
-            key,
-            ...data
-        }));
-    }
-
     // ========================================
     // PHOTOS (IndexedDB — temporary until submitted)
     // ========================================
@@ -537,7 +489,6 @@
      * Clear all temporary data after successful submit
      */
     async function clearAfterSubmit(projectId, date, reportId) {
-        deleteDraft(projectId, date);
         clearAIResponseCache(reportId);
 
         const photos = await getPhotos(reportId);
@@ -574,12 +525,6 @@
         // User Settings
         loadUserSettings,
         saveUserSettings,
-
-        // Drafts (localStorage)
-        getCurrentDraft,
-        saveDraft,
-        deleteDraft,
-        getAllDrafts,
 
         // Photos (IndexedDB)
         savePhoto,

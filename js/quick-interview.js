@@ -3490,18 +3490,12 @@
         let saveReportTimeout = null;
         let isSaving = false;
 
-        /**
-         * Generate a report storage key (kept for legacy/reference)
-         */
+        // DEPRECATED: Used only by buildProcessPayload() — will be removed in Task 3 (UUID payload)
         function getReportKey(projectId, dateStr) {
             const date = dateStr || getTodayDateString();
             return projectId
                 ? `fieldvoice_report_${projectId}_${date}`
                 : `fieldvoice_report_${date}`;
-        }
-
-        function getTodayKey() {
-            return getReportKey(activeProject?.id, null);
         }
 
         /**
