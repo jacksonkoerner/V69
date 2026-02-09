@@ -2938,6 +2938,11 @@
         function formVal(id, fallback) {
             const el = document.getElementById(id);
             if (!el) return fallback || '';
+            // For select elements, use value directly (textContent includes all options)
+            if (el.tagName === 'SELECT') {
+                const val = el.value;
+                return (val && val !== 'Select...') ? val : (fallback || '');
+            }
             return el.value || el.textContent || fallback || '';
         }
 
@@ -3522,6 +3527,10 @@
         function formVal(id, fallback) {
             const el = document.getElementById(id);
             if (!el) return fallback || '';
+            if (el.tagName === 'SELECT') {
+                const val = el.value;
+                return (val && val !== 'Select...') ? val : (fallback || '');
+            }
             return el.value || el.textContent || fallback || '';
         }
 
@@ -4249,6 +4258,10 @@
     function formVal(id, fallback) {
         const el = document.getElementById(id);
         if (!el) return fallback || '';
+        if (el.tagName === 'SELECT') {
+            const val = el.value;
+            return (val && val !== 'Select...') ? val : (fallback || '');
+        }
         return el.value || el.textContent || fallback || '';
     }
 
