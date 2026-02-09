@@ -81,6 +81,13 @@
 
             // Initialize debug panel
             initializeDebugPanel();
+
+            // Check for tab query param (e.g., from finalreview.html redirect)
+            const urlParams = new URLSearchParams(window.location.search);
+            const tabParam = urlParams.get('tab');
+            if (tabParam === 'preview') {
+                switchTab('preview');
+            }
         } catch (err) {
             console.error('Failed to initialize report page:', err);
         }

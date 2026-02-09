@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>RPR Daily Report - FieldVoice Pro</title>
 
+    <!-- v6.9: Redirect to unified report page (preview tab) -->
+    <script>
+        (function() {
+            var params = new URLSearchParams(window.location.search);
+            var url = 'report.html?tab=preview';
+            if (params.get('date')) url += '&date=' + params.get('date');
+            if (params.get('reportId')) url += '&reportId=' + params.get('reportId');
+            window.location.replace(url);
+        })();
+    </script>
+
     <!-- PWA Meta Tags -->
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" type="image/x-icon" href="./assets/favicon.ico">
