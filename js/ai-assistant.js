@@ -42,10 +42,17 @@
                     <i class="fas fa-wand-magic-sparkles" style="color:#f59e0b;"></i>
                     <span style="font-weight:bold;font-size:14px;">AI Assistant</span>
                 </div>
-                <button id="aiCloseBtn" style="width:44px;height:44px;display:flex;align-items:center;
-                    justify-content:center;color:#fff;background:none;border:none;cursor:pointer;">
-                    <i class="fas fa-times" style="font-size:18px;"></i>
-                </button>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <button id="aiHelpBtn" style="width:44px;height:44px;display:flex;align-items:center;
+                        justify-content:center;color:#fff;background:none;border:none;cursor:pointer;"
+                        title="What can I do?">
+                        <i class="fas fa-circle-question" style="font-size:16px;"></i>
+                    </button>
+                    <button id="aiCloseBtn" style="width:44px;height:44px;display:flex;align-items:center;
+                        justify-content:center;color:#fff;background:none;border:none;cursor:pointer;">
+                        <i class="fas fa-times" style="font-size:18px;"></i>
+                    </button>
+                </div>
             </div>
             <!-- Chat Area -->
             <div id="aiChatScroll" style="flex:1;overflow-y:auto;padding:16px;">
@@ -68,6 +75,7 @@
         // ── Event Listeners ──
         btn.addEventListener('click', openAssistant);
         document.getElementById('aiCloseBtn').addEventListener('click', closeAssistant);
+        document.getElementById('aiHelpBtn').addEventListener('click', showHelp);
         document.getElementById('aiSendBtn').addEventListener('click', sendMessage);
         document.getElementById('aiChatInput').addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -87,6 +95,11 @@
         overlay.style.display = 'flex';
         btn.style.display = 'none';
         isOpen = true;
+        // Hide emergency strip if it exists
+        const emergency = document.getElementById('emergencyStrip');
+        if (emergency) emergency.style.display = 'none';
+        const emergencyPanel = document.getElementById('emergencyPanel');
+        if (emergencyPanel) emergencyPanel.style.display = 'none';
         // Scroll to bottom
         requestAnimationFrame(() => {
             const scroll = document.getElementById('aiChatScroll');
@@ -102,6 +115,9 @@
         overlay.style.display = 'none';
         btn.style.display = '';
         isOpen = false;
+        // Restore emergency strip
+        const emergency = document.getElementById('emergencyStrip');
+        if (emergency) emergency.style.display = '';
     }
 
     // ── Render Messages ──
@@ -208,6 +224,27 @@
         isProcessing = false;
     }
 
+    // ── Help / Feature List ──
+    function showHelp() {
+        const helpText = "Here's what I can do:\n\n" +
+            "🗣️ Navigation:\n" +
+            "• \"Start a new report\"\n" +
+            "• \"Open settings\" / \"Open archives\"\n" +
+            "• \"Project settings\" / \"Home\"\n\n" +
+            "🤖 AI-Powered (coming soon):\n" +
+            "• \"What work was done yesterday?\"\n" +
+            "• \"Summarize this week's reports\"\n" +
+            "• \"What's the weather forecast?\"\n" +
+            "• Questions about specs & submittals\n\n" +
+            "🔧 Utilities:\n" +
+            "• \"Start new chat\" — clear conversation\n" +
+            "• \"Help\" — show this message";
+
+        conversation.push({ role: 'assistant', content: helpText, ts: Date.now() });
+        addBubble('assistant', helpText);
+        saveConversation();
+    }
+
     // ── Local Commands (no API needed) ──
     function handleLocalCommand(text) {
         const lower = text.toLowerCase().trim();
@@ -233,11 +270,15 @@
             setTimeout(() => window.location.href = 'index.html', 500);
             return "Going to the dashboard...";
         }
-        if (lower.includes('clear chat') || lower.includes('clear conversation')) {
+        if (lower.includes('clear chat') || lower.includes('clear conversation') || lower.includes('start new chat') || lower.includes('new chat') || lower.includes('reset chat')) {
             conversation = [];
             saveConversation();
             renderMessages();
             return null; // Don't add a message, renderMessages shows welcome
+        }
+        if (lower === 'help' || lower === 'what can you do' || lower.includes('what can you do')) {
+            showHelp();
+            return null; // showHelp handles adding the message
         }
 
         return null; // Not a local command, send to AI
