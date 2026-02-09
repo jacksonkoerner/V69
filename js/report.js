@@ -4474,6 +4474,83 @@
     window.handlePhotoError = handlePhotoError;
     window.handleSubmit = handleSubmit;
     window.renderPreview = renderPreview;
+    window.confirmDeleteReport = confirmDeleteReport;
+    window.executeDeleteReport = executeDeleteReport;
+    window.hideDeleteModal = hideDeleteModal;
+
+    // ============ DELETE REPORT ============
+    function confirmDeleteReport() {
+        const modal = document.getElementById('deleteModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        }
+    }
+
+    function hideDeleteModal() {
+        const modal = document.getElementById('deleteModal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
+    }
+
+    async function executeDeleteReport() {
+        hideDeleteModal();
+        
+        if (!currentReportId) {
+            console.warn('[DELETE] No current report ID');
+            window.location.href = 'index.html';
+            return;
+        }
+
+        console.log('[DELETE] Deleting report:', currentReportId);
+
+        try {
+            // 1. Delete from localStorage
+            deleteReportData(currentReportId);
+
+            // 2. Remove from current reports tracker
+            const currentReports = JSON.parse(localStorage.getItem('fvp_current_reports') || '{}');
+            delete currentReports[currentReportId];
+            localStorage.setItem('fvp_current_reports', JSON.stringify(currentReports));
+
+            // 3. Delete from IndexedDB
+            if (window.idb) {
+                if (typeof window.idb.deleteReport === 'function') {
+                    try { await window.idb.deleteReport(currentReportId); } catch(e) { console.warn('[DELETE] IDB report:', e); }
+                }
+                if (typeof window.idb.deletePhotosByReportId === 'function') {
+                    try { await window.idb.deletePhotosByReportId(currentReportId); } catch(e) { console.warn('[DELETE] IDB photos:', e); }
+                }
+            }
+
+            // 4. Delete from Supabase (if synced)
+            if (window.supabaseClient) {
+                try {
+                    // Delete child records first
+                    await window.supabaseClient.from('report_entries').delete().eq('report_id', currentReportId);
+                    await window.supabaseClient.from('report_raw_capture').delete().eq('report_id', currentReportId);
+                    await window.supabaseClient.from('ai_responses').delete().eq('report_id', currentReportId);
+                    await window.supabaseClient.from('final_report_sections').delete().eq('report_id', currentReportId);
+                    await window.supabaseClient.from('final_reports').delete().eq('report_id', currentReportId);
+                    await window.supabaseClient.from('photos').delete().eq('report_id', currentReportId);
+                    // Delete the report itself
+                    await window.supabaseClient.from('reports').delete().eq('id', currentReportId);
+                    console.log('[DELETE] Supabase records deleted');
+                } catch(e) {
+                    console.warn('[DELETE] Supabase cleanup error (may not have been synced):', e);
+                }
+            }
+
+            console.log('[DELETE] Report deleted successfully');
+        } catch(e) {
+            console.error('[DELETE] Error:', e);
+        }
+
+        // Navigate home
+        window.location.href = 'index.html';
+    }
 
     // Debug access for development
     window.__fvp_debug = {
