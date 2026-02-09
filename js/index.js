@@ -447,14 +447,15 @@ function renderReportCard(report, type) {
 
     // Route based on report status:
     // - submitted: archives (view only)
-    // - ready_to_submit: finalreview.html (ready for final submission)
+    // - ready_to_submit: report.html preview tab (ready for final submission)
     // - refined: report.html (AI refine stage)
     // - draft/pending: quick-interview (needs more input or AI processing)
     let href;
     if (type === 'submitted') {
         href = `archives.html?id=${report.id}`;
     } else if (type === 'ready_to_submit' || report.status === 'ready_to_submit') {
-        href = `finalreview.html?date=${report.report_date || report.reportDate || report.date}&reportId=${report.id}`;
+        // v6.9: Route to unified report page (preview tab) instead of finalreview.html
+        href = `report.html?tab=preview&date=${report.report_date || report.reportDate || report.date}&reportId=${report.id}`;
     } else if (report.status === 'refined') {
         href = `report.html?date=${report.report_date || report.reportDate || report.date}&reportId=${report.id}`;
     } else {
