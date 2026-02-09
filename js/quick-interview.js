@@ -2102,10 +2102,9 @@
          */
         function buildProcessPayload() {
             const todayStr = getTodayDateString();
-            const reportKey = getReportKey(activeProject?.id, todayStr);
 
             return {
-                reportId: reportKey,
+                reportId: currentReportId,
                 captureMode: report.meta.captureMode || 'guided',
 
                 projectContext: {
@@ -3461,13 +3460,7 @@
         let saveReportTimeout = null;
         let isSaving = false;
 
-        // DEPRECATED: Used only by buildProcessPayload() — will be removed in Task 3 (UUID payload)
-        function getReportKey(projectId, dateStr) {
-            const date = dateStr || getTodayDateString();
-            return projectId
-                ? `fieldvoice_report_${projectId}_${date}`
-                : `fieldvoice_report_${date}`;
-        }
+        // getReportKey() removed in Task 3 — UUID-only payload
 
         /**
          * Load report from Supabase
