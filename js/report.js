@@ -88,6 +88,10 @@
             if (tabParam === 'preview') {
                 switchTab('preview');
             }
+
+            // Re-scale preview on window resize
+            window.addEventListener('resize', () => scalePreviewToFit());
+
         } catch (err) {
             console.error('Failed to initialize report page:', err);
         }
@@ -3339,13 +3343,38 @@
             }
         }
 
-        // Assemble all pages
+        // Assemble all pages inside the scaler
         container.innerHTML = `<div class="preview-wrapper">
-            ${page1}
-            ${page2}
-            ${page3}
-            ${photoPagesHtml}
+            <div id="previewScaler" class="preview-scaler">
+                ${page1}
+                ${page2}
+                ${page3}
+                ${photoPagesHtml}
+            </div>
         </div>`;
+
+        // Scale the preview to fit the viewport width
+        requestAnimationFrame(() => scalePreviewToFit());
+    }
+
+    /**
+     * Scale the preview pages to fit the viewport width exactly.
+     * The pages are rendered at 8.5in (816px), then CSS-transformed
+     * to fit whatever screen width is available.
+     */
+    function scalePreviewToFit() {
+        const scaler = document.getElementById('previewScaler');
+        if (!scaler) return;
+
+        const wrapper = scaler.parentElement;
+        const pageWidthPx = 816; // 8.5in at 96dpi
+        const availWidth = wrapper.clientWidth || window.innerWidth;
+        const scale = Math.min(1, availWidth / pageWidthPx);
+
+        scaler.style.transform = `scale(${scale})`;
+        scaler.style.transformOrigin = 'top center';
+        // Adjust wrapper height so it doesn't leave dead space below
+        scaler.style.marginBottom = `-${scaler.scrollHeight * (1 - scale)}px`;
     }
 
     // ============ CREW ACTIVITY HELPER ============
