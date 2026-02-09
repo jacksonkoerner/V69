@@ -93,61 +93,40 @@ function toSupabaseProject(project) {
 }
 
 // ============================================================================
-// CONTRACTOR CONVERTERS
+// CONTRACTOR CONVERTERS (REMOVED — contractors are now JSONB in projects table)
+// Legacy functions kept as no-ops for backward compatibility
 // ============================================================================
 
-/**
- * Convert Supabase contractor row to JS format
- *
- * DB columns: id, project_id, name, company, abbreviation, type, trades,
- *             status, added_date, removed_date, created_at
- *
- * @param {Object} row - Supabase contractor row
- * @returns {Object} JS contractor object
- */
 function fromSupabaseContractor(row) {
+    // Contractors are now stored as JSONB within the projects table.
+    // This function is kept for backward compatibility only.
     if (!row) return null;
     return {
         id: row.id,
-        projectId: row.project_id,
         name: row.name || '',
         company: row.company || '',
         abbreviation: row.abbreviation || '',
         type: row.type || 'sub',
         trades: row.trades || '',
         status: row.status || 'active',
-        addedDate: row.added_date || row.created_at,
-        removedDate: row.removed_date || null
+        crews: row.crews || []
     };
 }
 
-/**
- * Convert JS contractor object to Supabase format
- *
- * @param {Object} contractor - JS contractor object
- * @param {string} projectId - Project ID
- * @returns {Object} Supabase row format
- */
-function toSupabaseContractor(contractor, projectId) {
+function toSupabaseContractor(contractor) {
+    // Contractors are now stored as JSONB within the projects table.
+    // This function is kept for backward compatibility only.
     if (!contractor) return null;
-    const row = {
-        project_id: projectId || contractor.projectId,
+    return {
+        id: contractor.id,
         name: contractor.name || '',
         company: contractor.company || '',
         abbreviation: contractor.abbreviation || '',
         type: contractor.type || 'sub',
         trades: contractor.trades || '',
         status: contractor.status || 'active',
-        added_date: contractor.addedDate || null,
-        removed_date: contractor.removedDate || null
+        crews: contractor.crews || []
     };
-
-    // Only include id if it exists (for updates/upserts)
-    if (contractor.id) {
-        row.id = contractor.id;
-    }
-
-    return row;
 }
 
 // ============================================================================

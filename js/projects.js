@@ -249,9 +249,10 @@ async function renderProjectList(projects = null) {
 function renderProjectRow(project) {
     const isActive = project.id === activeProjectId;
     const projectName = project.projectName || project.project_name || 'Unnamed Project';
-    const projectNo = project.noab_project_no || '';
+    const projectNo = project.noab_project_no || project.noabProjectNo || '';
     const location = project.location || '';
     const status = project.status || 'active';
+    const contractors = project.contractors || [];
 
     const statusClass = status === 'active'
         ? 'bg-safety-green text-white'
@@ -262,33 +263,87 @@ function renderProjectRow(project) {
         ? 'border-l-4 border-l-safety-green bg-green-50'
         : 'border border-slate-200';
 
-    return `
-        <div class="flex bg-white shadow-sm ${activeClass}">
-            <!-- Main content (clickable to select) -->
-            <button onclick="selectProject('${project.id}')"
-                    class="flex-1 p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left">
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-1">
-                        ${isActive ? '<i class="fas fa-check-circle text-safety-green text-sm"></i>' : ''}
-                        <p class="font-bold text-slate-800 truncate">${escapeHtml(projectName)}</p>
+    // Build contractors section
+    const contractorCount = contractors.length;
+    let contractorsHtml = '';
+    if (contractorCount > 0) {
+        const contractorItems = contractors.map(c => {
+            const name = escapeHtml(c.name || 'Unnamed');
+            const type = c.type === 'prime' ? '<span class="text-safety-green font-bold text-[10px] uppercase">Prime</span>' : '<span class="text-slate-400 text-[10px] uppercase">Sub</span>';
+            const trades = c.trades ? `<span class="text-slate-400 text-[10px]">• ${escapeHtml(c.trades)}</span>` : '';
+            const crewCount = (c.crews && c.crews.length) || 0;
+            const crewBadge = crewCount > 0 ? `<span class="bg-dot-blue/10 text-dot-blue text-[10px] px-1.5 py-0.5 font-bold">${crewCount} crew${crewCount > 1 ? 's' : ''}</span>` : '';
+
+            return `
+                <div class="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <span class="text-xs text-slate-700 font-medium truncate">${name}</span>
+                        ${type} ${trades}
                     </div>
-                    ${projectNo ? `<p class="text-xs text-slate-500"><i class="fas fa-hashtag mr-1"></i>${escapeHtml(projectNo)}</p>` : ''}
-                    ${location ? `<p class="text-xs text-slate-500 truncate"><i class="fas fa-map-marker-alt mr-1"></i>${escapeHtml(location)}</p>` : ''}
-                    <div class="mt-2">
-                        <span class="inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase ${statusClass}">
-                            ${statusText}
-                        </span>
-                    </div>
+                    ${crewBadge}
                 </div>
-            </button>
-            <!-- Edit button -->
-            <button onclick="editProject('${project.id}')"
-                    class="flex-shrink-0 w-14 border-l border-slate-200 flex items-center justify-center text-dot-blue hover:bg-dot-blue hover:text-white transition-colors"
-                    title="Edit Project">
-                <i class="fas fa-edit"></i>
-            </button>
+            `;
+        }).join('');
+
+        contractorsHtml = `
+            <div class="border-t border-slate-200">
+                <button onclick="toggleContractors(event, '${project.id}')" class="w-full px-4 py-2 flex items-center gap-2 text-left hover:bg-slate-50 transition-colors">
+                    <i id="chevron-${project.id}" class="fas fa-chevron-right text-[10px] text-slate-400 transition-transform"></i>
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <i class="fas fa-hard-hat text-dot-yellow mr-1"></i>
+                        ${contractorCount} Contractor${contractorCount > 1 ? 's' : ''}
+                    </span>
+                </button>
+                <div id="contractors-${project.id}" class="hidden px-4 pb-3">
+                    ${contractorItems}
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="bg-white shadow-sm ${activeClass}">
+            <div class="flex">
+                <!-- Main content (clickable to select) -->
+                <button onclick="selectProject('${project.id}')"
+                        class="flex-1 p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            ${isActive ? '<i class="fas fa-check-circle text-safety-green text-sm"></i>' : ''}
+                            <p class="font-bold text-slate-800 truncate">${escapeHtml(projectName)}</p>
+                        </div>
+                        ${projectNo ? `<p class="text-xs text-slate-500"><i class="fas fa-hashtag mr-1"></i>${escapeHtml(projectNo)}</p>` : ''}
+                        ${location ? `<p class="text-xs text-slate-500 truncate"><i class="fas fa-map-marker-alt mr-1"></i>${escapeHtml(location)}</p>` : ''}
+                        <div class="mt-2">
+                            <span class="inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase ${statusClass}">
+                                ${statusText}
+                            </span>
+                        </div>
+                    </div>
+                </button>
+                <!-- Edit button -->
+                <button onclick="editProject('${project.id}')"
+                        class="flex-shrink-0 w-14 border-l border-slate-200 flex items-center justify-center text-dot-blue hover:bg-dot-blue hover:text-white transition-colors"
+                        title="Edit Project">
+                    <i class="fas fa-edit"></i>
+                </button>
+            </div>
+            ${contractorsHtml}
         </div>
     `;
+}
+
+function toggleContractors(event, projectId) {
+    event.stopPropagation();
+    const section = document.getElementById('contractors-' + projectId);
+    const chevron = document.getElementById('chevron-' + projectId);
+    if (section) {
+        const isHidden = section.classList.contains('hidden');
+        section.classList.toggle('hidden');
+        if (chevron) {
+            chevron.style.transform = isHidden ? 'rotate(90deg)' : '';
+        }
+    }
 }
 
 function updateActiveProjectBanner(projects) {
@@ -326,3 +381,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 window.selectProject = selectProject;
 window.editProject = editProject;
 window.refreshFromCloud = refreshFromCloud;
+window.toggleContractors = toggleContractors;
