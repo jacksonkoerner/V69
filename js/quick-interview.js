@@ -5467,3 +5467,20 @@
                 showToast('Failed to load data. Please refresh.', 'error');
             }
         });
+
+        // ============ HARDENING: Emergency save on page hide ============
+        // visibilitychange — fires when user switches tabs, locks phone, or switches apps
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && currentReportId) {
+                console.log('[HARDENING] visibilitychange → hidden, saving...');
+                saveToLocalStorage();
+            }
+        });
+
+        // pagehide — more reliable than beforeunload on iOS Safari
+        window.addEventListener('pagehide', (event) => {
+            if (currentReportId) {
+                console.log('[HARDENING] pagehide, saving... (persisted:', event.persisted, ')');
+                saveToLocalStorage();
+            }
+        });

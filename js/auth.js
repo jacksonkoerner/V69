@@ -167,6 +167,14 @@
             if (session) {
                 // Inject sign-out button into header if it has a nav area
                 injectSignOutButton();
+
+                // Request persistent storage — prevents browser from evicting localStorage/IDB
+                // Idempotent: safe to call every page load
+                if (navigator.storage && navigator.storage.persist) {
+                    navigator.storage.persist().then(granted => {
+                        console.log(`[STORAGE] Persistent storage ${granted ? 'granted' : 'denied'}`);
+                    });
+                }
             }
         });
     }

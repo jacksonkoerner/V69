@@ -4558,6 +4558,23 @@
         window.location.href = 'index.html';
     }
 
+    // ============ HARDENING: Emergency save on page hide ============
+    // visibilitychange — fires when user switches tabs, locks phone, or switches apps
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && currentReportId) {
+            console.log('[HARDENING] visibilitychange → hidden, saving report...');
+            saveReportToLocalStorage();
+        }
+    });
+
+    // pagehide — more reliable than beforeunload on iOS Safari
+    window.addEventListener('pagehide', (event) => {
+        if (currentReportId) {
+            console.log('[HARDENING] pagehide, saving report... (persisted:', event.persisted, ')');
+            saveReportToLocalStorage();
+        }
+    });
+
     // Debug access for development
     window.__fvp_debug = {
         get report() { return report; },
