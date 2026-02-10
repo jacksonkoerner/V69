@@ -3718,7 +3718,11 @@
                 const rawCaptureData = {
                     report_id: reportId,
                     capture_mode: report.meta?.captureMode || 'guided',
-                    freeform_notes: report.fieldNotes?.freeformNotes || '',
+                    freeform_notes: (report.freeform_entries || [])
+                        .filter(e => e.content && e.content.trim())
+                        .sort((a, b) => a.created_at - b.created_at)
+                        .map(e => e.content.trim())
+                        .join('\n\n') || report.fieldNotes?.freeformNotes || '',
                     work_summary: report.guidedNotes?.workSummary || '',
                     issues_notes: report.generalIssues?.join('\n') || '',
                     safety_notes: report.safety?.notes?.join('\n') || '',
