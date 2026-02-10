@@ -471,119 +471,231 @@ function goToProjectSetup() {
     window.location.href = 'project-config.html';
 }
 
-// ============ REPORT CARDS ============
+// ============ REPORT CARDS (v6.9: Grouped by Project) ============
 function renderReportCards() {
     const container = document.getElementById('reportCardsSection');
     if (!container) return;
 
-    const { late, todayDrafts, todayReady, todayReadyToSubmit, todaySubmitted } = getReportsByUrgency();
+    // Get ALL reports from localStorage
+    const allReports = Object.values(getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {});
 
-    // If no reports at all, hide the section
-    if (late.length === 0 && todayDrafts.length === 0 && todayReady.length === 0 && todayReadyToSubmit.length === 0 && todaySubmitted.length === 0) {
+    // Get ALL projects (from cache or localStorage)
+    const projectsMap = getStorageItem(STORAGE_KEYS.PROJECTS) || {};
+    const allProjects = projectsCache.length > 0
+        ? projectsCache
+        : Object.values(projectsMap);
+
+    // Group reports by project_id
+    const reportsByProject = {};
+    const orphanReports = []; // reports with unknown project_id
+
+    allReports.forEach(r => {
+        if (r.project_id) {
+            if (!reportsByProject[r.project_id]) reportsByProject[r.project_id] = [];
+            reportsByProject[r.project_id].push(r);
+        } else {
+            orphanReports.push(r);
+        }
+    });
+
+    // Sort reports within each group: newest date first, then by updated_at
+    for (const pid of Object.keys(reportsByProject)) {
+        reportsByProject[pid].sort((a, b) => {
+            const dateCompare = (b.date || '').localeCompare(a.date || '');
+            if (dateCompare !== 0) return dateCompare;
+            return (b.updated_at || 0) - (a.updated_at || 0);
+        });
+    }
+
+    // Build project sections: projects with reports first, then empty projects
+    const projectsWithReports = [];
+    const projectsWithoutReports = [];
+    const knownProjectIds = new Set();
+
+    allProjects.forEach(p => {
+        const pid = p.id;
+        knownProjectIds.add(pid);
+        const reports = reportsByProject[pid];
+        if (reports && reports.length > 0) {
+            projectsWithReports.push({ project: p, reports });
+        } else {
+            projectsWithoutReports.push({ project: p, reports: [] });
+        }
+    });
+
+    // Check for reports under unknown projects
+    const unknownProjectReports = [];
+    for (const pid of Object.keys(reportsByProject)) {
+        if (!knownProjectIds.has(pid)) {
+            unknownProjectReports.push(...reportsByProject[pid]);
+        }
+    }
+    if (orphanReports.length > 0) unknownProjectReports.push(...orphanReports);
+
+    // If no projects and no reports, show nothing
+    if (allProjects.length === 0 && allReports.length === 0) {
         container.innerHTML = '';
         return;
     }
 
     let html = '';
 
-    // LATE reports (red warning, need immediate attention)
-    if (late.length > 0) {
-        html += `<div class="mb-3">
-            <p class="text-xs font-bold text-red-600 uppercase tracking-wider mb-2">
-                <i class="fas fa-exclamation-triangle mr-1"></i>Late Reports
-            </p>`;
-        late.forEach(report => {
-            html += renderReportCard(report, 'late');
-        });
-        html += '</div>';
-    }
+    // Projects WITH active reports (expanded)
+    projectsWithReports.forEach(({ project, reports }) => {
+        html += renderProjectSection(project, reports, true);
+    });
 
-    // Today's drafts
-    if (todayDrafts.length > 0) {
-        html += `<div class="mb-3">
-            <p class="text-xs font-bold text-dot-orange uppercase tracking-wider mb-2">In Progress</p>`;
-        todayDrafts.forEach(report => {
-            html += renderReportCard(report, 'draft');
-        });
-        html += '</div>';
-    }
+    // Projects WITHOUT active reports (collapsed)
+    projectsWithoutReports.forEach(({ project }) => {
+        html += renderProjectSection(project, [], false);
+    });
 
-    // Today's ready for AI review (refined status)
-    if (todayReady.length > 0) {
-        html += `<div class="mb-3">
-            <p class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">AI Refine</p>`;
-        todayReady.forEach(report => {
-            html += renderReportCard(report, 'ready');
-        });
-        html += '</div>';
-    }
-
-    // Today's ready to submit (ready_to_submit status)
-    if (todayReadyToSubmit.length > 0) {
-        html += `<div class="mb-3">
-            <p class="text-xs font-bold text-safety-green uppercase tracking-wider mb-2">Review and Submit</p>`;
-        todayReadyToSubmit.forEach(report => {
-            html += renderReportCard(report, 'ready_to_submit');
-        });
-        html += '</div>';
-    }
-
-    // Today's submitted (view only)
-    if (todaySubmitted.length > 0) {
-        html += `<div class="mb-3">
-            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Submitted Today</p>`;
-        todaySubmitted.forEach(report => {
-            html += renderReportCard(report, 'submitted');
-        });
-        html += '</div>';
+    // Unknown project reports
+    if (unknownProjectReports.length > 0) {
+        html += renderProjectSection(
+            { id: '_unknown', projectName: 'Unknown Project', project_name: 'Unknown Project' },
+            unknownProjectReports,
+            true
+        );
     }
 
     container.innerHTML = html;
 }
 
-function renderReportCard(report, type) {
-    const projectName = report.project_name || 'Unknown Project';
-    const date = formatDate(report.date, 'short');
+function renderProjectSection(project, reports, expanded) {
+    const name = project.projectName || project.project_name || 'Unnamed Project';
+    const projectNo = project.noabProjectNo || project.project_number || '';
+    const pid = project.id;
+    const hasReports = reports.length > 0;
+    const sectionId = `project-section-${pid}`;
 
-    const styles = {
-        late: { border: 'border-red-500', bg: 'bg-red-50', icon: 'fa-exclamation-circle', iconColor: 'text-red-500' },
-        draft: { border: 'border-dot-orange', bg: 'bg-orange-50', icon: 'fa-pen', iconColor: 'text-dot-orange' },
-        ready: { border: 'border-slate-400', bg: 'bg-slate-50', icon: 'fa-robot', iconColor: 'text-slate-600' },
-        ready_to_submit: { border: 'border-safety-green', bg: 'bg-green-50', icon: 'fa-check-circle', iconColor: 'text-safety-green' },
-        submitted: { border: 'border-slate-300', bg: 'bg-slate-50', icon: 'fa-archive', iconColor: 'text-slate-400' }
-    };
+    let html = `<div class="mb-4">`;
 
-    const style = styles[type] || styles.draft;
+    // Project header
+    html += `
+        <div class="flex items-center gap-2 px-1 mb-2 cursor-pointer select-none" onclick="toggleProjectSection('${sectionId}')">
+            <i class="fas fa-chevron-${expanded ? 'down' : 'right'} text-xs text-dot-orange transition-transform" id="${sectionId}-chevron"></i>
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+                <i class="fas fa-hard-hat text-dot-orange text-sm"></i>
+                <span class="font-bold text-sm text-slate-800 uppercase tracking-wider truncate">${escapeHtml(name)}</span>
+                ${projectNo ? `<span class="text-[10px] text-slate-400 shrink-0">#${escapeHtml(projectNo)}</span>` : ''}
+            </div>
+            ${!hasReports ? '<span class="text-[10px] text-slate-400 italic shrink-0">No active reports</span>' : `<span class="text-[10px] bg-dot-orange text-white px-1.5 py-0.5 font-bold shrink-0">${reports.length}</span>`}
+        </div>`;
 
-    // Route based on report status:
-    // - submitted: archives (view only)
-    // - ready_to_submit: report.html preview tab (ready for final submission)
-    // - refined: report.html (AI refine stage)
-    // - draft/pending: quick-interview (needs more input or AI processing)
-    let href;
-    if (type === 'submitted') {
-        href = `archives.html?id=${report.id}`;
-    } else if (type === 'ready_to_submit' || report.status === 'ready_to_submit') {
-        // v6.9: Route to unified report page (preview tab) instead of finalreview.html
-        href = `report.html?tab=preview&date=${report.report_date || report.reportDate || report.date}&reportId=${report.id}`;
-    } else if (report.status === 'refined') {
-        href = `report.html?date=${report.report_date || report.reportDate || report.date}&reportId=${report.id}`;
-    } else {
-        // v6.6.16: Pass existing reportId for draft reports
-        href = `quick-interview.html?reportId=${report.id}`;
+    // Report cards (collapsible)
+    html += `<div id="${sectionId}" class="${expanded ? '' : 'hidden'}">`;
+
+    if (hasReports) {
+        reports.forEach(report => {
+            html += renderReportCard(report);
+        });
     }
 
+    html += `</div></div>`;
+    return html;
+}
+
+function toggleProjectSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    const chevron = document.getElementById(sectionId + '-chevron');
+    if (!section) return;
+
+    const isHidden = section.classList.contains('hidden');
+    section.classList.toggle('hidden');
+
+    if (chevron) {
+        chevron.classList.remove('fa-chevron-right', 'fa-chevron-down');
+        chevron.classList.add(isHidden ? 'fa-chevron-down' : 'fa-chevron-right');
+    }
+}
+
+function getReportHref(report) {
+    const status = report.status;
+    const reportDate = report.report_date || report.reportDate || report.date;
+
+    if (status === REPORT_STATUS.SUBMITTED) {
+        return `archives.html?id=${report.id}`;
+    } else if (status === REPORT_STATUS.READY_TO_SUBMIT) {
+        return `report.html?tab=preview&date=${reportDate}&reportId=${report.id}`;
+    } else if (status === REPORT_STATUS.REFINED) {
+        return `report.html?date=${reportDate}&reportId=${report.id}`;
+    } else {
+        return `quick-interview.html?reportId=${report.id}`;
+    }
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'draft':            { text: 'Draft',           bg: 'bg-slate-500',    icon: 'fa-pen' },
+        'pending_refine':   { text: 'Processing',      bg: 'bg-dot-blue',     icon: 'fa-spinner' },
+        'refined':          { text: 'Refined',         bg: 'bg-dot-orange',   icon: 'fa-robot' },
+        'ready_to_submit':  { text: 'Ready to Submit', bg: 'bg-safety-green', icon: 'fa-check-circle' },
+        'submitted':        { text: 'Submitted',       bg: 'bg-safety-green', icon: 'fa-archive' }
+    };
+    const b = badges[status] || badges.draft;
+    return `<span class="inline-flex items-center gap-1 text-[10px] ${b.bg} text-white px-2 py-0.5 font-bold uppercase tracking-wider"><i class="fas ${b.icon}"></i>${b.text}</span>`;
+}
+
+function formatTimestamp(ts) {
+    if (!ts) return '—';
+    const d = typeof ts === 'number' ? new Date(ts) : new Date(ts);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+function renderReportCard(report) {
+    const href = getReportHref(report);
+    const dateStr = formatDate(report.date, 'long');
+    const status = report.status || 'draft';
+    const isLate = report.date < getTodayDateString() && status !== REPORT_STATUS.SUBMITTED;
+    const captureMode = report.capture_mode || report._draft_data?.captureMode || '—';
+    const uuid = report.id || '—';
+    const truncUuid = uuid.length > 12 ? uuid.substring(0, 8) + '…' : uuid;
+    const cardId = `card-meta-${uuid.replace(/[^a-z0-9]/gi, '')}`;
+
+    // Border color based on status/lateness
+    const borderColor = isLate ? 'border-red-500' : 
+        status === 'submitted' ? 'border-safety-green' :
+        status === 'refined' ? 'border-dot-orange' :
+        status === 'ready_to_submit' ? 'border-safety-green' :
+        'border-slate-300';
+
+    const bgColor = isLate ? 'bg-red-50' : 'bg-white';
+
     return `
-        <a href="${href}" class="block ${style.bg} border-l-4 ${style.border} p-3 mb-2 hover:bg-opacity-80 transition-colors">
-            <div class="flex items-center gap-3">
-                <i class="fas ${style.icon} ${style.iconColor}"></i>
-                <div class="flex-1 min-w-0">
-                    <p class="font-medium text-slate-800 truncate">${escapeHtml(projectName)}</p>
-                    <p class="text-xs text-slate-500">${date}</p>
+        <div class="${bgColor} border-l-4 ${borderColor} mb-2 shadow-sm">
+            <a href="${href}" class="block p-3 hover:bg-slate-50 transition-colors">
+                <div class="flex items-center justify-between mb-1">
+                    <p class="font-semibold text-sm text-slate-800">${isLate ? '<i class="fas fa-exclamation-triangle text-red-500 mr-1"></i>' : ''}${escapeHtml(dateStr)}</p>
+                    ${getStatusBadge(status)}
                 </div>
-                <i class="fas fa-chevron-right text-slate-400"></i>
+                <div class="flex items-center gap-4 text-[11px] text-slate-500">
+                    <span><i class="fas fa-play text-[9px] mr-1"></i>Started ${formatTimestamp(report.created_at)}</span>
+                    <span><i class="fas fa-pencil text-[9px] mr-1"></i>Edited ${formatTimestamp(report.updated_at)}</span>
+                </div>
+            </a>
+            <div class="border-t border-slate-100">
+                <button onclick="event.preventDefault(); document.getElementById('${cardId}').classList.toggle('hidden'); this.querySelector('i.fa-chevron-down,i.fa-chevron-right').classList.toggle('fa-chevron-down'); this.querySelector('i.fa-chevron-down,i.fa-chevron-right').classList.toggle('fa-chevron-right');" class="w-full px-3 py-1.5 text-left text-[10px] text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1">
+                    <i class="fas fa-chevron-right text-[8px]"></i> Details
+                </button>
+                <div id="${cardId}" class="hidden px-3 pb-2 text-[11px] text-slate-500 space-y-1">
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-400 w-14 shrink-0">UUID</span>
+                        <code class="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded truncate">${escapeHtml(uuid)}</code>
+                        <button onclick="event.preventDefault(); event.stopPropagation(); navigator.clipboard.writeText('${uuid}'); this.innerHTML='<i class=\\'fas fa-check\\'></i>'; setTimeout(() => this.innerHTML='<i class=\\'fas fa-copy\\'></i>', 1500);" class="text-slate-400 hover:text-dot-blue shrink-0" title="Copy UUID"><i class="fas fa-copy"></i></button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-400 w-14 shrink-0">Mode</span>
+                        <span class="capitalize">${escapeHtml(captureMode)}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-400 w-14 shrink-0">Project</span>
+                        <span class="truncate">${escapeHtml(report.project_name || '—')}</span>
+                    </div>
+                </div>
             </div>
-        </a>
+        </div>
     `;
 }
 
