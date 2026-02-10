@@ -4,7 +4,7 @@
 // Uses:
 // - storage-keys.js: STORAGE_KEYS, getStorageItem, setStorageItem
 // - config.js: supabaseClient
-// - supabase-utils.js: fromSupabaseProject, fromSupabaseEquipment
+// - supabase-utils.js: fromSupabaseProject
 // - ui-utils.js: escapeHtml
 // ============================================================================
 
