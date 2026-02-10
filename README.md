@@ -159,7 +159,6 @@ npx serve .
 │   ├── media-utils.js      # Photo/GPS utilities
 │   ├── indexeddb-utils.js  # IndexedDB operations
 │   ├── pwa-utils.js        # PWA features
-│   ├── lock-manager.js     # Report locking
 │   ├── index.js            # Dashboard page
 │   ├── quick-interview.js  # Capture page
 │   ├── report.js           # Report editing page

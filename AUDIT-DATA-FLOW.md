@@ -1,7 +1,7 @@
 # Data Flow Audit Report
 
 **Generated:** 2026-02-10
-**Scope:** js/data-layer.js, js/sync-manager.js, js/indexeddb-utils.js, js/storage-keys.js, js/supabase-utils.js, js/index.js, js/quick-interview.js, js/report.js, js/lock-manager.js, js/auth.js, js/media-utils.js
+**Scope:** js/data-layer.js, js/sync-manager.js, js/indexeddb-utils.js, js/storage-keys.js, js/supabase-utils.js, js/index.js, js/quick-interview.js, js/report.js, js/auth.js, js/media-utils.js
 
 ---
 
@@ -37,7 +37,6 @@ Database: `fieldvoice-pro`, Version: 2
 | report.js | 2397-2399 | `reports` | `id`, `project_id`, `user_id`, `device_id`, `report_date`, `status`, `capture_mode`, `updated_at` | Called from `saveReportToSupabase()` |
 | report.js | 4247-4249 | `reports` | Same as above | `ensureReportExists()` during submit flow |
 | report.js | 4272-4274 | `final_reports` | `report_id`, `project_id`, `user_id`, `report_date`, `inspector_name`, `pdf_url`, `submitted_at`, `status` | `saveToFinalReports()` during submit flow |
-| lock-manager.js | 109 | `active_reports` | `project_id`, `report_date`, `device_id`, `inspector_name`, `locked_at`, `last_heartbeat` | `acquireLock()` — user action (opening interview page) |
 | auth.js | 121-125 | `user_profiles` | `auth_user_id`, `full_name`, `title`, `company`, `email`, `phone`, `updated_at` | `upsertAuthProfile()` — user saves profile |
 
 ### Updates
@@ -45,7 +44,6 @@ Database: `fieldvoice-pro`, Version: 2
 | File | Line | Table | Data Written | Trigger |
 |---|---|---|---|---|
 | report.js | 4284-4291 | `reports` | `status`, `submitted_at`, `updated_at` | `updateReportStatus()` during submit flow |
-| lock-manager.js | 207-212 | `active_reports` | `last_heartbeat` | `updateHeartbeat()` — 2-minute interval timer |
 | data-layer.js | 471-478 | `reports` | `status`, `submitted_at`, `updated_at` | `submitFinalReport()` — **DEAD CODE, never called** |
 
 ### Storage Bucket Uploads
@@ -73,7 +71,6 @@ Database: `fieldvoice-pro`, Version: 2
 | report.js | 4504-4508 | `final_reports` | `SELECT pdf_url` single by `report_id` | `executeDeleteReport()` — get PDF for storage cleanup |
 | index.js | 420-423 | `photos` | `SELECT storage_path` by `report_id` | Delete-and-start-fresh flow |
 | index.js | 437-441 | `final_reports` | `SELECT pdf_url` single by `report_id` | Delete-and-start-fresh flow |
-| lock-manager.js | 37-42 | `active_reports` | `SELECT *` by `project_id` + `report_date` | `checkLock()` — check if another device is editing |
 | auth.js | 26 | (auth) | `supabaseClient.auth.getSession()` | `requireAuth()` — check session on page load |
 | auth.js | 49 | (auth) | `supabaseClient.auth.getUser()` | `getCurrentUser()` |
 | auth.js | 149-153 | `user_profiles` | `SELECT *` by `auth_user_id` | `loadAuthProfile()` |
@@ -116,7 +113,6 @@ Database: `fieldvoice-pro`, Version: 2
 | index.js | 450 | `final_reports` | `report_id` | Delete & start fresh | **DUPLICATE** |
 | index.js | 451 | `photos` | `report_id` | Delete & start fresh | **DUPLICATE** |
 | index.js | 453 | `reports` | `id` | Delete & start fresh | **DUPLICATE** |
-| lock-manager.js | 155-160 | `active_reports` | `project_id` + `report_date` + `device_id` | `releaseLock()` | No |
 
 ### Storage Bucket Deletes
 
@@ -165,7 +161,6 @@ This should be a single shared utility function.
 | report.js:2276 | `setTimeout` 5000ms | Report edit state | **Supabase** `report_backup` table | `markReportBackupDirty()` — 5s quiet debounce |
 | report.js:4538-4544 | `visibilitychange` | Report edit state | **localStorage** + **Supabase** `report_backup` | Tab switch/lock phone |
 | report.js:4547-4553 | `pagehide` | Report edit state | **localStorage** + **Supabase** `report_backup` | Page navigation/close |
-| lock-manager.js:235 | `setInterval` 120000ms (2min) | `last_heartbeat` timestamp | **Supabase** `active_reports` table | `startHeartbeat()` after acquiring lock |
 
 ---
 
@@ -329,15 +324,7 @@ See Section 4 — the exact same cascading delete sequence appears in:
 
 ### `active_reports`
 
-| File | Line | Context | Status |
-|---|---|---|---|
-| lock-manager.js | 38 | `.from('active_reports').select('*')` in `checkLock()` | **LIVE CODE** — still makes Supabase calls |
-| lock-manager.js | 109 | `.from('active_reports').upsert(...)` in `acquireLock()` | **LIVE CODE** |
-| lock-manager.js | 156 | `.from('active_reports').delete()` in `releaseLock()` | **LIVE CODE** |
-| lock-manager.js | 208 | `.from('active_reports').update(...)` in `updateHeartbeat()` | **LIVE CODE** |
-| quick-interview.js | 1016 | Comment: "Lock manager disabled — active_reports table removed" | Comment only |
-
-**Problem:** lock-manager.js still has 4 live Supabase calls to `active_reports`, but quick-interview.js line 1016 states the table has been removed. The lock manager will fail silently on every call. The lock acquisition flow in quick-interview.js is bypassed (line 1019-1021: `handleLockWarningForceEdit` just reloads the page), but lock-manager.js is still loaded and its `beforeunload` handler (line 299) and `visibilitychange` handler (line 310) will fire and make failing Supabase requests.
+**RESOLVED:** `lock-manager.js` has been removed. No code references `active_reports` anymore.
 
 ### `report_entries`
 
@@ -370,5 +357,5 @@ All references are in disabled code paths that return errors. No live Supabase c
 4. **data-layer.js is 71% dead** — 15 of 21 exported methods are never called
 5. ~~**finalreview.js duplicates 7 functions** from report.js~~ — **RESOLVED**: finalreview.js removed, all functionality lives in report.js
 6. **3 Supabase backup tables** (`interview_backup`, `report_backup`, `ai_submissions`) are written to but never read — no crash recovery path exists
-7. **lock-manager.js references `active_reports`** which is removed — causing silent Supabase errors
+7. ~~**lock-manager.js references `active_reports`**~~ — **RESOLVED**: lock-manager.js removed
 8. **IndexedDB `archives` store** is in the schema but has zero operations

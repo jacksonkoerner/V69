@@ -975,52 +975,6 @@
             showModeUI(newMode);
         }
 
-        // ============ LOCK WARNING MODAL ============
-
-        /**
-         * Show the lock warning modal when another device is editing
-         * @param {Object} lockInfo - Lock information from lockManager.checkLock
-         */
-        function showLockWarningModal(lockInfo) {
-            const modal = document.getElementById('lockWarningModal');
-            if (!modal) {
-                // Fallback: show alert and redirect
-                alert(window.lockManager.formatLockMessage(lockInfo));
-                window.location.href = 'index.html';
-                return;
-            }
-
-            // Update modal content
-            const messageEl = document.getElementById('lockWarningMessage');
-            if (messageEl) {
-                messageEl.textContent = window.lockManager.formatLockMessage(lockInfo);
-            }
-
-            const detailsEl = document.getElementById('lockWarningDetails');
-            if (detailsEl && lockInfo.inspectorName) {
-                detailsEl.textContent = `Editor: ${lockInfo.inspectorName}`;
-            }
-
-            modal.classList.remove('hidden');
-        }
-
-        /**
-         * Handle "Go Back" from lock warning modal
-         */
-        function handleLockWarningBack() {
-            window.location.href = 'index.html';
-        }
-
-        /**
-         * Handle "Force Edit" from lock warning modal (take over the lock)
-         * NOTE: Lock manager disabled — active_reports table removed.
-         * Just reload the page for now.
-         */
-        async function handleLockWarningForceEdit() {
-            // Lock manager disabled — just reload
-            window.location.reload();
-        }
-
         // ============ CANCEL REPORT FUNCTIONS ============
 
         /**
@@ -1068,11 +1022,6 @@
                 // Reset local state
                 currentReportId = null;
                 report = {};
-
-                // Release the lock before navigating away
-                if (window.lockManager) {
-                    await window.lockManager.releaseCurrentLock();
-                }
 
                 // Navigate to home
                 window.location.href = 'index.html';
@@ -2474,11 +2423,6 @@
                     created_at: report.meta?.createdAt ? new Date(report.meta.createdAt).getTime() : Date.now()
                 });
                 console.log('[LOCAL] Updated fvp_current_reports with refined status:', currentReportId);
-
-                // Release the lock before navigating away
-                if (window.lockManager) {
-                    await window.lockManager.releaseCurrentLock();
-                }
 
                 // === NEW: Show success and redirect ===
                 setProcessingStep(4, 'complete');
@@ -5191,11 +5135,6 @@
                 });
                 console.log('[LOCAL] Updated fvp_current_reports with refined status:', currentReportId);
 
-                // Release the lock before navigating away
-                if (window.lockManager) {
-                    await window.lockManager.releaseCurrentLock();
-                }
-
                 // === NEW: Show success and redirect ===
                 setProcessingStep(4, 'complete');
                 showProcessingSuccess();
@@ -5317,9 +5256,6 @@
                     projectContractors = activeProject.contractors || [];
                 }
 
-                // Lock manager disabled — active_reports table removed
-                // Will be rebuilt when multi-device support is needed
-
                 // Load report from Supabase (baseline)
                 updateLoadingStatus('Loading report data...');
                 report = await getReport();
@@ -5395,8 +5331,6 @@
 
                 checkAndShowWarningBanner();
                 checkDictationHintBanner();
-
-                // Lock manager disabled — active_reports table removed
             } catch (error) {
                 console.error('Initialization failed:', error);
                 hideLoadingOverlay();
