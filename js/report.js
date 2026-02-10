@@ -4454,7 +4454,22 @@
             // 4. Delete from Supabase (if synced)
             if (window.supabaseClient) {
                 try {
-                    // Delete child records first (new schema)
+                    // Get photos to delete from storage bucket first
+                    const { data: photosToDelete } = await window.supabaseClient
+                        .from('photos')
+                        .select('storage_path')
+                        .eq('report_id', currentReportId);
+
+                    if (photosToDelete && photosToDelete.length > 0) {
+                        const paths = photosToDelete.map(p => p.storage_path).filter(Boolean);
+                        if (paths.length > 0) {
+                            await window.supabaseClient.storage
+                                .from('report-photos')
+                                .remove(paths);
+                        }
+                    }
+
+                    // Delete child records (new schema)
                     await window.supabaseClient.from('interview_backup').delete().eq('report_id', currentReportId);
                     await window.supabaseClient.from('report_backup').delete().eq('report_id', currentReportId);
                     await window.supabaseClient.from('ai_submissions').delete().eq('report_id', currentReportId);

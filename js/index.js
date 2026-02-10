@@ -416,6 +416,17 @@ function showDuplicateReportModal(projectName, date, existingReportId, projectId
             // Delete from Supabase if it exists (UUID format, 36 chars)
             if (existingReportId && existingReportId.length === 36 && typeof supabaseClient !== 'undefined' && supabaseClient) {
                 try {
+                    // Delete photos from storage bucket first
+                    const { data: dupPhotos } = await supabaseClient
+                        .from('photos')
+                        .select('storage_path')
+                        .eq('report_id', existingReportId);
+                    if (dupPhotos && dupPhotos.length > 0) {
+                        const paths = dupPhotos.map(p => p.storage_path).filter(Boolean);
+                        if (paths.length > 0) {
+                            await supabaseClient.storage.from('report-photos').remove(paths);
+                        }
+                    }
                     // Delete child records (new schema)
                     await supabaseClient.from('interview_backup').delete().eq('report_id', existingReportId);
                     await supabaseClient.from('report_backup').delete().eq('report_id', existingReportId);
