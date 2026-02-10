@@ -1135,13 +1135,28 @@
                     .delete()
                     .eq('report_id', reportId);
 
-                // 7. Delete from final_reports
+                // 7. Delete PDF from storage bucket (if submitted)
+                try {
+                    const { data: finalData } = await supabaseClient
+                        .from('final_reports')
+                        .select('pdf_url')
+                        .eq('report_id', reportId)
+                        .single();
+                    if (finalData?.pdf_url) {
+                        const pdfPath = finalData.pdf_url.split('/report-pdfs/')[1];
+                        if (pdfPath) {
+                            await supabaseClient.storage.from('report-pdfs').remove([decodeURIComponent(pdfPath)]);
+                        }
+                    }
+                } catch (e) { /* no final_reports row = no PDF to clean */ }
+
+                // 8. Delete from final_reports
                 await supabaseClient
                     .from('final_reports')
                     .delete()
                     .eq('report_id', reportId);
 
-                // 8. Delete from reports (last, as it's the parent)
+                // 9. Delete from reports (last, as it's the parent)
                 await supabaseClient
                     .from('reports')
                     .delete()
@@ -2195,15 +2210,6 @@
         }
 
         /**
-         * Save AI request to Supabase
-         * DISABLED: report_ai_request table removed - debug logging not needed
-         */
-        async function saveAIRequest(payload) {
-            // No-op: AI request logging disabled in v6.6
-            return;
-        }
-
-        /**
          * Save AI submission to Supabase (both input and output)
          * @param {Object} originalPayload - The payload sent TO n8n
          * @param {Object} response - The response from n8n
@@ -2340,6 +2346,7 @@
         /**
          * Finish the minimal mode report with AI processing
          */
+        // FINISH FLOW (minimal/freeform mode) — duplicate exists at finishReport() ~line 5004. Keep in sync.
         async function finishMinimalReport() {
             // === NEW: Show confirmation dialog ===
             const confirmed = await showProcessConfirmation();
@@ -3597,8 +3604,59 @@
             }
             localSaveTimeout = setTimeout(() => {
                 saveToLocalStorage();
-                // Entry backup handled by individual entry functions (createEntry, addFreeformEntry, saveFreeformEdit, etc.)
             }, 500); // 500ms debounce for localStorage
+
+            // Also mark Supabase backup as dirty (separate 5s debounce)
+            markInterviewBackupDirty();
+        }
+
+        // ============ INTERVIEW_BACKUP AUTOSAVE ============
+        let _interviewBackupDirty = false;
+        let _interviewBackupTimer = null;
+
+        function markInterviewBackupDirty() {
+            _interviewBackupDirty = true;
+            if (_interviewBackupTimer) clearTimeout(_interviewBackupTimer);
+            _interviewBackupTimer = setTimeout(flushInterviewBackup, 5000); // 5s debounce
+        }
+
+        function buildInterviewPageState() {
+            return {
+                captureMode: report.meta?.captureMode || 'guided',
+                freeform_entries: report.freeform_entries || [],
+                fieldNotes: report.fieldNotes || {},
+                guidedNotes: report.guidedNotes || {},
+                activities: report.activities || [],
+                operations: report.operations || [],
+                equipment: report.equipment || [],
+                equipmentRows: report.equipmentRows || [],
+                overview: report.overview || {},
+                safety: report.safety || {},
+                generalIssues: report.generalIssues || [],
+                toggleStates: report.toggleStates || {},
+                entries: report.entries || [],
+                savedAt: new Date().toISOString()
+            };
+        }
+
+        function flushInterviewBackup() {
+            if (!_interviewBackupDirty || !currentReportId) return;
+            _interviewBackupDirty = false;
+
+            const pageState = buildInterviewPageState();
+
+            // Fire and forget — do NOT await, do NOT block UI
+            supabaseClient
+                .from('interview_backup')
+                .upsert({
+                    report_id: currentReportId,
+                    page_state: pageState,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'report_id' })
+                .then(({ error }) => {
+                    if (error) console.warn('[BACKUP] Interview backup failed:', error.message);
+                    else console.log('[BACKUP] Interview backup saved');
+                });
         }
 
         /**
@@ -3640,36 +3698,9 @@
 
                 currentReportId = reportId;
 
-                // 2. Save page state to interview_backup (replaces report_raw_capture)
-                // This is a JSONB blob of the entire form state for recovery
-                const interviewPageState = {
-                    captureMode: report.meta?.captureMode || 'guided',
-                    freeform_entries: report.freeform_entries || [],
-                    fieldNotes: report.fieldNotes || {},
-                    guidedNotes: report.guidedNotes || {},
-                    activities: report.activities || [],
-                    operations: report.operations || [],
-                    equipment: report.equipment || [],
-                    equipmentRows: report.equipmentRows || [],
-                    overview: report.overview || {},
-                    safety: report.safety || {},
-                    generalIssues: report.generalIssues || [],
-                    toggleStates: report.toggleStates || {},
-                    entries: report.entries || [],
-                    savedAt: new Date().toISOString()
-                };
-
-                const { error: backupError } = await supabaseClient
-                    .from('interview_backup')
-                    .upsert({
-                        report_id: reportId,
-                        page_state: interviewPageState,
-                        updated_at: new Date().toISOString()
-                    }, { onConflict: 'report_id' });
-
-                if (backupError) {
-                    console.warn('[SUPABASE] Interview backup failed:', backupError);
-                }
+                // interview_backup is now handled by debounced autosave (flushInterviewBackup)
+                // Flush immediately since we're about to navigate away
+                flushInterviewBackup();
 
                 // Note: Photos are saved separately when uploaded via uploadPhotoToSupabase
 
@@ -4971,6 +5002,7 @@
             localStorage.setItem(STORAGE_KEYS.PERMISSIONS_DISMISSED, 'true');
         }
 
+        // FINISH FLOW (guided mode) — duplicate exists at finishMinimalReport() ~line 2349. Keep in sync.
         async function finishReport() {
             // === NEW: Show confirmation dialog ===
             const confirmed = await showProcessConfirmation();
@@ -5378,6 +5410,7 @@
             if (document.visibilityState === 'hidden' && currentReportId) {
                 console.log('[HARDENING] visibilitychange → hidden, saving...');
                 saveToLocalStorage();
+                flushInterviewBackup();
             }
         });
 
@@ -5386,5 +5419,6 @@
             if (currentReportId) {
                 console.log('[HARDENING] pagehide, saving... (persisted:', event.persisted, ')');
                 saveToLocalStorage();
+                flushInterviewBackup();
             }
         });

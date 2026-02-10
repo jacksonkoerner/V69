@@ -431,6 +431,22 @@ function showDuplicateReportModal(projectName, date, existingReportId, projectId
                     await supabaseClient.from('interview_backup').delete().eq('report_id', existingReportId);
                     await supabaseClient.from('report_backup').delete().eq('report_id', existingReportId);
                     await supabaseClient.from('ai_submissions').delete().eq('report_id', existingReportId);
+
+                    // Delete PDF from storage bucket (if submitted)
+                    try {
+                        const { data: finalData } = await supabaseClient
+                            .from('final_reports')
+                            .select('pdf_url')
+                            .eq('report_id', existingReportId)
+                            .single();
+                        if (finalData?.pdf_url) {
+                            const pdfPath = finalData.pdf_url.split('/report-pdfs/')[1];
+                            if (pdfPath) {
+                                await supabaseClient.storage.from('report-pdfs').remove([decodeURIComponent(pdfPath)]);
+                            }
+                        }
+                    } catch (e) { /* no final_reports row = no PDF to clean */ }
+
                     await supabaseClient.from('final_reports').delete().eq('report_id', existingReportId);
                     await supabaseClient.from('photos').delete().eq('report_id', existingReportId);
                     // Delete the report itself
@@ -439,6 +455,12 @@ function showDuplicateReportModal(projectName, date, existingReportId, projectId
                 } catch (e) {
                     console.warn('[DUPLICATE] Supabase delete failed (continuing):', e);
                 }
+            }
+
+            // Delete from IndexedDB
+            if (window.idb) {
+                try { await window.idb.deleteReport(existingReportId); } catch(e) { /* ok */ }
+                try { await window.idb.deletePhotosByReportId(existingReportId); } catch(e) { /* ok */ }
             }
 
             // Delete from localStorage: fvp_current_reports entry

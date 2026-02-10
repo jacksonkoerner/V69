@@ -2262,6 +2262,61 @@
         // Save to localStorage (primary storage for report.html)
         saveReportToLocalStorage();
         showSaveIndicator();
+        // Also mark Supabase backup as dirty (separate 5s debounce)
+        markReportBackupDirty();
+    }
+
+    // ============ REPORT_BACKUP AUTOSAVE ============
+    let _reportBackupDirty = false;
+    let _reportBackupTimer = null;
+
+    function markReportBackupDirty() {
+        _reportBackupDirty = true;
+        if (_reportBackupTimer) clearTimeout(_reportBackupTimer);
+        _reportBackupTimer = setTimeout(flushReportBackup, 5000); // 5s debounce
+    }
+
+    function buildReportPageState() {
+        return {
+            captureMode: report.meta?.captureMode || 'guided',
+            fieldNotes: report.fieldNotes || {},
+            guidedNotes: report.guidedNotes || {},
+            activities: report.activities || [],
+            operations: report.operations || [],
+            equipment: report.equipment || [],
+            equipmentRows: report.equipmentRows || [],
+            overview: report.overview || {},
+            safety: report.safety || {},
+            issues: report.issues || '',
+            qaqc: report.qaqc || '',
+            communications: report.communications || '',
+            visitors: report.visitors || '',
+            generalIssues: report.generalIssues || [],
+            toggleStates: report.toggleStates || {},
+            userEdits: report.userEdits || {},
+            aiGenerated: report.aiGenerated || {},
+            savedAt: new Date().toISOString()
+        };
+    }
+
+    function flushReportBackup() {
+        if (!_reportBackupDirty || !currentReportId) return;
+        _reportBackupDirty = false;
+
+        const pageState = buildReportPageState();
+
+        // Fire and forget — do NOT await, do NOT block UI
+        supabaseClient
+            .from('report_backup')
+            .upsert({
+                report_id: currentReportId,
+                page_state: pageState,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'report_id' })
+            .then(({ error }) => {
+                if (error) console.warn('[BACKUP] Report backup failed:', error.message);
+                else console.log('[BACKUP] Report backup saved');
+            });
     }
 
     /**
@@ -2351,39 +2406,9 @@
 
             currentReportId = reportId;
 
-            // 2. Save page state to report_backup (replaces report_raw_capture)
-            const reportPageState = {
-                captureMode: report.meta?.captureMode || 'guided',
-                fieldNotes: report.fieldNotes || {},
-                guidedNotes: report.guidedNotes || {},
-                activities: report.activities || [],
-                operations: report.operations || [],
-                equipment: report.equipment || [],
-                equipmentRows: report.equipmentRows || [],
-                overview: report.overview || {},
-                safety: report.safety || {},
-                issues: report.issues || '',
-                qaqc: report.qaqc || '',
-                communications: report.communications || '',
-                visitors: report.visitors || '',
-                generalIssues: report.generalIssues || [],
-                toggleStates: report.toggleStates || {},
-                userEdits: report.userEdits || {},
-                aiGenerated: report.aiGenerated || {},
-                savedAt: new Date().toISOString()
-            };
-
-            const { error: backupError } = await supabaseClient
-                .from('report_backup')
-                .upsert({
-                    report_id: reportId,
-                    page_state: reportPageState,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'report_id' });
-
-            if (backupError) {
-                console.warn('[SUPABASE] Report backup failed:', backupError);
-            }
+            // report_backup is now handled by debounced autosave (flushReportBackup)
+            // Mark dirty so it flushes on next 5s quiet period
+            markReportBackupDirty();
 
             console.log('[SUPABASE] Report saved successfully');
         } catch (err) {
@@ -4473,6 +4498,22 @@
                     await window.supabaseClient.from('interview_backup').delete().eq('report_id', currentReportId);
                     await window.supabaseClient.from('report_backup').delete().eq('report_id', currentReportId);
                     await window.supabaseClient.from('ai_submissions').delete().eq('report_id', currentReportId);
+
+                    // Delete PDF from storage bucket (if submitted)
+                    try {
+                        const { data: finalData } = await window.supabaseClient
+                            .from('final_reports')
+                            .select('pdf_url')
+                            .eq('report_id', currentReportId)
+                            .single();
+                        if (finalData?.pdf_url) {
+                            const pdfPath = finalData.pdf_url.split('/report-pdfs/')[1];
+                            if (pdfPath) {
+                                await window.supabaseClient.storage.from('report-pdfs').remove([decodeURIComponent(pdfPath)]);
+                            }
+                        }
+                    } catch (e) { /* no final_reports row = no PDF to clean */ }
+
                     await window.supabaseClient.from('final_reports').delete().eq('report_id', currentReportId);
                     await window.supabaseClient.from('photos').delete().eq('report_id', currentReportId);
                     // Delete the report itself
@@ -4498,6 +4539,7 @@
         if (document.visibilityState === 'hidden' && currentReportId) {
             console.log('[HARDENING] visibilitychange → hidden, saving report...');
             saveReportToLocalStorage();
+            flushReportBackup();
         }
     });
 
@@ -4506,6 +4548,7 @@
         if (currentReportId) {
             console.log('[HARDENING] pagehide, saving report... (persisted:', event.persisted, ')');
             saveReportToLocalStorage();
+            flushReportBackup();
         }
     });
 
