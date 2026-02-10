@@ -22,7 +22,6 @@ A Progressive Web App (PWA) for DOT construction inspectors to capture daily fie
 | `index.html` | Dashboard, report cards, begin new reports |
 | `quick-interview.html` | Voice/text capture (guided + freeform modes) |
 | `report.html` | AI-refined report editing |
-| `finalreview.html` | Final review, PDF generation, submit |
 | `archives.html` | View submitted reports with project filter, inline PDF viewer |
 | `permissions.html` | Onboarding, microphone/camera/location permissions |
 | `projects.html` | Project listing and selection |
@@ -40,9 +39,8 @@ A Progressive Web App (PWA) for DOT construction inspectors to capture daily fie
 1. index.html        → Select project, begin report (generates unique reportId)
 2. quick-interview   → Capture field notes (voice/text/photos)
 3. Press Finish      → Confirmation dialog → AI processing via n8n webhook (~15-20s)
-4. report.html       → Review/edit AI-refined report
-5. finalreview.html  → Final review with editable fields, generate PDF, submit
-6. archives.html     → View submitted PDFs by project
+4. report.html       → Review/edit AI-refined report, generate PDF, submit
+5. archives.html     → View submitted PDFs by project
 ```
 
 ## Key Features
@@ -141,7 +139,6 @@ npx serve .
 ├── index.html              # Dashboard
 ├── quick-interview.html    # Field capture
 ├── report.html             # AI report editing
-├── finalreview.html        # Final review + PDF
 ├── archives.html           # Submitted reports viewer
 ├── permissions.html        # Permission setup
 ├── projects.html           # Project listing
@@ -166,7 +163,6 @@ npx serve .
 │   ├── index.js            # Dashboard page
 │   ├── quick-interview.js  # Capture page
 │   ├── report.js           # Report editing page
-│   ├── finalreview.js      # Final review page
 │   ├── archives.js         # Archives page
 │   ├── permissions.js      # Permissions page
 │   ├── projects.js         # Projects list page

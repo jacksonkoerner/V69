@@ -20,7 +20,6 @@ Quick reference for development. Before adding a function to an HTML file, check
 | `index.js` | Dashboard page — report cards, project picker, begin report |
 | `quick-interview.js` | Voice/text capture, guided + freeform modes, entry management |
 | `report.js` | Report editing page — AI-refined content display, auto-save |
-| `finalreview.js` | Final review — PDF generation with html2canvas + jsPDF, submit to Supabase |
 | `archives.js` | Archives page — project filter, report list, Google Docs PDF viewer |
 | `permissions.js` | Permission setup flow — mic, camera, location grants with error handling |
 | `projects.js` | Projects list page — IndexedDB-first loading, Supabase sync |
@@ -154,7 +153,6 @@ These modules attach to the DOM and don't export functions:
 | `index.js` | index.html | Dashboard logic, report cards, project selection |
 | `quick-interview.js` | quick-interview.html | Field capture, entry management, AI webhook |
 | `report.js` | report.html | AI report editing, auto-save, navigation |
-| `finalreview.js` | finalreview.html | PDF generation, editable fields, submit |
 | `archives.js` | archives.html | Report list, project filter, PDF viewer |
 | `permissions.js` | permissions.html | Permission wizard, error handling |
 | `projects.js` | projects.html | Project list, sync from Supabase |

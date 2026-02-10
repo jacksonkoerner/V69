@@ -82,7 +82,7 @@
             // Initialize debug panel
             initializeDebugPanel();
 
-            // Check for tab query param (e.g., from finalreview.html redirect)
+            // Check for tab query param
             const urlParams = new URLSearchParams(window.location.search);
             const tabParam = urlParams.get('tab');
             if (tabParam === 'preview') {
@@ -3402,7 +3402,7 @@
     // ============ PDF GENERATION (VECTOR) ============
     /**
      * Generate PDF with crisp vector text using jsPDF direct drawing.
-     * Copied from finalreview.js with adaptations to use report.js scope variables.
+     * Generate PDF with crisp vector text using jsPDF direct drawing.
      */
     async function generateVectorPDF() {
         console.log('[PDF-VECTOR] Starting vector PDF generation');
