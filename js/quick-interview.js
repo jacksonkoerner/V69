@@ -3855,6 +3855,7 @@
                             photo_url: photo.url || null,
                             caption: photo.caption || '',
                             photo_type: photo.fileType || photo.fileName || null,
+                            filename: photo.fileName || photo.name || null,
                             location_lat: photo.gps?.lat || null,
                             location_lng: photo.gps?.lng || null,
                             taken_at: photo.timestamp || new Date().toISOString(),

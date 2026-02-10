@@ -105,27 +105,11 @@ async function getProjects() {
             return [];
         }
 
-        // Fetch all contractors
-        const { data: contractorRows, error: contractorError } = await supabaseClient
-            .from('contractors')
-            .select('*');
-
-        if (contractorError) {
-            console.error('Error fetching contractors:', contractorError);
-        }
-
         // Build the nested structure
+        // Contractors are stored as JSON in the projects.contractors column
+        // fromSupabaseProject() already parses them — no separate table needed
         const projects = projectRows.map(projectRow => {
-            const project = fromSupabaseProject(projectRow);
-
-            // Add contractors for this project
-            if (contractorRows) {
-                project.contractors = contractorRows
-                    .filter(c => c.project_id === project.id)
-                    .map(fromSupabaseContractor);
-            }
-
-            return project;
+            return fromSupabaseProject(projectRow);
         });
 
         // Cache projects to IndexedDB for future offline use
