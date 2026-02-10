@@ -155,23 +155,6 @@
         }
     }
 
-    /**
-     * Set the active project ID
-     * @param {string} projectId
-     */
-    function setActiveProjectId(projectId) {
-        setStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID, projectId);
-        console.log('[DATA] Set active project ID:', projectId);
-    }
-
-    /**
-     * Get the active project ID
-     * @returns {string|null}
-     */
-    function getActiveProjectId() {
-        return getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
-    }
-
     // ========================================
     // NORMALIZERS (handle mixed formats)
     // ========================================
@@ -337,180 +320,6 @@
     }
 
     // ========================================
-    // ========================================
-    // PHOTOS (IndexedDB — temporary until submitted)
-    // ========================================
-
-    /**
-     * Save photo to IndexedDB
-     */
-    async function savePhoto(photo) {
-        const photoRecord = {
-            id: photo.id || crypto.randomUUID(),
-            reportId: photo.reportId,
-            blob: photo.blob,
-            caption: photo.caption || '',
-            timestamp: photo.timestamp || new Date().toISOString(),
-            gps: photo.gps || null,
-            syncStatus: 'pending',
-            supabaseId: null,
-            storagePath: null
-        };
-        await window.idb.savePhoto(photoRecord);
-        console.log('[DATA] Photo saved to IndexedDB:', photoRecord.id);
-        return photoRecord;
-    }
-
-    /**
-     * Get all photos for a report
-     */
-    async function getPhotos(reportId) {
-        try {
-            const photos = await window.idb.getPhotosByReportId(reportId);
-            return photos || [];
-        } catch (e) {
-            console.warn('[DATA] Failed to get photos:', e);
-            return [];
-        }
-    }
-
-    /**
-     * Delete photo from IndexedDB
-     */
-    async function deletePhoto(photoId) {
-        try {
-            await window.idb.deletePhoto(photoId);
-            console.log('[DATA] Photo deleted:', photoId);
-        } catch (e) {
-            console.warn('[DATA] Failed to delete photo:', e);
-        }
-    }
-
-    // ========================================
-    // AI RESPONSE CACHE (localStorage — temporary)
-    // ========================================
-
-    /**
-     * Cache AI response locally
-     */
-    function cacheAIResponse(reportId, response) {
-        const cache = getStorageItem('fvp_ai_cache') || {};
-        cache[reportId] = {
-            response,
-            cachedAt: new Date().toISOString()
-        };
-        setStorageItem('fvp_ai_cache', cache);
-        console.log('[DATA] AI response cached:', reportId);
-    }
-
-    /**
-     * Get cached AI response
-     */
-    function getCachedAIResponse(reportId) {
-        const cache = getStorageItem('fvp_ai_cache') || {};
-        return cache[reportId]?.response || null;
-    }
-
-    /**
-     * Clear AI response cache for a report
-     */
-    function clearAIResponseCache(reportId) {
-        const cache = getStorageItem('fvp_ai_cache') || {};
-        delete cache[reportId];
-        setStorageItem('fvp_ai_cache', cache);
-    }
-
-    // ========================================
-    // ARCHIVES (last 3 in IndexedDB, rest from Supabase)
-    // ========================================
-
-    /**
-     * Load archived reports
-     */
-    async function loadArchivedReports(limit = 20) {
-        if (!navigator.onLine) {
-            console.log('[DATA] Offline, cannot load archives');
-            return [];
-        }
-
-        try {
-            // Fetch ALL archived reports (no user_id filtering)
-            // All users see all reports
-            const { data, error } = await supabaseClient
-                .from('reports')
-                .select('*, projects(id, project_name)')
-                .eq('status', 'submitted')
-                .order('created_at', { ascending: false })
-                .limit(limit);
-
-            if (error) throw error;
-
-            return data || [];
-        } catch (e) {
-            console.error('[DATA] Failed to load archives:', e);
-            return [];
-        }
-    }
-
-    // ========================================
-    // SUBMIT (Supabase — final destination)
-    // ========================================
-
-    /**
-     * Submit final report to Supabase
-     */
-    async function submitFinalReport(finalData) {
-        if (!navigator.onLine) {
-            throw new Error('Cannot submit offline — internet required');
-        }
-
-        const { reportId } = finalData;
-
-        try {
-            // Update reports table status
-            await supabaseClient
-                .from('reports')
-                .update({
-                    status: 'submitted',
-                    submitted_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', reportId);
-
-            console.log('[DATA] Final report submitted:', reportId);
-            return true;
-        } catch (e) {
-            console.error('[DATA] Submit failed:', e);
-            throw e;
-        }
-    }
-
-    /**
-     * Clear all temporary data after successful submit
-     */
-    async function clearAfterSubmit(projectId, date, reportId) {
-        clearAIResponseCache(reportId);
-
-        const photos = await getPhotos(reportId);
-        for (const photo of photos) {
-            await deletePhoto(photo.id);
-        }
-
-        console.log('[DATA] Cleared temporary data after submit');
-    }
-
-    // ========================================
-    // UTILITIES
-    // ========================================
-
-    /**
-     * Check if online
-     */
-    function isOnline() {
-        return navigator.onLine;
-    }
-
-    // ========================================
     // EXPORTS
     // ========================================
 
@@ -519,37 +328,10 @@
         loadProjects,
         loadActiveProject,
         refreshProjectsFromCloud,
-        setActiveProjectId,
-        getActiveProjectId,
 
         // User Settings
         loadUserSettings,
-        saveUserSettings,
-
-        // Photos (IndexedDB)
-        savePhoto,
-        getPhotos,
-        deletePhoto,
-
-        // AI Response Cache
-        cacheAIResponse,
-        getCachedAIResponse,
-        clearAIResponseCache,
-
-        // Archives
-        loadArchivedReports,
-
-        // Submit
-        submitFinalReport,
-        clearAfterSubmit,
-
-        // Normalizers (exposed for edge cases)
-        normalizeProject,
-        normalizeContractor,
-        normalizeUserSettings,
-
-        // Utilities
-        isOnline
+        saveUserSettings
     };
 
     console.log('[DATA] Data layer initialized');
