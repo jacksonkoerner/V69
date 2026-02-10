@@ -43,11 +43,6 @@
             if (!report.entries) report.entries = [];
             report.entries.push(entry);
 
-            // Queue for real-time backup
-            if (currentReportId) {
-                queueEntryBackup(currentReportId, entry);
-            }
-
             saveReport();
             return entry;
         }
@@ -88,10 +83,6 @@
             entry.content = newContent.trim();
             // Note: timestamp preserved (not updated on edit)
 
-            if (currentReportId) {
-                queueEntryBackup(currentReportId, entry);
-            }
-
             saveReport();
             return entry;
         }
@@ -105,10 +96,6 @@
             if (!entry) return;
 
             entry.is_deleted = true;
-
-            if (currentReportId) {
-                deleteEntry(currentReportId, entryId);  // from sync-manager.js
-            }
 
             saveReport();
         }
@@ -147,11 +134,6 @@
                         if (text) {
                             updateEntry(entryId, text);
                             saveReport();
-                            // Queue backup to Supabase
-                            if (currentReportId && entry) {
-                                entry.content = text;
-                                queueEntryBackup(currentReportId, entry);
-                            }
                             console.log('[EDIT AUTOSAVE] Entry saved:', entryId);
                         }
                     }, 500);
@@ -241,10 +223,6 @@
                         report.entries.push(entry);
                         currentEntryId = entry.id;
                         
-                        if (currentReportId) {
-                            queueEntryBackup(currentReportId, entry);
-                        }
-                        
                         saveReport();
                         // Track in shared state so "+" button knows entry exists
                         autoSaveState[section] = { entryId: currentEntryId, saved: true };
@@ -254,9 +232,6 @@
                         const entry = report.entries?.find(e => e.id === currentEntryId);
                         if (entry) {
                             entry.content = text;
-                            if (currentReportId) {
-                                queueEntryBackup(currentReportId, entry);
-                            }
                             saveReport();
                             // Keep shared state updated
                             autoSaveState[section] = { entryId: currentEntryId, saved: true };
@@ -274,7 +249,6 @@
                     const entry = report.entries?.find(e => e.id === currentEntryId);
                     if (entry && entry.content !== text) {
                         entry.content = text;
-                        if (currentReportId) queueEntryBackup(currentReportId, entry);
                         saveReport();
                         // Track in shared state so "+" button knows entry exists
                         autoSaveState[section] = { entryId: currentEntryId, saved: true };
@@ -329,10 +303,6 @@
                         report.entries.push(entry);
                         currentEntryId = entry.id;
                         
-                        if (currentReportId) {
-                            queueEntryBackup(currentReportId, entry);
-                        }
-                        
                         saveReport();
                         // Track in shared state so "+" button knows entry exists
                         autoSaveState[section] = { entryId: currentEntryId, saved: true };
@@ -342,9 +312,6 @@
                         const entry = report.entries?.find(e => e.id === currentEntryId);
                         if (entry) {
                             entry.content = text;
-                            if (currentReportId) {
-                                queueEntryBackup(currentReportId, entry);
-                            }
                             saveReport();
                             // Keep shared state updated
                             autoSaveState[section] = { entryId: currentEntryId, saved: true };
@@ -371,10 +338,6 @@
                     
                     if (!report.entries) report.entries = [];
                     report.entries.push(entry);
-                    
-                    if (currentReportId) {
-                        queueEntryBackup(currentReportId, entry);
-                    }
                     
                     saveReport();
                     currentEntryId = entry.id;  // Track for subsequent updates
@@ -804,8 +767,6 @@
             // v6.9: UUID-only — delete by currentReportId
             deleteCurrentReport(currentReportId);
 
-            // v6: Sync queue is now managed by sync-manager.js
-            // The processOfflineQueue() function handles cleanup automatically
             console.log('[LOCAL] Draft cleared from localStorage');
         }
 
@@ -1223,11 +1184,6 @@
             };
             report.freeform_entries.push(entry);
             
-            // Queue for real-time backup to Supabase
-            if (currentReportId) {
-                queueEntryBackup(currentReportId, entry);
-            }
-            
             renderFreeformEntries();
             saveReport();
             // Start editing the new entry immediately
@@ -1318,9 +1274,6 @@
                             entry.content = textarea.value.trim();
                             entry.updated_at = Date.now();
                             entry.synced = false;
-                            if (currentReportId) {
-                                queueEntryBackup(currentReportId, entry);
-                            }
                             saveReport();
                             console.log('[AUTOSAVE] Freeform entry saved:', entryId);
                         }
@@ -1337,7 +1290,6 @@
                             entry.content = newContent;
                             entry.updated_at = Date.now();
                             entry.synced = false;
-                            if (currentReportId) queueEntryBackup(currentReportId, entry);
                             saveReport();
                             console.log('[AUTOSAVE] Freeform entry saved on blur:', entryId);
                         }
@@ -1374,11 +1326,6 @@
                 entry.content = newContent;
                 entry.updated_at = Date.now();
                 entry.synced = false;
-                
-                // Queue for real-time backup to Supabase
-                if (currentReportId) {
-                    queueEntryBackup(currentReportId, entry);
-                }
                 
                 saveReport();
             }
@@ -3533,7 +3480,7 @@
         /**
          * Save report to localStorage (debounced to prevent excessive writes)
          * Data only goes to Supabase when FINISH is clicked
-         * v6: Also queues entry backup via sync-manager.js
+         * Data only goes to Supabase when FINISH is clicked.
          */
         let localSaveTimeout = null;
 
@@ -5245,9 +5192,6 @@
                 // Load user settings from Supabase
                 updateLoadingStatus('Loading user settings...');
                 userSettings = await window.dataLayer.loadUserSettings();
-
-                // v6: Initialize sync manager for real-time backup
-                initSyncManager();
 
                 // Load active project and contractors from Supabase
                 updateLoadingStatus('Loading project data...');

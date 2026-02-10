@@ -155,7 +155,6 @@ npx serve .
 │   ├── ui-utils.js         # UI helpers
 │   ├── supabase-utils.js   # Data converters
 │   ├── report-rules.js     # Business logic
-│   ├── sync-manager.js     # Offline sync
 │   ├── media-utils.js      # Photo/GPS utilities
 │   ├── indexeddb-utils.js  # IndexedDB operations
 │   ├── pwa-utils.js        # PWA features

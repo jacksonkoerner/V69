@@ -1,7 +1,7 @@
 # Data Flow Audit Report
 
 **Generated:** 2026-02-10
-**Scope:** js/data-layer.js, js/sync-manager.js, js/indexeddb-utils.js, js/storage-keys.js, js/supabase-utils.js, js/index.js, js/quick-interview.js, js/report.js, js/auth.js, js/media-utils.js
+**Scope:** js/data-layer.js, js/indexeddb-utils.js, js/storage-keys.js, js/supabase-utils.js, js/index.js, js/quick-interview.js, js/report.js, js/auth.js, js/media-utils.js
 
 ---
 
@@ -224,22 +224,9 @@ The `photos` table is only ever SELECT'd to get `storage_path` values for deleti
 | `normalizeUserSettings` | Internal only | — |
 | `isOnline` | **NEVER** | — |
 
-### sync-manager.js — 7 of 10 exported methods are never called externally (or are no-ops)
+### sync-manager.js — REMOVED
 
-| Method | Called? | Notes |
-|---|---|---|
-| `queueEntryBackup` | Yes | quick-interview.js (12+ calls) — but **always returns immediately** because `AUTO_SYNC_ENABLED = false` |
-| `deleteEntry` | Yes | quick-interview.js (1 call) — but **always returns error** because `report_entries table removed` |
-| `initSyncManager` | Yes | index.js, quick-interview.js — but **always returns immediately** because `AUTO_SYNC_ENABLED = false` |
-| `backupEntry` | **NEVER** (external) | Only called internally |
-| `backupAllEntries` | **NEVER** | — |
-| `syncReport` | **NEVER** | — |
-| `syncRawCapture` | **NEVER** | — |
-| `processOfflineQueue` | **NEVER** (external) | Only in comment |
-| `destroySyncManager` | **NEVER** | — |
-| `getPendingSyncCount` | **NEVER** | — |
-
-**The entire sync-manager.js is effectively dead.** `AUTO_SYNC_ENABLED = false` makes `queueEntryBackup` and `initSyncManager` no-ops, and all table-backed functions return error strings for removed tables.
+**RESOLVED:** sync-manager.js has been deleted. All functions were no-ops (`AUTO_SYNC_ENABLED = false`) or returned errors for removed tables. All call sites in quick-interview.js and index.js have been cleaned up.
 
 ### supabase-utils.js — 20 of 22 exported functions are never called
 
@@ -330,29 +317,18 @@ See Section 4 — the exact same cascading delete sequence appears in:
 
 | File | Line | Context | Status |
 |---|---|---|---|
-| sync-manager.js | 70 | Comment: `// report_entries table removed — backup disabled` | Comment + error return |
-| sync-manager.js | 72 | `return { success: false, error: 'report_entries table removed' }` | Error message |
-| sync-manager.js | 94 | Comment: `// report_entries table removed — batch backup disabled` | Comment |
-| sync-manager.js | 116 | Comment: `// report_entries table removed — delete disabled` | Comment + error return |
-| sync-manager.js | 118 | `return { success: false, error: 'report_entries table removed' }` | Error message |
-
-All references are in disabled code paths that return errors. No live Supabase calls remain.
+**RESOLVED:** sync-manager.js has been removed. No code references `report_entries` anymore.
 
 ### `report_raw_capture`
 
-| File | Line | Context | Status |
-|---|---|---|---|
-| sync-manager.js | 162 | Comment: `// report_raw_capture table removed — sync disabled` | Comment + error return |
-| sync-manager.js | 164 | `return { success: false, error: 'report_raw_capture table removed' }` | Error message |
-
-All references are in disabled code paths that return errors. No live Supabase calls remain.
+**RESOLVED:** sync-manager.js has been removed. No code references `report_raw_capture` via sync-manager anymore.
 
 ---
 
 ## Summary of Critical Findings
 
 1. **Report deletion logic is tripled** across quick-interview.js, report.js, and index.js — must be extracted to a shared utility
-2. **sync-manager.js is 100% dead** — every function is either a no-op (`AUTO_SYNC_ENABLED = false`) or returns an error for removed tables
+2. ~~**sync-manager.js is 100% dead**~~ — **RESOLVED**: sync-manager.js removed, all call sites cleaned up
 3. **supabase-utils.js is 91% dead** — only `fromSupabaseProject` is used; all `toSupabase*` converters are bypassed
 4. **data-layer.js is 71% dead** — 15 of 21 exported methods are never called
 5. ~~**finalreview.js duplicates 7 functions** from report.js~~ — **RESOLVED**: finalreview.js removed, all functionality lives in report.js

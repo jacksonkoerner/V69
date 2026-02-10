@@ -148,15 +148,14 @@ USER: Taps "Begin Daily Report" on index.html
 
 3. quick-interview.html loads scripts in order:
    config.js → storage-keys.js → indexeddb-utils.js → data-layer.js →
-   report-rules.js → supabase-utils.js → sync-manager.js →
+   report-rules.js → supabase-utils.js →
    pwa-utils.js → auth.js → ui-utils.js → media-utils.js → photo-markup.js →
    quick-interview.js
 
 4. quick-interview.js DOMContentLoaded [line 5395]
    a. checkReportState() → returns true (always allows)
    b. loadUserSettings() → from IDB/Supabase
-   c. initSyncManager()
-   d. loadActiveProject() → from IDB/Supabase
+   c. loadActiveProject() → from IDB/Supabase
    e. (lock check removed — lock-manager.js deleted)
    f. report = await getReport()
       → getReport() [line 3575]: sets currentReportId = null, returns createFreshReport()
@@ -561,10 +560,10 @@ Could not query RLS policies directly (no `supabase inspect db policies` command
 | `fvp_report_{uuid}` | quick-interview.js (finishMinimalReport, finishReport), report.js (saveReportToLocalStorage) | report.js (loadReport) | report.js (cleanupLocalStorage, executeDeleteReport) | `{ reportId, projectId, reportDate, status, aiGenerated, captureMode, originalInput, userEdits, createdAt, lastSaved }` |
 | `fvp_ai_reports` | — | — | — | Defined but **UNUSED** |
 | `fvp_drafts` | — | — | — | Defined but **UNUSED** |
-| `fvp_sync_queue` | quick-interview.js (handleOfflineProcessing via addToSyncQueue) | sync-manager.js | quick-interview.js (clearSyncQueueForReport) | `[ { type, action, data, timestamp, reportId? } ]` |
-| `fvp_last_sync` | sync-manager.js | sync-manager.js | **NEVER** | Timestamp string |
+| `fvp_sync_queue` | quick-interview.js (handleOfflineProcessing via addToSyncQueue) | (sync-manager.js removed) | quick-interview.js (clearSyncQueueForReport) | `[ { type, action, data, timestamp, reportId? } ]` |
+| `fvp_last_sync` | — | — | — | Defined but **UNUSED** (sync-manager.js removed) |
 | `fvp_device_id` | storage-keys.js (getDeviceId, auto-generated) | ALL pages | **NEVER** | `"uuid-string"` |
-| `fvp_user_id` | settings.js | quick-interview.js, sync-manager.js, report.js, data-layer.js | **NEVER** | `"uuid-string"` |
+| `fvp_user_id` | settings.js | quick-interview.js, report.js, data-layer.js | **NEVER** | `"uuid-string"` |
 | `fvp_offline_queue` | — | — | — | Defined but **UNUSED** |
 | `fvp_mic_granted` | quick-interview.js, permissions.js | index.js, quick-interview.js | **NEVER** | `"true"` or absent |
 | `fvp_mic_timestamp` | — | — | — | Defined but **UNUSED** |
@@ -687,7 +686,7 @@ Could not query RLS policies directly (no `supabase inspect db policies` command
 
 | Aspect | Details |
 |--------|---------|
-| **Scripts** | config, storage-keys, report-rules, supabase-utils, sync-manager, pwa-utils, ui-utils, indexeddb-utils, data-layer, auth, api-keys, maps, compass, + inline JS |
+| **Scripts** | config, storage-keys, report-rules, supabase-utils, pwa-utils, ui-utils, indexeddb-utils, data-layer, auth, api-keys, maps, compass, + inline JS |
 | **Expects** | Authenticated user |
 | **Reads** | `fvp_current_reports` (via getReportsByUrgency), `fvp_active_project_id`, `fvp_projects`, `fvp_sync_queue`, IDB projects, Supabase projects |
 | **Writes** | `fvp_active_project_id` (on project select), `fvp_projects` (on load), IDB projects (refresh). Cleans up `fvp_ai_response_*` keys older than 24h. |
@@ -698,7 +697,7 @@ Could not query RLS policies directly (no `supabase inspect db policies` command
 
 | Aspect | Details |
 |--------|---------|
-| **Scripts** | config, storage-keys, indexeddb-utils, data-layer, report-rules, supabase-utils, sync-manager, pwa-utils, auth, ui-utils, media-utils, photo-markup, quick-interview |
+| **Scripts** | config, storage-keys, indexeddb-utils, data-layer, report-rules, supabase-utils, pwa-utils, auth, ui-utils, media-utils, photo-markup, quick-interview |
 | **Expects** | `?reportId={uuid}` URL param, `fvp_active_project_id` set |
 | **Reads** | URL `reportId`, `fvp_active_project_id`, `fvp_current_reports[draftId]`, IDB projects, IDB photos, Supabase user_profiles |
 | **Writes** | `fvp_current_reports` (draft saves, refined update), `fvp_report_{uuid}` (on Finish), `fvp_sync_queue` (offline), IDB photos, Supabase reports, report_raw_capture, ai_responses, photos, report-photos storage |
@@ -768,11 +767,10 @@ Could not query RLS policies directly (no `supabase inspect db policies` command
 | `supabase-utils.js` | 762 | `fromSupabaseProject`, `toSupabaseProject`, + converters | None | No (pure converters) |
 | `indexeddb-utils.js` | 584 | `window.idb.*` (saveProject, getProject, getAllProjects, savePhoto, getPhoto, deletePhoto, getPhotosByReportId, deletePhotosByReportId, saveUserProfile, getUserProfile, clearStore, + more) | None | **Yes — IDB operations for photos** |
 | `data-layer.js` | 612 | `window.dataLayer.*` (loadProjects, loadActiveProject, refreshProjectsFromCloud, loadUserSettings, getCurrentDraft, saveDraft, deleteDraft, + more) | storage-keys.js, indexeddb-utils.js, supabase-utils.js, config.js | **Yes — draft CRUD uses `draft_{projectId}_{date}`** |
-| `sync-manager.js` | 435 | `initSyncManager`, `queueEntryBackup`, `deleteEntry` | storage-keys.js, config.js | **Yes — queues entry sync operations** |
 | `auth.js` | 212 | `window.auth.*` (requireAuth, signOut) | config.js, storage-keys.js | No |
 | `quick-interview.js` | 5520 | Many via inline `<script>` context (not module exports) | ALL of the above | **YES — EPICENTER of dual-key logic** |
 | `report.js` | 4563 | Functions exposed via `window.*` | config, storage-keys, indexeddb-utils, data-layer, supabase-utils, auth, ui-utils | **Yes — UUID-only** |
-| `index.js` | 1116 | Functions exposed via `window.*` | config, storage-keys, report-rules, supabase-utils, sync-manager, ui-utils, indexeddb-utils, data-layer, auth | **Yes — reads fvp_current_reports, generates UUIDs** |
+| `index.js` | 1116 | Functions exposed via `window.*` | config, storage-keys, report-rules, supabase-utils, ui-utils, indexeddb-utils, data-layer, auth | **Yes — reads fvp_current_reports, generates UUIDs** |
 | `archives.js` | 349 | Inline functions | config, storage-keys, auth | **Yes — reads from Supabase only** |
 | `projects.js` | 384 | Inline functions | config, storage-keys, data-layer, supabase-utils | No |
 | `project-config.js` | 1316 | Inline functions | config, storage-keys, supabase-utils, data-layer, media-utils, ui-utils | No |

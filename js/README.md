@@ -12,7 +12,6 @@ Quick reference for development. Before adding a function to an HTML file, check
 | `ui-utils.js` | Shared UI helpers: escapeHtml, toast notifications, date formatting |
 | `supabase-utils.js` | Supabase data converters (snake_case ↔ camelCase) |
 | `report-rules.js` | Report status flow, validation, business rules enforcement |
-| `sync-manager.js` | Real-time entry backup, offline sync queue management |
 | `media-utils.js` | Photo capture, GPS geotagging, image compression |
 | `indexeddb-utils.js` | IndexedDB database operations for local-first storage |
 | `pwa-utils.js` | Service worker registration, offline detection, PWA navigation |
@@ -90,15 +89,6 @@ Storage strategy: IndexedDB-first, Supabase-fallback, cache on fetch.
 <script src="./js/report-rules.js"></script>
 ```
 
-### sync-manager.js
-**Exports:** `queueEntryBackup()`, `backupEntry()`, `backupAllEntries()`, `deleteEntry()`, `syncReport()`, `syncRawCapture()`, `processOfflineQueue()`, `initSyncManager()`, `destroySyncManager()`, `getPendingSyncCount()`
-
-Note: Auto-sync is disabled by default — user controls sync via explicit buttons.
-
-```html
-<script src="./js/sync-manager.js"></script>
-```
-
 ### media-utils.js
 **Exports:** `readFileAsDataURL()`, `dataURLtoBlob()`, `compressImage()`, `compressImageToThumbnail()`, `uploadLogoToStorage()`, `deleteLogoFromStorage()`, `getHighAccuracyGPS()`
 
@@ -168,7 +158,6 @@ Standard import order for pages:
 <!-- Feature Modules (as needed) -->
 <script src="./js/report-rules.js"></script>
 <script src="./js/media-utils.js"></script>
-<script src="./js/sync-manager.js"></script>
 
 <!-- Page Module -->
 <script src="./js/[page].js"></script>
