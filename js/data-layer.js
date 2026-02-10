@@ -230,35 +230,45 @@
      * @returns {Promise<Object|null>} User settings object or null
      */
     async function loadUserSettings() {
-        const deviceId = getStorageItem(STORAGE_KEYS.DEVICE_ID);
-        if (!deviceId) {
-            console.log('[DATA] No device ID set');
-            return null;
-        }
-
-        // 1. Try IndexedDB first
+        // Get auth_user_id from session (source of truth for identity)
+        let authUserId = null;
         try {
-            const localSettings = await window.idb.getUserProfile(deviceId);
-            if (localSettings) {
-                console.log('[DATA] Loaded user settings from IndexedDB');
-                return normalizeUserSettings(localSettings);
-            }
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            authUserId = session?.user?.id;
         } catch (e) {
-            console.warn('[DATA] IndexedDB read failed:', e);
+            console.warn('[DATA] Could not get auth session:', e);
         }
 
-        // 2. Check if offline
+        // 1. Try IndexedDB first (keyed by auth_user_id, fallback to device_id)
+        const cacheKey = authUserId || getStorageItem(STORAGE_KEYS.DEVICE_ID);
+        if (cacheKey) {
+            try {
+                const localSettings = await window.idb.getUserProfile(cacheKey);
+                if (localSettings) {
+                    console.log('[DATA] Loaded user settings from IndexedDB');
+                    return normalizeUserSettings(localSettings);
+                }
+            } catch (e) {
+                console.warn('[DATA] IndexedDB read failed:', e);
+            }
+        }
+
+        // 2. Check if offline or no auth
         if (!navigator.onLine) {
             console.log('[DATA] Offline, no cached user settings');
             return null;
         }
+        if (!authUserId) {
+            console.log('[DATA] No auth session, cannot load from Supabase');
+            return null;
+        }
 
-        // 3. Fetch from Supabase
+        // 3. Fetch from Supabase by auth_user_id
         try {
             const { data, error } = await supabaseClient
                 .from('user_profiles')
                 .select('*')
-                .eq('device_id', deviceId)
+                .eq('auth_user_id', authUserId)
                 .maybeSingle();
 
             if (error) {
@@ -267,7 +277,7 @@
             }
 
             if (!data) {
-                console.log('[DATA] No user profile found for device:', deviceId);
+                console.log('[DATA] No user profile found for auth_user_id:', authUserId);
                 return null;
             }
 

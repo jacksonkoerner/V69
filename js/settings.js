@@ -160,17 +160,22 @@ function updateDirtyIndicator() {
 }
 
 async function saveSettings() {
-    // Step 1: Get device_id (generates if not exists)
-    const deviceId = getDeviceId();
+    // Step 1: Get auth_user_id from session (source of truth)
+    let authUserId = null;
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        authUserId = session?.user?.id;
+    } catch (e) {
+        console.warn('[saveSettings] Could not get auth session:', e);
+    }
 
-    // Step 2: Get user_id (only if we have one for THIS device)
-    let userId = getStorageItem(STORAGE_KEYS.USER_ID);
+    // Step 2: Get user_id (the user_profiles row id)
+    let userId = localStorage.getItem('fvp_user_id');
 
     // Step 3: Build profile object with all fields
     const profile = {
-        // Only include id if we have one for THIS device
         ...(userId && { id: userId }),
-        deviceId: deviceId,
+        deviceId: getDeviceId(),
         fullName: document.getElementById('inspectorName').value.trim(),
         title: document.getElementById('title').value.trim(),
         company: document.getElementById('company').value.trim(),
@@ -188,19 +193,30 @@ async function saveSettings() {
 
     // Step 5: Only store user_id if we have one
     if (userId) {
-        setStorageItem(STORAGE_KEYS.USER_ID, userId);
+        localStorage.setItem('fvp_user_id', userId);
         currentProfileId = userId;
     }
 
     updateSignaturePreview();
 
     // Step 6: Try to upsert to Supabase (cloud backup)
+    if (!authUserId) {
+        showToast('Saved locally. Sign in to sync to cloud.', 'warning');
+        clearScratchData();
+        storeOriginalValues();
+        setDirty(false);
+        return;
+    }
+
     try {
         const supabaseData = toSupabaseUserProfile(profile);
+        supabaseData.auth_user_id = authUserId;
+        // Update device_id as informational (write-only, not used for lookups)
+        supabaseData.device_id = getDeviceId();
 
         const result = await supabaseClient
             .from('user_profiles')
-            .upsert(supabaseData, { onConflict: 'device_id' })
+            .upsert(supabaseData, { onConflict: 'auth_user_id' })
             .select()
             .single();
 
@@ -218,7 +234,9 @@ async function saveSettings() {
         // Step 7: Store the Supabase-returned id (important for new devices)
         if (result.data && result.data.id) {
             const returnedId = result.data.id;
-            setStorageItem(STORAGE_KEYS.USER_ID, returnedId);
+            localStorage.setItem('fvp_user_id', returnedId);
+            localStorage.setItem('fvp_user_name', result.data.full_name || '');
+            localStorage.setItem('fvp_user_email', result.data.email || '');
             currentProfileId = returnedId;
 
             // Update IndexedDB with the id from Supabase
@@ -254,9 +272,17 @@ async function refreshFromCloud() {
         return;
     }
 
-    const deviceId = getDeviceId();
-    if (!deviceId) {
-        showToast('No device ID set', 'error');
+    // Get auth_user_id from session
+    let authUserId = null;
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        authUserId = session?.user?.id;
+    } catch (e) {
+        console.warn('[refreshFromCloud] Could not get auth session:', e);
+    }
+
+    if (!authUserId) {
+        showToast('Not signed in. Cannot refresh from cloud.', 'error');
         return;
     }
 
@@ -266,7 +292,7 @@ async function refreshFromCloud() {
         const { data, error } = await supabaseClient
             .from('user_profiles')
             .select('*')
-            .eq('device_id', deviceId)
+            .eq('auth_user_id', authUserId)
             .maybeSingle();
 
         if (error) {
@@ -276,7 +302,7 @@ async function refreshFromCloud() {
         }
 
         if (!data) {
-            showToast('No profile found in cloud for this device', 'warning');
+            showToast('No profile found in cloud for this account', 'warning');
             return;
         }
 
@@ -288,9 +314,11 @@ async function refreshFromCloud() {
         document.getElementById('email').value = data.email || '';
         document.getElementById('phone').value = data.phone || '';
 
-        // Store user_id
+        // Store user info
         if (data.id) {
-            setStorageItem(STORAGE_KEYS.USER_ID, data.id);
+            localStorage.setItem('fvp_user_id', data.id);
+            localStorage.setItem('fvp_user_name', data.full_name || '');
+            localStorage.setItem('fvp_user_email', data.email || '');
         }
 
         // Mark as dirty - user needs to Save to commit to IndexedDB
@@ -327,11 +355,18 @@ function updateSignaturePreview() {
 // Note: This function is kept for compatibility but now fetches from Supabase
 async function getFormattedSignature() {
     try {
-        const deviceId = getDeviceId();
+        let authUserId = null;
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            authUserId = session?.user?.id;
+        } catch (e) { /* no session */ }
+
+        if (!authUserId) return '';
+
         const { data, error } = await supabaseClient
             .from('user_profiles')
             .select('full_name, title, company')
-            .eq('device_id', deviceId)
+            .eq('auth_user_id', authUserId)
             .maybeSingle();
 
         if (error || !data) return '';

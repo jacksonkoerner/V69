@@ -106,14 +106,28 @@ async function loadActiveProject() {
 // ============ USER SETTINGS LOADING ============
 async function loadUserSettings() {
     try {
+        // Get auth_user_id from session (source of truth)
+        let authUserId = null;
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            authUserId = session?.user?.id;
+        } catch (e) {
+            console.warn('[FINAL] Could not get auth session:', e);
+        }
+
+        if (!authUserId) {
+            console.log('[FINAL] No auth session, skipping user settings load');
+            return null;
+        }
+
         const { data, error } = await supabaseClient
             .from('user_profiles')
             .select('*')
-            .limit(1)
-            .single();
+            .eq('auth_user_id', authUserId)
+            .maybeSingle();
 
-        if (error) {
-            console.log('[SUPABASE] No user settings found:', error.message);
+        if (error || !data) {
+            console.log('[SUPABASE] No user settings found:', error?.message || 'no profile row');
             return null;
         }
 

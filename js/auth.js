@@ -129,11 +129,12 @@
             throw error;
         }
 
-        // Store the profile id
+        // Store profile info in localStorage (raw values, no JSON.stringify)
         if (data && data.id) {
-            if (typeof setStorageItem === 'function') {
-                setStorageItem('fvp_user_id', data.id);
-            }
+            localStorage.setItem('fvp_user_id', data.id);
+            localStorage.setItem('fvp_user_name', data.full_name || '');
+            localStorage.setItem('fvp_user_email', data.email || '');
+            localStorage.setItem('fvp_auth_user_id', authUserId);
         }
 
         return data;

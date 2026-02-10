@@ -282,8 +282,22 @@
                     // User already has a role — go straight to app
                     localStorage.setItem('fvp_auth_role', profile.role);
                     if (profile.id) {
-                        setStorageItem('fvp_user_id', profile.id);
+                        localStorage.setItem('fvp_user_id', profile.id);
                     }
+                    localStorage.setItem('fvp_user_name', profile.full_name || '');
+                    localStorage.setItem('fvp_user_email', profile.email || '');
+                    localStorage.setItem('fvp_auth_user_id', data.user.id);
+
+                    // Update device_id on this profile (informational, not for lookups)
+                    const deviceId = typeof getDeviceId === 'function' ? getDeviceId() : null;
+                    if (deviceId) {
+                        supabaseClient
+                            .from('user_profiles')
+                            .update({ device_id: deviceId })
+                            .eq('auth_user_id', data.user.id)
+                            .then(() => console.log('[LOGIN] Updated device_id on profile'));
+                    }
+
                     window.location.href = 'index.html';
                     return;
                 }
@@ -389,7 +403,10 @@
                 }
 
                 if (profile && profile.id) {
-                    setStorageItem('fvp_user_id', profile.id);
+                    localStorage.setItem('fvp_user_id', profile.id);
+                    localStorage.setItem('fvp_user_name', profile.full_name || name);
+                    localStorage.setItem('fvp_user_email', profile.email || email);
+                    localStorage.setItem('fvp_auth_user_id', data.user.id);
                 }
 
                 // Show role picker
