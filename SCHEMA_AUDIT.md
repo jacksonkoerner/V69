@@ -14,7 +14,7 @@
 | Table | Status | Used By |
 |-------|--------|---------|
 | `projects` | ✅ OK | data-layer.js, project-config.js, report.js |
-| `reports` | ✅ OK | data-layer.js, report.js, sync-manager.js |
+| `reports` | ✅ OK | data-layer.js, report.js |
 | `final_reports` | ✅ OK | report.js |
 | `photos` | ✅ OK | data-layer.js (IndexedDB primary, Supabase sync) |
 | `user_profiles` | ✅ OK | data-layer.js, report.js |
@@ -27,8 +27,8 @@
 ### Created (4 tables — were missing)
 | Table | Status | Used By | Notes |
 |-------|--------|---------|-------|
-| `report_entries` | ✅ Created | sync-manager.js | Real-time entry backup, upsert by (report_id, local_id) |
-| `report_raw_capture` | ✅ Created | report.js, sync-manager.js | Raw capture data (JSONB: entries, contractors, equipment) |
+| `report_entries` | ✅ Created | (unused — sync-manager.js removed) | Real-time entry backup, upsert by (report_id, local_id) |
+| `report_raw_capture` | ✅ Created | report.js | Raw capture data (JSONB: entries, contractors, equipment) |
 | `final_report_sections` | ✅ Created | data-layer.js | Submit flow: upsert by (report_id, section_key) |
 | `contractors` | ✅ Created | project-config.js | Per-project contractor list (also stored as JSONB in projects.contractors) |
 

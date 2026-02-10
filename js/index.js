@@ -1359,9 +1359,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-        // Initialize sync manager
-        initSyncManager();
-
         // Load local projects first
         let projects = await window.dataLayer.loadProjects();
 
