@@ -98,10 +98,6 @@
 - **Writes:** Permission flags to localStorage
 - **Navigates to:** index.html
 
-### finalreview.html
-- **Purpose:** DEPRECATED — now just redirects to report.html
-- **Contains:** 26-line redirect script only
-
 ### landing.html
 - **Purpose:** Marketing/info page
 - **Auth:** NOT protected

@@ -26,7 +26,6 @@
 ├── index.html                  ← 12 HTML files, all in root
 ├── quick-interview.html
 ├── report.html
-├── finalreview.html
 ├── archives.html
 ├── permissions.html
 ├── projects.html
@@ -44,7 +43,6 @@
 │   ├── pwa-utils.js
 │   ├── quick-interview.js      ← 244K, largest file
 │   ├── report.js               ← 110K
-│   ├── finalreview.js          ← 84K
 │   └── ... (30 more modules)
 │
 ├── assets/                     ← Favicons, brand images (8 files)
@@ -265,8 +263,8 @@ Every external resource the app loads over the network:
 | **Leaflet** | 1.9.4 | unpkg.com | index.html | MEDIUM — maps page broken |
 | **Leaflet CSS** | 1.9.4 | unpkg.com | index.html | MEDIUM — maps unstyled |
 | **jsQR** | 1.4.0 | cdn.jsdelivr.net | index.html | MEDIUM — QR scanner broken |
-| **html2canvas** | 1.4.1 | cdnjs.cloudflare.com | finalreview.html | MEDIUM — PDF export broken |
-| **jsPDF** | 2.5.1 | cdnjs.cloudflare.com | finalreview.html | MEDIUM — PDF export broken |
+| **html2canvas** | 1.4.1 | cdnjs.cloudflare.com | report.html | MEDIUM — PDF export broken |
+| **jsPDF** | 2.5.1 | cdnjs.cloudflare.com | report.html | MEDIUM — PDF export broken |
 | **Google Fonts (Inter)** | — | fonts.googleapis.com | landing.html | LOW — falls back to system font |
 | **FA woff2 fonts** | 6.4.0 | cdnjs.cloudflare.com | (loaded by FA CSS) | Cached by SW |
 

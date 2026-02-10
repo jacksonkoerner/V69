@@ -560,7 +560,7 @@ Could not query RLS policies directly (no `supabase inspect db policies` command
 | `fvp_projects` | data-layer.js (loadProjects, refreshProjectsFromCloud) | report-rules.js (canStartNewReport via getStorageItem) | **NEVER** | `{ [projectId]: { id, projectName, ... } }` |
 | `fvp_active_project_id` | index.js (selectProjectAndProceed), data-layer.js | ALL pages via getStorageItem | **NEVER** | `"uuid-string"` |
 | `fvp_current_reports` | quick-interview.js (saveToLocalStorage, updateLocalReportToRefined, finishMinimalReport, finishReport), storage-keys.js (saveCurrentReport, deleteCurrentReport), report.js (cleanupLocalStorage, executeDeleteReport) | report-rules.js (getReportsByUrgency, canStartNewReport), quick-interview.js (loadFromLocalStorage), index.js (via report-rules.js) | Entries deleted on submit/cancel/delete. Map itself is **NEVER** fully deleted. | `{ [draftKey_or_uuid]: { id, project_id, project_name, date, status, capture_mode, created_at, updated_at, _draft_data?, lastSaved? } }` |
-| `fvp_report_{uuid}` | quick-interview.js (finishMinimalReport, finishReport), report.js (saveReportToLocalStorage) | report.js (loadReport), ~~finalreview.js~~ (redirects now) | report.js (cleanupLocalStorage, executeDeleteReport) | `{ reportId, projectId, reportDate, status, aiGenerated, captureMode, originalInput, userEdits, createdAt, lastSaved }` |
+| `fvp_report_{uuid}` | quick-interview.js (finishMinimalReport, finishReport), report.js (saveReportToLocalStorage) | report.js (loadReport) | report.js (cleanupLocalStorage, executeDeleteReport) | `{ reportId, projectId, reportDate, status, aiGenerated, captureMode, originalInput, userEdits, createdAt, lastSaved }` |
 | `fvp_ai_reports` | — | — | — | Defined but **UNUSED** |
 | `fvp_drafts` | — | — | — | Defined but **UNUSED** |
 | `fvp_sync_queue` | quick-interview.js (handleOfflineProcessing via addToSyncQueue) | sync-manager.js | quick-interview.js (clearSyncQueueForReport) | `[ { type, action, data, timestamp, reportId? } ]` |
@@ -717,10 +717,6 @@ Could not query RLS policies directly (no `supabase inspect db policies` command
 | **Writes** | `fvp_report_{uuid}` (user edits), `fvp_current_reports` (status updates), Supabase reports, final_reports, final_report_sections, report-pdfs storage |
 | **Passes to next** | `archives.html?submitted=true` on submit, `index.html` on delete |
 | **Cleanup** | On submit: deletes `fvp_report_{uuid}`, entry from `fvp_current_reports`, IDB photos. On delete: same + Supabase cascade. |
-
-### 6.7 `finalreview.html`
-
-**Now a redirect stub.** Redirects to `report.html?tab=preview` with same URL params. No logic.
 
 ### 6.8 `projects.html`
 

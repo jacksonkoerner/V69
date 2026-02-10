@@ -13,11 +13,11 @@
 ### Pre-existing (10 tables)
 | Table | Status | Used By |
 |-------|--------|---------|
-| `projects` | ✅ OK | data-layer.js, project-config.js, report.js, finalreview.js |
-| `reports` | ✅ OK | data-layer.js, report.js, sync-manager.js, finalreview.js |
-| `final_reports` | ✅ OK | report.js, finalreview.js |
+| `projects` | ✅ OK | data-layer.js, project-config.js, report.js |
+| `reports` | ✅ OK | data-layer.js, report.js, sync-manager.js |
+| `final_reports` | ✅ OK | report.js |
 | `photos` | ✅ OK | data-layer.js (IndexedDB primary, Supabase sync) |
-| `user_profiles` | ✅ OK | data-layer.js, report.js, finalreview.js |
+| `user_profiles` | ✅ OK | data-layer.js, report.js |
 | `ai_responses` | ✅ OK | supabase-utils.js |
 | `report_activities` | ✅ OK | Additional report data |
 | `report_equipment` | ✅ OK | Additional report data |
@@ -45,7 +45,7 @@ Both are maintained — project-config.js loads from the table, while other page
 |--------|--------|---------|
 | `report-photos` | ✅ OK | Photo uploads during report capture |
 | `project-logos` | ✅ OK | Project logo uploads in project-config.js |
-| `report-pdfs` | ✅ OK | PDF generation in report.js, finalreview.js |
+| `report-pdfs` | ✅ OK | PDF generation in report.js |
 
 ## Column Compatibility
 

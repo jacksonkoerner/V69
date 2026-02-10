@@ -1,7 +1,7 @@
 # Data Flow Audit Report
 
 **Generated:** 2026-02-10
-**Scope:** js/data-layer.js, js/sync-manager.js, js/indexeddb-utils.js, js/storage-keys.js, js/supabase-utils.js, js/index.js, js/quick-interview.js, js/report.js, js/finalreview.js, js/lock-manager.js, js/auth.js, js/media-utils.js
+**Scope:** js/data-layer.js, js/sync-manager.js, js/indexeddb-utils.js, js/storage-keys.js, js/supabase-utils.js, js/index.js, js/quick-interview.js, js/report.js, js/lock-manager.js, js/auth.js, js/media-utils.js
 
 ---
 
@@ -18,7 +18,7 @@ Database: `fieldvoice-pro`, Version: 2
 
 ### Notes
 - The `archives` store is created in the DB schema but has no CRUD operations implemented in indexeddb-utils.js (no functions exist for it). It is completely unused.
-- The `photos` store is also read/deleted by report.js (`deletePhotosByReportId` during cleanup) and finalreview.js (`deletePhotosByReportId` during cleanup), and index.js (`deletePhotosByReportId` during delete-and-start-fresh).
+- The `photos` store is also read/deleted by report.js (`deletePhotosByReportId` during cleanup) and index.js (`deletePhotosByReportId` during delete-and-start-fresh).
 - index.js calls `clearStore('projects')` for a one-time migration (line 1351).
 
 ---
@@ -37,8 +37,6 @@ Database: `fieldvoice-pro`, Version: 2
 | report.js | 2397-2399 | `reports` | `id`, `project_id`, `user_id`, `device_id`, `report_date`, `status`, `capture_mode`, `updated_at` | Called from `saveReportToSupabase()` |
 | report.js | 4247-4249 | `reports` | Same as above | `ensureReportExists()` during submit flow |
 | report.js | 4272-4274 | `final_reports` | `report_id`, `project_id`, `user_id`, `report_date`, `inspector_name`, `pdf_url`, `submitted_at`, `status` | `saveToFinalReports()` during submit flow |
-| finalreview.js | 2608-2610 | `reports` | `id`, `project_id`, `device_id`, `user_id`, `report_date`, `status`, `capture_mode`, `created_at`, `updated_at` | `ensureReportExists()` during submit flow |
-| finalreview.js | 2639-2641 | `final_reports` | `report_id`, `project_id`, `user_id`, `report_date`, `inspector_name`, `pdf_url`, `submitted_at`, `status` | `saveToFinalReports()` during submit flow |
 | lock-manager.js | 109 | `active_reports` | `project_id`, `report_date`, `device_id`, `inspector_name`, `locked_at`, `last_heartbeat` | `acquireLock()` — user action (opening interview page) |
 | auth.js | 121-125 | `user_profiles` | `auth_user_id`, `full_name`, `title`, `company`, `email`, `phone`, `updated_at` | `upsertAuthProfile()` — user saves profile |
 
@@ -47,7 +45,6 @@ Database: `fieldvoice-pro`, Version: 2
 | File | Line | Table | Data Written | Trigger |
 |---|---|---|---|---|
 | report.js | 4284-4291 | `reports` | `status`, `submitted_at`, `updated_at` | `updateReportStatus()` during submit flow |
-| finalreview.js | 2656-2663 | `reports` | `status`, `submitted_at`, `updated_at` | `updateReportStatus()` during submit flow |
 | lock-manager.js | 207-212 | `active_reports` | `last_heartbeat` | `updateHeartbeat()` — 2-minute interval timer |
 | data-layer.js | 471-478 | `reports` | `status`, `submitted_at`, `updated_at` | `submitFinalReport()` — **DEAD CODE, never called** |
 
@@ -57,7 +54,6 @@ Database: `fieldvoice-pro`, Version: 2
 |---|---|---|---|
 | quick-interview.js | 3728-3741 | `report-photos` | User takes/selects photo (`uploadPhotoToSupabase`) |
 | report.js | 4210-4223 | `report-pdfs` | Submit flow (`uploadPDFToStorage`) |
-| finalreview.js | 2560-2576 | `report-pdfs` | Submit flow (`uploadPDFToStorage`) |
 | media-utils.js | 151-166 | `project-logos` | User uploads project logo (`uploadLogoToStorage`) |
 
 ---
@@ -70,10 +66,6 @@ Database: `fieldvoice-pro`, Version: 2
 | data-layer.js | 134-138 | `projects` | `SELECT *` single by `id` | `loadActiveProject()` — fallback when not in IndexedDB |
 | data-layer.js | 268-272 | `user_profiles` | `SELECT *` by `auth_user_id` | `loadUserSettings()` — fallback when not in IndexedDB |
 | data-layer.js | 439-444 | `reports` | `SELECT *, projects(id, project_name)` where status='submitted' | `loadArchivedReports()` — **DEAD CODE, never called** |
-| finalreview.js | 77-81 | `projects` | `SELECT *` single by `id` | `loadActiveProject()` — page init |
-| finalreview.js | 112 | (auth) | `supabaseClient.auth.getSession()` | Get auth_user_id for user_profiles query |
-| finalreview.js | 123-127 | `user_profiles` | `SELECT *` by `auth_user_id` | `loadUserSettings()` — page init |
-| finalreview.js | 437-441 | `final_reports` | `SELECT pdf_url` single by `report_id` | Delete flow — get PDF path for storage cleanup |
 | quick-interview.js | 1100 | `photos` | `SELECT id, storage_path` by `report_id` | `deleteReportFromSupabase()` — cancel report flow |
 | quick-interview.js | 1140 | `final_reports` | `SELECT pdf_url` single by `report_id` | `deleteReportFromSupabase()` — cancel report flow |
 | quick-interview.js | 3529 | (storage) | `report-photos` `getPublicUrl()` | `reconstructReportFromSupabase()` — fallback URL reconstruction |
@@ -173,13 +165,7 @@ This should be a single shared utility function.
 | report.js:2276 | `setTimeout` 5000ms | Report edit state | **Supabase** `report_backup` table | `markReportBackupDirty()` — 5s quiet debounce |
 | report.js:4538-4544 | `visibilitychange` | Report edit state | **localStorage** + **Supabase** `report_backup` | Tab switch/lock phone |
 | report.js:4547-4553 | `pagehide` | Report edit state | **localStorage** + **Supabase** `report_backup` | Page navigation/close |
-| finalreview.js:3100-3102 | `setTimeout` 500ms | Report edit state | **localStorage** only (`saveReportToLocalStorage`) | `scheduleSave()` — any field input |
-| finalreview.js:3082-3089 | `blur` event | Report edit state | **localStorage** only | Field blur — immediate save |
 | lock-manager.js:235 | `setInterval` 120000ms (2min) | `last_heartbeat` timestamp | **Supabase** `active_reports` table | `startHeartbeat()` after acquiring lock |
-
-### Autosave not present in finalreview.js
-- **No visibilitychange/pagehide listeners** — data loss risk if user switches tabs on finalreview.js
-- **No Supabase backup** — only saves to localStorage
 
 ---
 
@@ -264,7 +250,7 @@ The `photos` table is only ever SELECT'd to get `storage_path` values for deleti
 
 | Function | Called? | Called From |
 |---|---|---|
-| `fromSupabaseProject` | Yes | index.js, quick-interview.js, report.js, finalreview.js, data-layer.js |
+| `fromSupabaseProject` | Yes | index.js, quick-interview.js, report.js, data-layer.js |
 | `fromSupabaseEquipment` | **NEVER** | Only mentioned in a comment header |
 | `toSupabaseProject` | **NEVER** | — |
 | `fromSupabaseContractor` | **NEVER** | — |
@@ -300,21 +286,17 @@ The `photos` table is only ever SELECT'd to get `storage_path` values for deleti
 | File | Approach |
 |---|---|
 | data-layer.js:104 | IndexedDB-first, Supabase-fallback, caches result |
-| finalreview.js:68 | Direct Supabase call, no caching |
 | quick-interview.js:2521 (deprecated comment) | Direct Supabase call |
 | report.js:797 (deprecated comment) | Direct Supabase call |
 | index.js:98 (deprecated) | IndexedDB + Supabase fallback |
 
-finalreview.js still uses its own `loadActiveProject()` at line 68 instead of `window.dataLayer.loadActiveProject()`. quick-interview.js and report.js have migrated.
+quick-interview.js and report.js have migrated to `window.dataLayer.loadActiveProject()`.
 
 **Violation 2: `loadUserSettings()` duplicated in 2+ files**
 
 | File | Approach |
 |---|---|
 | data-layer.js:232 | IndexedDB-first, Supabase-fallback, caches result |
-| finalreview.js:107 | Direct Supabase call, no caching |
-
-finalreview.js still uses its own `loadUserSettings()` at line 107 instead of `window.dataLayer.loadUserSettings()`.
 
 **Violation 3: Report deletion cascade duplicated in 3 files**
 
@@ -325,50 +307,7 @@ See Section 4 — the exact same cascading delete sequence appears in:
 
 ### "Function needed in 2+ files? It belongs in /js/ shared module"
 
-**Violation 4: `ensureReportExists()` duplicated**
-
-| File | Line |
-|---|---|
-| report.js | 4237-4256 |
-| finalreview.js | 2585-2617 |
-
-Nearly identical — both upsert a report row with same fields.
-
-**Violation 5: `saveToFinalReports()` duplicated**
-
-| File | Line |
-|---|---|
-| report.js | 4260-4280 |
-| finalreview.js | 2623-2646 |
-
-Nearly identical — both upsert to `final_reports` with same fields.
-
-**Violation 6: `updateReportStatus()` duplicated**
-
-| File | Line |
-|---|---|
-| report.js | 4282-4298 |
-| finalreview.js | 2653-2674 |
-
-Same logic — update `reports.status`, `submitted_at`, `updated_at`.
-
-**Violation 7: `uploadPDFToStorage()` duplicated**
-
-| File | Line |
-|---|---|
-| report.js | 4200-4230 |
-| finalreview.js | 2555-2580 |
-
-Same storage bucket upload + getPublicUrl pattern.
-
-**Violation 8: `cleanupLocalStorage()` duplicated**
-
-| File | Line |
-|---|---|
-| report.js | 4302-4326 |
-| finalreview.js | 2679-2699 |
-
-Both delete from localStorage and IndexedDB photos.
+**Violations 4-8: RESOLVED** — `ensureReportExists()`, `saveToFinalReports()`, `updateReportStatus()`, `uploadPDFToStorage()`, `cleanupLocalStorage()` were duplicated in finalreview.js. finalreview.js has been removed; these functions now live only in report.js.
 
 ### Same Supabase call pattern in 2+ page files
 
@@ -381,58 +320,12 @@ Both delete from localStorage and IndexedDB photos.
 | `.from('report_backup').delete().eq('report_id', ...)` | index.js:432, report.js:4499 |
 | `.from('ai_submissions').delete().eq('report_id', ...)` | index.js:433, report.js:4500 |
 | `.storage.from('report-pdfs').remove(...)` | index.js:445, report.js:4512, quick-interview.js:1148 |
-| `.from('projects').select('*').eq('id', ...).single()` | data-layer.js:134, finalreview.js:77 |
-| `.from('user_profiles').select('*').eq('auth_user_id', ...).maybeSingle()` | data-layer.js:268, finalreview.js:123, auth.js:149 |
+| `.from('projects').select('*').eq('id', ...).single()` | data-layer.js:134 |
+| `.from('user_profiles').select('*').eq('auth_user_id', ...).maybeSingle()` | data-layer.js:268, auth.js:149 |
 
 ---
 
-## 9. finalreview.js Overlap with report.js
-
-finalreview.js is being retired. Here is every Supabase call in finalreview.js compared to report.js:
-
-### Reads
-
-| finalreview.js | report.js | Comparison |
-|---|---|---|
-| Line 77-81: `projects.select('*').eq('id').single()` | Line 799-803 (deprecated) | **Exact duplicate** — but report.js deprecated this in favor of dataLayer |
-| Line 112: `supabaseClient.auth.getSession()` | (not in report.js directly) | No equivalent in report.js — report.js relies on dataLayer |
-| Line 123-127: `user_profiles.select('*').eq('auth_user_id').maybeSingle()` | Line 835-838 (deprecated) | **Exact duplicate** — but report.js deprecated this in favor of dataLayer |
-
-### Writes
-
-| finalreview.js | report.js | Comparison |
-|---|---|---|
-| Line 2608-2610: `reports.upsert(reportRow, { onConflict: 'id' })` | Line 4247-4249: `reports.upsert(...)` | **Exact duplicate** — identical `ensureReportExists()` function |
-| Line 2639-2641: `final_reports.upsert(finalReportData, { onConflict: 'report_id' })` | Line 4272-4274: `final_reports.upsert(...)` | **Exact duplicate** — identical `saveToFinalReports()` function |
-| Line 2656-2663: `reports.update({ status, submitted_at, updated_at })` | Line 4284-4291: `reports.update(...)` | **Exact duplicate** — identical `updateReportStatus()` function |
-
-### Storage
-
-| finalreview.js | report.js | Comparison |
-|---|---|---|
-| Line 2560-2576: `report-pdfs.upload()` + `getPublicUrl()` | Line 4210-4223: `report-pdfs.upload()` + `getPublicUrl()` | **Exact duplicate** — identical `uploadPDFToStorage()` function |
-
-### Other
-
-| finalreview.js | report.js | Comparison |
-|---|---|---|
-| Line 2689-2695: `idb.deletePhotosByReportId()` | Line 4317-4323: `idb.deletePhotosByReportId()` | **Exact duplicate** — identical cleanup logic |
-| Line 3100-3102: `setTimeout(saveReportToLocalStorage, 500)` | Line 2256-2258: `setTimeout(saveReport, 500)` | **Similar** — both debounce save to localStorage at 500ms |
-
-### Summary
-- **5 exact Supabase call duplicates** between finalreview.js and report.js
-- **1 exact storage duplicate** (PDF upload)
-- **1 exact IndexedDB duplicate** (photo cleanup)
-- All submit-flow functions (`ensureReportExists`, `saveToFinalReports`, `updateReportStatus`, `uploadPDFToStorage`, `cleanupLocalStorage`) are copy-pasted
-
-### What differs
-- finalreview.js has its own `loadActiveProject()` and `loadUserSettings()` (direct Supabase calls) while report.js uses `window.dataLayer`
-- finalreview.js has **no visibilitychange/pagehide autosave** (report.js does)
-- finalreview.js has **no Supabase report_backup autosave** (report.js does)
-
----
-
-## 10. References to Removed Tables
+## 9. References to Removed Tables
 
 ### `active_reports`
 
@@ -475,9 +368,7 @@ All references are in disabled code paths that return errors. No live Supabase c
 2. **sync-manager.js is 100% dead** — every function is either a no-op (`AUTO_SYNC_ENABLED = false`) or returns an error for removed tables
 3. **supabase-utils.js is 91% dead** — only `fromSupabaseProject` is used; all `toSupabase*` converters are bypassed
 4. **data-layer.js is 71% dead** — 15 of 21 exported methods are never called
-5. **finalreview.js duplicates 7 functions** from report.js — all submit-flow code is copy-pasted
+5. ~~**finalreview.js duplicates 7 functions** from report.js~~ — **RESOLVED**: finalreview.js removed, all functionality lives in report.js
 6. **3 Supabase backup tables** (`interview_backup`, `report_backup`, `ai_submissions`) are written to but never read — no crash recovery path exists
 7. **lock-manager.js references `active_reports`** which is removed — causing silent Supabase errors
 8. **IndexedDB `archives` store** is in the schema but has zero operations
-9. **finalreview.js bypasses the data layer** — implements its own `loadActiveProject()` and `loadUserSettings()` with direct Supabase calls
-10. **No `visibilitychange`/`pagehide` safety net** in finalreview.js — user edits can be lost if user switches away

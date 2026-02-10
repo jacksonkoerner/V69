@@ -10,7 +10,6 @@ const STATIC_ASSETS = [
     './index.html',
     './quick-interview.html',
     './report.html',
-    './finalreview.html',
     './permissions.html',
     './permission-debug.html',
     './settings.html',
