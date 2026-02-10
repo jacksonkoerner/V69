@@ -471,6 +471,42 @@ function goToProjectSetup() {
     window.location.href = 'project-config.html';
 }
 
+// ============ REPORT MAP PRUNING ============
+function pruneCurrentReports() {
+    const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS);
+    if (!reports || typeof reports !== 'object') return;
+
+    const now = Date.now();
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    let pruned = 0;
+
+    for (const [id, report] of Object.entries(reports)) {
+        // Remove malformed entries (no id or no project_id)
+        if (!report.id || !report.project_id) {
+            delete reports[id];
+            pruned++;
+            continue;
+        }
+
+        // Remove submitted reports older than 24 hours
+        if (report.status === 'submitted') {
+            const submitTime = report.submitted_at
+                ? new Date(report.submitted_at).getTime()
+                : (typeof report.updated_at === 'number' ? report.updated_at : new Date(report.updated_at || 0).getTime());
+
+            if (now - submitTime > TWENTY_FOUR_HOURS) {
+                delete reports[id];
+                pruned++;
+            }
+        }
+    }
+
+    if (pruned > 0) {
+        setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, reports);
+        console.log(`[PRUNE] Pruned ${pruned} stale/malformed report(s) from local map`);
+    }
+}
+
 // ============ REPORT CARDS (v6.9: Grouped by Project) ============
 function renderReportCards() {
     const container = document.getElementById('reportCardsSection');
@@ -1312,6 +1348,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Load active project
         activeProjectCache = await window.dataLayer.loadActiveProject();
+
+        // Prune stale reports before rendering
+        pruneCurrentReports();
 
         // Update UI - reports come from localStorage now
         updateActiveProjectCard();
