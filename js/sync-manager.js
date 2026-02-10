@@ -67,34 +67,9 @@ async function backupEntry(reportId, entry) {
         return { success: false, error: 'offline' };
     }
 
-    try {
-        const supabaseEntry = toSupabaseEntry(entry, reportId);
-
-        // Upsert based on local_id
-        const { error } = await supabaseClient
-            .from('report_entries')
-            .upsert(supabaseEntry, {
-                onConflict: 'report_id,local_id',
-                ignoreDuplicates: false
-            });
-
-        if (error) {
-            console.error('[SYNC] Entry backup failed:', error);
-            addToSyncQueue({
-                type: 'ENTRY_BACKUP',
-                reportId,
-                entry,
-                timestamp: new Date().toISOString()
-            });
-            return { success: false, error: error.message };
-        }
-
-        console.log('[SYNC] Entry backed up:', entry.id);
-        return { success: true };
-    } catch (e) {
-        console.error('[SYNC] Entry backup exception:', e);
-        return { success: false, error: e.message };
-    }
+    // report_entries table removed — backup disabled
+    console.log('[SYNC] Entry backup disabled (table removed):', entry?.id);
+    return { success: false, error: 'report_entries table removed' };
 }
 
 /**
@@ -116,27 +91,9 @@ async function backupAllEntries(reportId, entries) {
         return { success: false, backed: 0, failed: entries.length };
     }
 
-    try {
-        const supabaseEntries = entries.map(e => toSupabaseEntry(e, reportId));
-
-        const { error } = await supabaseClient
-            .from('report_entries')
-            .upsert(supabaseEntries, {
-                onConflict: 'report_id,local_id',
-                ignoreDuplicates: false
-            });
-
-        if (error) {
-            console.error('[SYNC] Batch entry backup failed:', error);
-            return { success: false, backed: 0, failed: entries.length };
-        }
-
-        console.log('[SYNC] Backed up', entries.length, 'entries');
-        return { success: true, backed: entries.length, failed: 0 };
-    } catch (e) {
-        console.error('[SYNC] Batch backup exception:', e);
-        return { success: false, backed: 0, failed: entries.length };
-    }
+    // report_entries table removed — batch backup disabled
+    console.log('[SYNC] Batch entry backup disabled (table removed)');
+    return { success: false, backed: 0, failed: entries.length };
 }
 
 /**
@@ -156,22 +113,9 @@ async function deleteEntry(reportId, localId) {
         return { success: false, error: 'offline' };
     }
 
-    try {
-        const { error } = await supabaseClient
-            .from('report_entries')
-            .update({ is_deleted: true })
-            .eq('report_id', reportId)
-            .eq('local_id', localId);
-
-        if (error) {
-            console.error('[SYNC] Entry delete failed:', error);
-            return { success: false, error: error.message };
-        }
-
-        return { success: true };
-    } catch (e) {
-        return { success: false, error: e.message };
-    }
+    // report_entries table removed — delete disabled
+    console.log('[SYNC] Entry delete disabled (table removed)');
+    return { success: false, error: 'report_entries table removed' };
 }
 
 // ============ REPORT SYNC ============
@@ -193,56 +137,9 @@ async function syncReport(report, projectId) {
         return { success: false, error: 'offline' };
     }
 
-    try {
-        const userId = await getCurrentUserId();
-        const deviceId = getDeviceId();
-        const supabaseReport = toSupabaseReport(report, projectId, userId, deviceId);
-
-        // Check if report exists
-        const { data: existing } = await supabaseClient
-            .from('reports')
-            .select('id')
-            .eq('project_id', projectId)
-            .eq('report_date', report.date)
-            .eq('user_id', userId)
-            .single();
-
-        let reportId;
-
-        if (existing) {
-            // Update existing
-            const { error } = await supabaseClient
-                .from('reports')
-                .update(supabaseReport)
-                .eq('id', existing.id);
-
-            if (error) throw error;
-            reportId = existing.id;
-            console.log('[SYNC] Report updated:', reportId);
-        } else {
-            // Insert new
-            const { data, error } = await supabaseClient
-                .from('reports')
-                .insert(supabaseReport)
-                .select('id')
-                .single();
-
-            if (error) throw error;
-            reportId = data.id;
-            console.log('[SYNC] Report created:', reportId);
-        }
-
-        return { success: true, reportId };
-    } catch (e) {
-        console.error('[SYNC] Report sync failed:', e);
-        addToSyncQueue({
-            type: 'REPORT_SYNC',
-            report,
-            projectId,
-            timestamp: new Date().toISOString()
-        });
-        return { success: false, error: e.message };
-    }
+    // Sync manager disabled — reports are saved directly by page code
+    console.log('[SYNC] Report sync disabled (managed by page code)');
+    return { success: false, error: 'sync disabled' };
 }
 
 /**
@@ -262,24 +159,9 @@ async function syncRawCapture(captureData, reportId) {
         return { success: false, error: 'offline' };
     }
 
-    try {
-        const supabaseCapture = toSupabaseRawCapture(captureData, reportId);
-
-        const { error } = await supabaseClient
-            .from('report_raw_capture')
-            .upsert(supabaseCapture, {
-                onConflict: 'report_id',
-                ignoreDuplicates: false
-            });
-
-        if (error) throw error;
-
-        console.log('[SYNC] Raw capture synced for report:', reportId);
-        return { success: true };
-    } catch (e) {
-        console.error('[SYNC] Raw capture sync failed:', e);
-        return { success: false, error: e.message };
-    }
+    // report_raw_capture table removed — sync disabled
+    console.log('[SYNC] Raw capture sync disabled (table removed)');
+    return { success: false, error: 'report_raw_capture table removed' };
 }
 
 // ============ OFFLINE QUEUE PROCESSING ============

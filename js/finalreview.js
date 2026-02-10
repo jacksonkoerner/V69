@@ -1408,7 +1408,7 @@ async function submitReport() {
 
         // 7. Update reports table status to 'submitted'
         console.log('[SUBMIT] Updating report status...');
-        await updateReportStatus('submitted', pdfUrl);
+        await updateReportStatus('submitted');
         console.log('[SUBMIT] Report status updated');
 
         // 8. Clear local storage for this report
@@ -2607,58 +2607,18 @@ async function ensureReportExists() {
  * @param {string} pdfUrl - URL of the uploaded PDF
  */
 async function saveToFinalReports(pdfUrl) {
-    const reportData = getReportData(currentReportId) || {};
-    const weather = report.overview?.weather || {};
     const submittedAt = new Date().toISOString();
-
-    // Helper to clean weather values - convert "--", "N/A", empty to null
-    // Also extract numeric values from strings like "71°F", "39°F", "0.00""
-    function cleanWeatherValue(val) {
-        if (val === null || val === undefined || val === '' || val === '--' || val === 'N/A') {
-            return null;
-        }
-        // Extract numeric value from strings like "71°F", "39°F", "0.00""
-        const numMatch = String(val).match(/^[\d.]+/);
-        if (numMatch) {
-            const num = parseFloat(numMatch[0]);
-            return isNaN(num) ? null : num;
-        }
-        return null;
-    }
+    const reportDate = getReportDate();
 
     const finalReportData = {
         report_id: currentReportId,
+        project_id: activeProject?.id || null,
+        user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
+        report_date: reportDate,
+        inspector_name: report.overview?.completedBy || '',
         pdf_url: pdfUrl,
         submitted_at: submittedAt,
-        // Weather fields (cleaned to convert "--" to null for numeric columns)
-        weather_high_temp: cleanWeatherValue(weather.highTemp),
-        weather_low_temp: cleanWeatherValue(weather.lowTemp),
-        weather_precipitation: cleanWeatherValue(weather.precipitation),
-        weather_general_condition: cleanWeatherValue(weather.generalCondition),
-        weather_job_site_condition: cleanWeatherValue(weather.jobSiteCondition),
-        weather_adverse_conditions: cleanWeatherValue(weather.adverseConditions),
-        // Text summary fields
-        executive_summary: report.aiGenerated?.executive_summary || report.aiGenerated?.executiveSummary || '',
-        work_performed: report.aiGenerated?.work_performed || report.aiGenerated?.workPerformed || '',
-        safety_observations: report.safety?.notes || report.aiGenerated?.safety?.summary || '',
-        delays_issues: report.issues || '',
-        qaqc_notes: report.qaqc || '',
-        communications_notes: report.communications || '',
-        visitors_deliveries_notes: report.visitors || '',
-        inspector_notes: report.aiGenerated?.inspector_notes || '',
-        // Store structured data in JSONB columns
-        contractors_json: report.aiGenerated?.activities || report.activities || [],
-        personnel_json: report.aiGenerated?.operations || report.operations || [],
-        equipment_json: report.aiGenerated?.equipment || report.equipment || [],
-        // Boolean flags
-        has_contractor_personnel: (report.aiGenerated?.activities?.length > 0) || (report.aiGenerated?.operations?.length > 0),
-        has_equipment: (report.aiGenerated?.equipment?.length > 0) || (report.equipment?.length > 0),
-        has_issues: !!report.issues,
-        has_communications: !!report.communications,
-        has_qaqc: !!report.qaqc,
-        has_safety_incidents: report.safety?.hasIncident || report.aiGenerated?.safety?.has_incidents || false,
-        has_visitors_deliveries: !!report.visitors,
-        has_photos: report.photos?.length > 0
+        status: 'submitted'
     };
 
     // Upsert to final_reports (insert or update if exists)
@@ -2676,7 +2636,7 @@ async function saveToFinalReports(pdfUrl) {
  * @param {string} status - New status (e.g., 'submitted')
  * @param {string} pdfUrl - URL of the uploaded PDF
  */
-async function updateReportStatus(status, pdfUrl) {
+async function updateReportStatus(status) {
     const submittedAt = new Date().toISOString();
 
     const { error } = await supabaseClient
@@ -2684,8 +2644,7 @@ async function updateReportStatus(status, pdfUrl) {
         .update({
             status: status,
             submitted_at: submittedAt,
-            updated_at: submittedAt,
-            pdf_url: pdfUrl
+            updated_at: submittedAt
         })
         .eq('id', currentReportId);
 

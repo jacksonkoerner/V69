@@ -1013,50 +1013,12 @@
 
         /**
          * Handle "Force Edit" from lock warning modal (take over the lock)
+         * NOTE: Lock manager disabled — active_reports table removed.
+         * Just reload the page for now.
          */
         async function handleLockWarningForceEdit() {
-            const btn = document.getElementById('lockForceEditBtn');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Taking over...';
-            }
-
-            try {
-                const todayStr = getTodayDateString();
-                const inspectorName = userSettings?.full_name || '';
-
-                // Force acquire the lock
-                const { error } = await supabaseClient
-                    .from('active_reports')
-                    .upsert({
-                        project_id: activeProject.id,
-                        report_date: todayStr,
-                        device_id: getDeviceId(),
-                        inspector_name: inspectorName,
-                        locked_at: new Date().toISOString(),
-                        last_heartbeat: new Date().toISOString()
-                    }, { onConflict: 'project_id,report_date' });
-
-                if (error) {
-                    console.error('[LOCK] Force edit failed:', error);
-                    showToast('Failed to take over editing', 'error');
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i>Force Edit Anyway';
-                    }
-                    return;
-                }
-
-                // Reload the page to continue with normal initialization
-                window.location.reload();
-            } catch (e) {
-                console.error('[LOCK] Force edit exception:', e);
-                showToast('Failed to take over editing', 'error');
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i>Force Edit Anyway';
-                }
-            }
+            // Lock manager disabled — just reload
+            window.location.reload();
         }
 
         // ============ CANCEL REPORT FUNCTIONS ============
@@ -1155,25 +1117,31 @@
                     .delete()
                     .eq('report_id', reportId);
 
-                // 4. Delete from report_entries
+                // 4. Delete from interview_backup
                 await supabaseClient
-                    .from('report_entries')
+                    .from('interview_backup')
                     .delete()
                     .eq('report_id', reportId);
 
-                // 5. Delete from report_raw_capture
+                // 5. Delete from ai_submissions
                 await supabaseClient
-                    .from('report_raw_capture')
+                    .from('ai_submissions')
                     .delete()
                     .eq('report_id', reportId);
 
-                // 6. Delete from ai_responses (if any)
+                // 6. Delete from report_backup
                 await supabaseClient
-                    .from('ai_responses')
+                    .from('report_backup')
                     .delete()
                     .eq('report_id', reportId);
 
-                // 7. Delete from reports (last, as it's the parent)
+                // 7. Delete from final_reports
+                await supabaseClient
+                    .from('final_reports')
+                    .delete()
+                    .eq('report_id', reportId);
+
+                // 8. Delete from reports (last, as it's the parent)
                 await supabaseClient
                     .from('reports')
                     .delete()
@@ -2236,30 +2204,34 @@
         }
 
         /**
-         * Save AI response to Supabase
+         * Save AI submission to Supabase (both input and output)
+         * @param {Object} originalPayload - The payload sent TO n8n
+         * @param {Object} response - The response from n8n
+         * @param {number} processingTimeMs - Round-trip time in ms
          */
-        async function saveAIResponse(response, processingTimeMs) {
+        async function saveAIResponse(originalPayload, response, processingTimeMs) {
             if (!currentReportId) return;
 
             try {
-                const responseData = {
+                const submissionData = {
                     report_id: currentReportId,
-                    response_payload: response,
+                    original_input: originalPayload || null,
+                    ai_response: response || null,
                     model_used: 'n8n-fieldvoice-refine',
-                    processing_time_ms: processingTimeMs,
-                    received_at: new Date().toISOString()
+                    processing_time_ms: processingTimeMs || null,
+                    submitted_at: new Date().toISOString()
                 };
 
                 // Use upsert to handle retries/reprocessing - prevents duplicate rows
                 const { error } = await supabaseClient
-                    .from('ai_responses')
-                    .upsert(responseData, { onConflict: 'report_id' });
+                    .from('ai_submissions')
+                    .upsert(submissionData, { onConflict: 'report_id' });
 
                 if (error) {
-                    console.error('Error saving AI response:', error);
+                    console.error('Error saving AI submission:', error);
                 }
             } catch (err) {
-                console.error('Failed to save AI response:', err);
+                console.error('Failed to save AI submission:', err);
             }
         }
 
@@ -2434,9 +2406,6 @@
                 return;
             }
 
-            // Save AI request to Supabase
-            await saveAIRequest(payload);
-
             const startTime = Date.now();
 
             // Call webhook
@@ -2446,8 +2415,8 @@
                 setProcessingStep(4, 'active');
                 const processingTime = Date.now() - startTime;
 
-                // Save AI response to Supabase
-                await saveAIResponse(result.aiGenerated, processingTime);
+                // Save AI submission to Supabase (input + output)
+                await saveAIResponse(payload, result.aiGenerated, processingTime);
 
                 // Save AI response to local report
                 if (result.aiGenerated) {
@@ -3485,15 +3454,8 @@
             report.meta.status = reportRow.status;
             report.meta.interviewCompleted = reportRow.status === 'refined' || reportRow.status === 'submitted';
 
-            // Restore toggle states from database
-            if (reportRow.toggle_states && typeof reportRow.toggle_states === 'object') {
-                report.toggleStates = reportRow.toggle_states;
-            }
-            
-            // Restore safety_no_incidents flag
-            if (reportRow.safety_no_incidents !== null && reportRow.safety_no_incidents !== undefined) {
-                report.safety.noIncidents = reportRow.safety_no_incidents;
-            }
+            // Toggle states and safety_no_incidents now come from interview_backup page_state
+            // (no longer stored as direct columns on reports table)
 
             // Set raw capture data
             if (rawCapture) {
@@ -3515,7 +3477,7 @@
             // v6.6.24: Keep YYYY-MM-DD format as-is from database to avoid UTC timezone shift
             // The date will be formatted correctly using formatDisplayDate() when displayed
             report.overview.date = reportRow.report_date;
-            report.overview.completedBy = reportRow.inspector_name || '';
+            report.overview.completedBy = ''; // inspector_name now comes from user_profiles
 
             // Set contractor work/activities
             if (contractorWork && contractorWork.length > 0) {
@@ -3660,11 +3622,9 @@
                     user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
                     device_id: getDeviceId(),
                     report_date: todayStr,
-                    inspector_name: report.overview?.completedBy || userSettings?.full_name || '',
                     status: report.meta?.status || 'draft',
-                    updated_at: new Date().toISOString(),
-                    toggle_states: report.toggleStates || {},
-                    safety_no_incidents: report.safety?.noIncidents ?? null
+                    capture_mode: report.meta?.captureMode || 'guided',
+                    updated_at: new Date().toISOString()
                 };
 
                 const { error: reportError } = await supabaseClient
@@ -3680,77 +3640,36 @@
 
                 currentReportId = reportId;
 
-                // 2. Upsert raw capture data
-                // Build contractor_work array for storage in raw_data
-                const contractorWorkArray = report.activities && report.activities.length > 0
-                    ? report.activities.map(a => ({
-                        contractor_id: a.contractorId,
-                        no_work_performed: a.noWork || false,
-                        narrative: a.narrative || '',
-                        equipment_used: a.equipmentUsed || '',
-                        crew: a.crew || ''
-                    }))
-                    : [];
-
-                // Build personnel array for storage in raw_data
-                const personnelArray = report.operations && report.operations.length > 0
-                    ? report.operations.map(o => ({
-                        contractor_id: o.contractorId,
-                        superintendents: o.superintendents || 0,
-                        foremen: o.foremen || 0,
-                        operators: o.operators || 0,
-                        laborers: o.laborers || 0,
-                        surveyors: o.surveyors || 0,
-                        others: o.others || 0
-                    }))
-                    : [];
-
-                // Build equipment_usage array for storage in raw_data
-                const equipmentUsageArray = report.equipment && report.equipment.length > 0
-                    ? report.equipment.map(e => ({
-                        equipment_id: e.equipmentId,
-                        status: e.hoursUtilized === null ? 'idle' : 'active',
-                        hours_used: e.hoursUtilized || 0,
-                        notes: ''
-                    }))
-                    : [];
-
-                const rawCaptureData = {
-                    report_id: reportId,
-                    capture_mode: report.meta?.captureMode || 'guided',
-                    freeform_notes: (report.freeform_entries || [])
-                        .filter(e => e.content && e.content.trim())
-                        .sort((a, b) => a.created_at - b.created_at)
-                        .map(e => e.content.trim())
-                        .join('\n\n') || report.fieldNotes?.freeformNotes || '',
-                    work_summary: report.guidedNotes?.workSummary || '',
-                    issues_notes: report.generalIssues?.join('\n') || '',
-                    safety_notes: report.safety?.notes?.join('\n') || '',
-                    weather_data: report.overview?.weather || {},
-                    captured_at: new Date().toISOString(),
-                    // Store contractor_work, personnel, and equipment_usage in raw_data JSONB
-                    raw_data: {
-                        contractor_work: contractorWorkArray,
-                        personnel: personnelArray,
-                        equipment_usage: equipmentUsageArray
-                    }
+                // 2. Save page state to interview_backup (replaces report_raw_capture)
+                // This is a JSONB blob of the entire form state for recovery
+                const interviewPageState = {
+                    captureMode: report.meta?.captureMode || 'guided',
+                    freeform_entries: report.freeform_entries || [],
+                    fieldNotes: report.fieldNotes || {},
+                    guidedNotes: report.guidedNotes || {},
+                    activities: report.activities || [],
+                    operations: report.operations || [],
+                    equipment: report.equipment || [],
+                    equipmentRows: report.equipmentRows || [],
+                    overview: report.overview || {},
+                    safety: report.safety || {},
+                    generalIssues: report.generalIssues || [],
+                    toggleStates: report.toggleStates || {},
+                    entries: report.entries || [],
+                    savedAt: new Date().toISOString()
                 };
 
-                // Delete existing and insert new (simpler than upsert for child tables)
-                await supabaseClient
-                    .from('report_raw_capture')
-                    .delete()
-                    .eq('report_id', reportId);
+                const { error: backupError } = await supabaseClient
+                    .from('interview_backup')
+                    .upsert({
+                        report_id: reportId,
+                        page_state: interviewPageState,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'report_id' });
 
-                await supabaseClient
-                    .from('report_raw_capture')
-                    .insert(rawCaptureData);
-
-                // 3. Contractor work - now stored in raw_data.contractor_work (handled above in rawCaptureData)
-
-                // 4. Personnel - now stored in raw_data.personnel (handled above in rawCaptureData)
-
-                // 5. Equipment usage - now stored in raw_data.equipment_usage (handled above in rawCaptureData)
+                if (backupError) {
+                    console.warn('[SUPABASE] Interview backup failed:', backupError);
+                }
 
                 // Note: Photos are saved separately when uploaded via uploadPhotoToSupabase
 
@@ -5178,9 +5097,6 @@
                 return;
             }
 
-            // Save AI request to Supabase
-            await saveAIRequest(payload);
-
             const startTime = Date.now();
 
             // Call webhook
@@ -5190,8 +5106,8 @@
                 setProcessingStep(4, 'active');
                 const processingTime = Date.now() - startTime;
 
-                // Save AI response to Supabase
-                await saveAIResponse(result.aiGenerated, processingTime);
+                // Save AI submission to Supabase (input + output)
+                await saveAIResponse(payload, result.aiGenerated, processingTime);
 
                 // Save AI response to local report
                 if (result.aiGenerated) {
@@ -5369,17 +5285,8 @@
                     projectContractors = activeProject.contractors || [];
                 }
 
-                // Check for report lock before loading
-                if (activeProject && navigator.onLine) {
-                    updateLoadingStatus('Checking for active editors...');
-                    const todayStr = getTodayDateString();
-                    const lockInfo = await window.lockManager.checkLock(activeProject.id, todayStr);
-                    if (lockInfo) {
-                        hideLoadingOverlay();
-                        showLockWarningModal(lockInfo);
-                        return; // Stop initialization
-                    }
-                }
+                // Lock manager disabled — active_reports table removed
+                // Will be rebuilt when multi-device support is needed
 
                 // Load report from Supabase (baseline)
                 updateLoadingStatus('Loading report data...');
@@ -5457,15 +5364,7 @@
                 checkAndShowWarningBanner();
                 checkDictationHintBanner();
 
-                // Acquire lock on this report (if online)
-                if (activeProject && navigator.onLine) {
-                    const todayStr = getTodayDateString();
-                    const inspectorName = userSettings?.full_name || '';
-                    const lockAcquired = await window.lockManager.acquireLock(activeProject.id, todayStr, inspectorName);
-                    if (!lockAcquired) {
-                        console.warn('[INIT] Failed to acquire lock - may have been taken by another device');
-                    }
-                }
+                // Lock manager disabled — active_reports table removed
             } catch (error) {
                 console.error('Initialization failed:', error);
                 hideLoadingOverlay();

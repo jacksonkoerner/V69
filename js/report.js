@@ -2334,8 +2334,8 @@
                 user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
                 device_id: getDeviceId(),
                 report_date: reportDateStr,
-                inspector_name: report.overview?.completedBy || userSettings?.fullName || '',
                 status: report.meta?.status || 'draft',
+                capture_mode: report.meta?.captureMode || 'guided',
                 updated_at: new Date().toISOString()
             };
 
@@ -2351,91 +2351,39 @@
 
             currentReportId = reportId;
 
-            // 2. Upsert raw capture data
-            // Build user_edits array for storage in raw_data
-            const userEditsArray = report.userEdits && Object.keys(report.userEdits).length > 0
-                ? Object.entries(report.userEdits).map(([fieldPath, editedValue]) => ({
-                    field_path: fieldPath,
-                    edited_value: typeof editedValue === 'string' ? editedValue : JSON.stringify(editedValue),
-                    edited_at: new Date().toISOString()
-                }))
-                : [];
-
-            // Build contractor_work array for storage in raw_data
-            const contractorWorkArray = report.activities && report.activities.length > 0
-                ? report.activities.map(a => ({
-                    contractor_id: a.contractorId,
-                    no_work_performed: a.noWork || false,
-                    narrative: a.narrative || '',
-                    equipment_used: a.equipmentUsed || '',
-                    crew: a.crew || ''
-                }))
-                : [];
-
-            // Build personnel array for storage in raw_data
-            const personnelArray = report.operations && report.operations.length > 0
-                ? report.operations.map(o => ({
-                    contractor_id: o.contractorId,
-                    superintendents: o.superintendents || 0,
-                    foremen: o.foremen || 0,
-                    operators: o.operators || 0,
-                    laborers: o.laborers || 0,
-                    surveyors: o.surveyors || 0,
-                    others: o.others || 0
-                }))
-                : [];
-
-            // Build equipment_usage array for storage in raw_data
-            const equipmentUsageArray = report.equipment && report.equipment.length > 0
-                ? report.equipment.map(e => ({
-                    equipment_id: e.equipmentId,
-                    contractor_id: e.contractorId || '',
-                    type: e.type || '',
-                    qty: e.qty || 1,
-                    status: e.status === 'IDLE' ? 'idle' : 'active',
-                    hours_used: e.status && e.status !== 'IDLE' ? parseInt(e.status) || 0 : 0,
-                    notes: ''
-                }))
-                : [];
-
-            const rawCaptureData = {
-                report_id: reportId,
-                capture_mode: report.meta?.captureMode || 'guided',
-                freeform_notes: report.fieldNotes?.freeformNotes || '',
-                work_summary: report.guidedNotes?.workSummary || '',
-                issues_notes: report.issues || report.guidedNotes?.issues || '',
-                safety_notes: report.safety?.notes || report.guidedNotes?.safety || '',
-                weather_data: report.overview?.weather || {},
-                captured_at: new Date().toISOString(),
-                // Store user_edits, contractor_work, personnel, and equipment_usage in raw_data JSONB
-                raw_data: {
-                    user_edits: userEditsArray,
-                    contractor_work: contractorWorkArray,
-                    personnel: personnelArray,
-                    equipment_usage: equipmentUsageArray
-                }
+            // 2. Save page state to report_backup (replaces report_raw_capture)
+            const reportPageState = {
+                captureMode: report.meta?.captureMode || 'guided',
+                fieldNotes: report.fieldNotes || {},
+                guidedNotes: report.guidedNotes || {},
+                activities: report.activities || [],
+                operations: report.operations || [],
+                equipment: report.equipment || [],
+                equipmentRows: report.equipmentRows || [],
+                overview: report.overview || {},
+                safety: report.safety || {},
+                issues: report.issues || '',
+                qaqc: report.qaqc || '',
+                communications: report.communications || '',
+                visitors: report.visitors || '',
+                generalIssues: report.generalIssues || [],
+                toggleStates: report.toggleStates || {},
+                userEdits: report.userEdits || {},
+                aiGenerated: report.aiGenerated || {},
+                savedAt: new Date().toISOString()
             };
 
-            // Delete existing and insert new (simpler than upsert for child tables)
-            await supabaseClient
-                .from('report_raw_capture')
-                .delete()
-                .eq('report_id', reportId);
+            const { error: backupError } = await supabaseClient
+                .from('report_backup')
+                .upsert({
+                    report_id: reportId,
+                    page_state: reportPageState,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'report_id' });
 
-            await supabaseClient
-                .from('report_raw_capture')
-                .insert(rawCaptureData);
-
-            // 3. Contractor work - now stored in raw_data.contractor_work (handled above in rawCaptureData)
-
-            // 4. Personnel - now stored in raw_data.personnel (handled above in rawCaptureData)
-
-            // 5. Equipment usage - now stored in raw_data.equipment_usage (handled above in rawCaptureData)
-
-            // 6. User edits - now stored in raw_data.user_edits (handled above in rawCaptureData)
-
-            // 7. Save text sections (issues, qaqc, communications, visitors, safety)
-            // These are stored in the main report data, update via raw_capture or as separate fields
+            if (backupError) {
+                console.warn('[SUPABASE] Report backup failed:', backupError);
+            }
 
             console.log('[SUPABASE] Report saved successfully');
         } catch (err) {
@@ -4212,7 +4160,7 @@
             await saveToFinalReports(pdfUrl);
 
             // Update status
-            await updateReportStatus('submitted', pdfUrl);
+            await updateReportStatus('submitted');
 
             // Cleanup
             showSubmitLoadingOverlay(true, 'Cleaning up...');
@@ -4279,48 +4227,21 @@
     }
 
     /**
-     * Save report metadata to final_reports table
+     * Save report metadata to final_reports table (lean — new schema)
      */
     async function saveToFinalReports(pdfUrl) {
-        const weather = report.overview?.weather || {};
         const submittedAt = new Date().toISOString();
-
-        function cleanWeatherValue(val) {
-            if (val === null || val === undefined || val === '' || val === '--' || val === 'N/A') return null;
-            const numMatch = String(val).match(/^[\d.]+/);
-            if (numMatch) { const num = parseFloat(numMatch[0]); return isNaN(num) ? null : num; }
-            return null;
-        }
+        const reportDateStr = report.overview?.date || new Date().toISOString().split('T')[0];
 
         const finalReportData = {
             report_id: currentReportId,
+            project_id: activeProject?.id || null,
+            user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
+            report_date: reportDateStr,
+            inspector_name: report.overview?.completedBy || userSettings?.fullName || '',
             pdf_url: pdfUrl,
             submitted_at: submittedAt,
-            weather_high_temp: cleanWeatherValue(formVal('weatherHigh')),
-            weather_low_temp: cleanWeatherValue(formVal('weatherLow')),
-            weather_precipitation: cleanWeatherValue(formVal('weatherPrecip')),
-            weather_general_condition: cleanWeatherValue(formVal('weatherCondition')),
-            weather_job_site_condition: cleanWeatherValue(formVal('weatherJobSite')),
-            weather_adverse_conditions: cleanWeatherValue(formVal('weatherAdverse')),
-            executive_summary: report.aiGenerated?.executive_summary || report.aiGenerated?.executiveSummary || '',
-            work_performed: report.aiGenerated?.work_performed || report.aiGenerated?.workPerformed || '',
-            safety_observations: formVal('safetyText', ''),
-            delays_issues: formVal('issuesText', ''),
-            qaqc_notes: formVal('qaqcText', ''),
-            communications_notes: formVal('communicationsText', ''),
-            visitors_deliveries_notes: formVal('visitorsText', ''),
-            inspector_notes: report.aiGenerated?.inspector_notes || '',
-            contractors_json: report.aiGenerated?.activities || report.activities || [],
-            personnel_json: report.aiGenerated?.operations || report.operations || [],
-            equipment_json: report.aiGenerated?.equipment || report.equipment || [],
-            has_contractor_personnel: (report.aiGenerated?.activities?.length > 0) || (report.aiGenerated?.operations?.length > 0),
-            has_equipment: (report.aiGenerated?.equipment?.length > 0) || (report.equipment?.length > 0),
-            has_issues: !!formVal('issuesText'),
-            has_communications: !!formVal('communicationsText'),
-            has_qaqc: !!formVal('qaqcText'),
-            has_safety_incidents: document.getElementById('safetyHasIncident')?.checked || false,
-            has_visitors_deliveries: !!formVal('visitorsText'),
-            has_photos: report.photos?.length > 0
+            status: 'submitted'
         };
 
         const { error } = await supabaseClient
@@ -4333,15 +4254,14 @@
     /**
      * Update reports table status
      */
-    async function updateReportStatus(status, pdfUrl) {
+    async function updateReportStatus(status) {
         const submittedAt = new Date().toISOString();
         const { error } = await supabaseClient
             .from('reports')
             .update({
                 status: status,
                 submitted_at: submittedAt,
-                updated_at: submittedAt,
-                pdf_url: pdfUrl
+                updated_at: submittedAt
             })
             .eq('id', currentReportId);
 
@@ -4534,11 +4454,10 @@
             // 4. Delete from Supabase (if synced)
             if (window.supabaseClient) {
                 try {
-                    // Delete child records first
-                    await window.supabaseClient.from('report_entries').delete().eq('report_id', currentReportId);
-                    await window.supabaseClient.from('report_raw_capture').delete().eq('report_id', currentReportId);
-                    await window.supabaseClient.from('ai_responses').delete().eq('report_id', currentReportId);
-                    await window.supabaseClient.from('final_report_sections').delete().eq('report_id', currentReportId);
+                    // Delete child records first (new schema)
+                    await window.supabaseClient.from('interview_backup').delete().eq('report_id', currentReportId);
+                    await window.supabaseClient.from('report_backup').delete().eq('report_id', currentReportId);
+                    await window.supabaseClient.from('ai_submissions').delete().eq('report_id', currentReportId);
                     await window.supabaseClient.from('final_reports').delete().eq('report_id', currentReportId);
                     await window.supabaseClient.from('photos').delete().eq('report_id', currentReportId);
                     // Delete the report itself

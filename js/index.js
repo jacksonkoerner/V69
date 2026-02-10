@@ -416,12 +416,12 @@ function showDuplicateReportModal(projectName, date, existingReportId, projectId
             // Delete from Supabase if it exists (UUID format, 36 chars)
             if (existingReportId && existingReportId.length === 36 && typeof supabaseClient !== 'undefined' && supabaseClient) {
                 try {
-                    // Delete report entries
-                    await supabaseClient.from('report_entries').delete().eq('report_id', existingReportId);
-                    // Delete photos
+                    // Delete child records (new schema)
+                    await supabaseClient.from('interview_backup').delete().eq('report_id', existingReportId);
+                    await supabaseClient.from('report_backup').delete().eq('report_id', existingReportId);
+                    await supabaseClient.from('ai_submissions').delete().eq('report_id', existingReportId);
+                    await supabaseClient.from('final_reports').delete().eq('report_id', existingReportId);
                     await supabaseClient.from('photos').delete().eq('report_id', existingReportId);
-                    // Delete raw capture data
-                    await supabaseClient.from('raw_capture_data').delete().eq('report_id', existingReportId);
                     // Delete the report itself
                     await supabaseClient.from('reports').delete().eq('id', existingReportId);
                     console.log('[DUPLICATE] Deleted existing report from Supabase:', existingReportId);

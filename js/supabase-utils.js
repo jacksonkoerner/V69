@@ -137,7 +137,7 @@ function toSupabaseContractor(contractor) {
  * Convert Supabase report row to JS format
  *
  * DB columns: id, project_id, user_id, device_id, report_date, status,
- *             capture_mode, pdf_url, created_at, updated_at, submitted_at
+ *             capture_mode, created_at, updated_at, submitted_at
  *
  * @param {Object} row - Supabase report row
  * @returns {Object} JS report object
@@ -151,7 +151,6 @@ function fromSupabaseReport(row) {
     reportDate: row.report_date || null,
     status: row.status || 'draft',
     captureMode: row.capture_mode || 'guided',
-    pdfUrl: row.pdf_url || null,
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null,
     submittedAt: row.submitted_at || null
@@ -180,19 +179,12 @@ function toSupabaseReport(report, projectId, userId, deviceId) {
     report_date: report.reportDate || report.date || localDateFallback,
     status: report.status || 'draft',
     capture_mode: report.captureMode || report.capture_mode || 'guided',
-    updated_at: new Date().toISOString(),
-    toggle_states: report.toggleStates || {},
-    safety_no_incidents: report.safety?.noIncidents ?? null
+    updated_at: new Date().toISOString()
   };
 
   // Only include id if it exists (for updates)
   if (report.id) {
     row.id = report.id;
-  }
-
-  // Include pdf_url if set
-  if (report.pdfUrl) {
-    row.pdf_url = report.pdfUrl;
   }
 
   // Include submitted_at if status is submitted
@@ -396,135 +388,43 @@ function toSupabaseAIResponse(aiData, reportId) {
 // ============================================================================
 
 /**
- * Convert Supabase final report row to JS format with nested structure
+ * Convert Supabase final report row to JS format (lean schema)
  *
- * DB columns: id, report_id, pdf_url,
- *   weather_high_temp, weather_low_temp, weather_precipitation,
- *   weather_general_condition, weather_job_site_condition, weather_adverse_conditions,
- *   executive_summary, work_performed, safety_observations, delays_issues,
- *   materials_used, qaqc_notes, communications_notes, visitors_deliveries_notes, inspector_notes,
- *   has_contractor_personnel, has_equipment, has_issues, has_communications,
- *   has_qaqc, has_safety_incidents, has_visitors_deliveries, has_photos,
- *   contractors_display, contractors_json, equipment_display, equipment_json,
- *   personnel_display, personnel_json, created_at, submitted_at
+ * DB columns: id, report_id, project_id, user_id, report_date,
+ *             inspector_name, pdf_url, submitted_at, status
  *
  * @param {Object} row - Supabase final report row
- * @returns {Object} JS final report object with nested structure
+ * @returns {Object} JS final report object
  */
 function fromSupabaseFinal(row) {
   return {
     id: row.id,
     reportId: row.report_id || null,
+    projectId: row.project_id || null,
+    userId: row.user_id || null,
+    reportDate: row.report_date || null,
+    inspectorName: row.inspector_name || '',
     pdfUrl: row.pdf_url || null,
-
-    weather: {
-      highTemp: row.weather_high_temp ?? null,
-      lowTemp: row.weather_low_temp ?? null,
-      precipitation: row.weather_precipitation || '',
-      generalCondition: row.weather_general_condition || '',
-      jobSiteCondition: row.weather_job_site_condition || '',
-      adverseConditions: row.weather_adverse_conditions || ''
-    },
-
-    content: {
-      executiveSummary: row.executive_summary || '',
-      workPerformed: row.work_performed || '',
-      safetyObservations: row.safety_observations || '',
-      delaysIssues: row.delays_issues || '',
-      materialsUsed: row.materials_used || '',
-      qaqcNotes: row.qaqc_notes || '',
-      communicationsNotes: row.communications_notes || '',
-      visitorsDeliveriesNotes: row.visitors_deliveries_notes || '',
-      inspectorNotes: row.inspector_notes || ''
-    },
-
-    toggles: {
-      hasContractorPersonnel: row.has_contractor_personnel ?? false,
-      hasEquipment: row.has_equipment ?? false,
-      hasIssues: row.has_issues ?? false,
-      hasCommunications: row.has_communications ?? false,
-      hasQaqc: row.has_qaqc ?? false,
-      hasSafetyIncidents: row.has_safety_incidents ?? false,
-      hasVisitorsDeliveries: row.has_visitors_deliveries ?? false,
-      hasPhotos: row.has_photos ?? false
-    },
-
-    contractors: {
-      display: row.contractors_display || '',
-      json: row.contractors_json || null
-    },
-
-    equipment: {
-      display: row.equipment_display || '',
-      json: row.equipment_json || null
-    },
-
-    personnel: {
-      display: row.personnel_display || '',
-      json: row.personnel_json || null
-    },
-
-    createdAt: row.created_at || null,
-    submittedAt: row.submitted_at || null
+    submittedAt: row.submitted_at || null,
+    status: row.status || 'submitted'
   };
 }
 
 /**
- * Convert JS final report object to Supabase format (flattens nested structure)
+ * Convert JS final report object to Supabase format (lean schema)
  *
- * @param {Object} finalData - JS final report object with nested structure
+ * @param {Object} finalData - JS final report object
  * @param {string} reportId - Report ID
- * @returns {Object} Supabase row format (flat)
+ * @returns {Object} Supabase row format
  */
 function toSupabaseFinal(finalData, reportId) {
-  const weather = finalData.weather || {};
-  const content = finalData.content || {};
-  const toggles = finalData.toggles || {};
-  const contractors = finalData.contractors || {};
-  const equipment = finalData.equipment || {};
-  const personnel = finalData.personnel || {};
-
   const row = {
     report_id: reportId,
-
-    // Weather fields
-    weather_high_temp: weather.highTemp ?? null,
-    weather_low_temp: weather.lowTemp ?? null,
-    weather_precipitation: weather.precipitation || '',
-    weather_general_condition: weather.generalCondition || '',
-    weather_job_site_condition: weather.jobSiteCondition || '',
-    weather_adverse_conditions: weather.adverseConditions || '',
-
-    // Content fields
-    executive_summary: content.executiveSummary || '',
-    work_performed: content.workPerformed || '',
-    safety_observations: content.safetyObservations || '',
-    delays_issues: content.delaysIssues || '',
-    materials_used: content.materialsUsed || '',
-    qaqc_notes: content.qaqcNotes || '',
-    communications_notes: content.communicationsNotes || '',
-    visitors_deliveries_notes: content.visitorsDeliveriesNotes || '',
-    inspector_notes: content.inspectorNotes || '',
-
-    // Toggle fields
-    has_contractor_personnel: toggles.hasContractorPersonnel ?? false,
-    has_equipment: toggles.hasEquipment ?? false,
-    has_issues: toggles.hasIssues ?? false,
-    has_communications: toggles.hasCommunications ?? false,
-    has_qaqc: toggles.hasQaqc ?? false,
-    has_safety_incidents: toggles.hasSafetyIncidents ?? false,
-    has_visitors_deliveries: toggles.hasVisitorsDeliveries ?? false,
-    has_photos: toggles.hasPhotos ?? false,
-
-    // Dual-format fields
-    contractors_display: contractors.display || '',
-    contractors_json: contractors.json || null,
-    equipment_display: equipment.display || '',
-    equipment_json: equipment.json || null,
-    personnel_display: personnel.display || '',
-    personnel_json: personnel.json || null,
-
-    created_at: new Date().toISOString()
+    project_id: finalData.projectId || null,
+    user_id: finalData.userId || null,
+    report_date: finalData.reportDate || new Date().toISOString().split('T')[0],
+    inspector_name: finalData.inspectorName || '',
+    status: finalData.status || 'submitted'
   };
 
   // Only include id if it exists (for updates)

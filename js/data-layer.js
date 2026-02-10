@@ -454,26 +454,16 @@
             throw new Error('Cannot submit offline — internet required');
         }
 
-        const { reportId, sections } = finalData;
+        const { reportId } = finalData;
 
         try {
-            for (const section of sections) {
-                await supabaseClient
-                    .from('final_report_sections')
-                    .upsert({
-                        report_id: reportId,
-                        section_key: section.key,
-                        section_title: section.title,
-                        content: section.content,
-                        order: section.order
-                    }, { onConflict: 'report_id,section_key' });
-            }
-
+            // Update reports table status
             await supabaseClient
                 .from('reports')
                 .update({
                     status: 'submitted',
-                    submitted_at: new Date().toISOString()
+                    submitted_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
                 })
                 .eq('id', reportId);
 

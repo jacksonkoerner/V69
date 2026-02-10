@@ -25,7 +25,7 @@ const STATIC_ASSETS = [
     './js/data-layer.js',
     './js/indexeddb-utils.js',
     './js/storage-keys.js',
-    './js/lock-manager.js',
+    // './js/lock-manager.js', // disabled — active_reports table removed
     './js/supabase-utils.js',
     './js/pwa-utils.js',
     './js/ui-utils.js',
