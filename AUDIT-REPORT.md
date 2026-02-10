@@ -125,8 +125,6 @@
 | `quick-interview.js` | 826 | `updateLocalReportToRefined()` — always constructs draft key for migration |
 | `quick-interview.js` | 1130 | `confirmCancelReport()` — draft key fallback |
 | `quick-interview.js` | 2127 | `buildProcessPayload()` — legacy key sent to n8n |
-| `lock-manager.js` | 38+ | `checkLock()` — uses `project_id + report_date` composite for `active_reports` table |
-| `lock-manager.js` | 109+ | `acquireLock()` — upsert on `project_id,report_date` conflict |
 | `data-layer.js` | 379,389,400 | `getCurrentDraft/saveDraft/deleteDraft` — all use `draft_{projectId}_{date}` |
 | `report-rules.js` | 175 | `canStartNewReport()` — filters by `project_id` + compares `date` to today |
 
@@ -150,7 +148,7 @@ USER: Taps "Begin Daily Report" on index.html
 
 3. quick-interview.html loads scripts in order:
    config.js → storage-keys.js → indexeddb-utils.js → data-layer.js →
-   report-rules.js → supabase-utils.js → sync-manager.js → lock-manager.js →
+   report-rules.js → supabase-utils.js → sync-manager.js →
    pwa-utils.js → auth.js → ui-utils.js → media-utils.js → photo-markup.js →
    quick-interview.js
 
@@ -159,7 +157,7 @@ USER: Taps "Begin Daily Report" on index.html
    b. loadUserSettings() → from IDB/Supabase
    c. initSyncManager()
    d. loadActiveProject() → from IDB/Supabase
-   e. lockManager.checkLock() → queries active_reports (table missing in v6.9!)
+   e. (lock check removed — lock-manager.js deleted)
    f. report = await getReport()
       → getReport() [line 3575]: sets currentReportId = null, returns createFreshReport()
    g. currentReportId = getReportIdFromUrl()  [line 5438]
@@ -271,7 +269,7 @@ USER: Taps "Finish" button in guided mode
       deleteCurrentReport(`draft_${activeProject?.id}_${todayStr}`)
 
 6. Lock release + navigate:
-   lockManager.releaseCurrentLock()
+   (lock release removed — lock-manager.js deleted)
    window.location.href = `report.html?date=${todayStr}&reportId=${currentReportId}`
 ```
 
@@ -533,7 +531,7 @@ Simple messaging table. Not related to reports.
 
 ### 3.13 Missing Table: `active_reports`
 
-**⚠️ BUG:** `lock-manager.js` queries `active_reports` for multi-device locking, but **this table does not exist** in the v6.9 sandbox. All lock operations will fail silently (caught by try/catch in lock-manager.js).
+**RESOLVED:** `lock-manager.js` has been removed. The `active_reports` table is no longer referenced by any code.
 
 ### 3.14 RLS Policies
 
@@ -700,9 +698,9 @@ Could not query RLS policies directly (no `supabase inspect db policies` command
 
 | Aspect | Details |
 |--------|---------|
-| **Scripts** | config, storage-keys, indexeddb-utils, data-layer, report-rules, supabase-utils, sync-manager, lock-manager, pwa-utils, auth, ui-utils, media-utils, photo-markup, quick-interview |
+| **Scripts** | config, storage-keys, indexeddb-utils, data-layer, report-rules, supabase-utils, sync-manager, pwa-utils, auth, ui-utils, media-utils, photo-markup, quick-interview |
 | **Expects** | `?reportId={uuid}` URL param, `fvp_active_project_id` set |
-| **Reads** | URL `reportId`, `fvp_active_project_id`, `fvp_current_reports[draftId]`, IDB projects, IDB photos, Supabase user_profiles, Supabase active_reports (lock check) |
+| **Reads** | URL `reportId`, `fvp_active_project_id`, `fvp_current_reports[draftId]`, IDB projects, IDB photos, Supabase user_profiles |
 | **Writes** | `fvp_current_reports` (draft saves, refined update), `fvp_report_{uuid}` (on Finish), `fvp_sync_queue` (offline), IDB photos, Supabase reports, report_raw_capture, ai_responses, photos, report-photos storage |
 | **Passes to next** | `report.html?date={}&reportId={uuid}` on Finish success, `index.html` on cancel |
 | **Cleanup** | Deletes `draft_{projectId}_{date}` key after migration to UUID. Deletes from Supabase on cancel. |
@@ -771,7 +769,6 @@ Could not query RLS policies directly (no `supabase inspect db policies` command
 | `indexeddb-utils.js` | 584 | `window.idb.*` (saveProject, getProject, getAllProjects, savePhoto, getPhoto, deletePhoto, getPhotosByReportId, deletePhotosByReportId, saveUserProfile, getUserProfile, clearStore, + more) | None | **Yes — IDB operations for photos** |
 | `data-layer.js` | 612 | `window.dataLayer.*` (loadProjects, loadActiveProject, refreshProjectsFromCloud, loadUserSettings, getCurrentDraft, saveDraft, deleteDraft, + more) | storage-keys.js, indexeddb-utils.js, supabase-utils.js, config.js | **Yes — draft CRUD uses `draft_{projectId}_{date}`** |
 | `sync-manager.js` | 435 | `initSyncManager`, `queueEntryBackup`, `deleteEntry` | storage-keys.js, config.js | **Yes — queues entry sync operations** |
-| `lock-manager.js` | 328 | `window.lockManager.*` (checkLock, acquireLock, releaseLock, releaseCurrentLock) | storage-keys.js, config.js | **Indirectly — uses project_id + report_date composite** |
 | `auth.js` | 212 | `window.auth.*` (requireAuth, signOut) | config.js, storage-keys.js | No |
 | `quick-interview.js` | 5520 | Many via inline `<script>` context (not module exports) | ALL of the above | **YES — EPICENTER of dual-key logic** |
 | `report.js` | 4563 | Functions exposed via `window.*` | config, storage-keys, indexeddb-utils, data-layer, supabase-utils, auth, ui-utils | **Yes — UUID-only** |
@@ -920,10 +917,7 @@ if (data.projectId !== activeProjectId || data.reportDate !== today) {
 
 ### 9.2 `active_reports` Table Missing
 
-The `active_reports` table does not exist in the v6.9 sandbox database. `lock-manager.js` will fail on every query to this table. The try/catch blocks prevent crashes, but:
-- `checkLock()` always returns null (no lock detected)
-- `acquireLock()` silently fails (no lock acquired)
-- Multi-device conflict prevention is **completely non-functional**
+**RESOLVED:** `lock-manager.js` has been removed. The `active_reports` table and all lock operations are no longer part of the codebase.
 
 ### 9.3 Orphaned `fvp_report_{uuid}` Keys on Cancel
 
@@ -986,7 +980,7 @@ The `report_submissions` table has `report_id` as `text` type (not UUID) and FK 
 
 ### 9.10 No `pagehide` Event Listener
 
-`lock-manager.js` uses `beforeunload` for lock release, but iOS Safari doesn't reliably fire `beforeunload`. Should also listen for `pagehide` event.
+~~`lock-manager.js` uses `beforeunload` for lock release~~ — **RESOLVED**: lock-manager.js removed.
 
 ### 9.11 No `navigator.storage.persist()` Call
 
@@ -1011,7 +1005,7 @@ Both `finishMinimalReport()` and `finishReport()` directly manipulate `fvp_curre
 | 🟢 P2 | `quick-interview.js` | Remove `getReportKey()` and `getTodayKey()` dead functions | ~3558-3564 |
 | 🟢 P2 | `report.js` | Add `fvp_report_{uuid}` cleanup to cancel flow | executeDeleteReport already handles this |
 | 🟢 P2 | `quick-interview.js` | Add `deleteReportData(currentReportId)` to `confirmCancelReport()` | ~1130 |
-| ⚪ P3 | `lock-manager.js` | Create `active_reports` table in Supabase, add `pagehide` listener | N/A (SQL migration) |
+| ~~⚪ P3~~ | ~~`lock-manager.js`~~ | ~~Create `active_reports` table~~ — **RESOLVED**: lock-manager.js removed | N/A |
 | ⚪ P3 | `index.js` / all pages | Add `navigator.storage.persist()` call | DOMContentLoaded |
 
 ### 10.2 Order of Changes (Dependencies)
@@ -1036,7 +1030,7 @@ Both `finishMinimalReport()` and `finishReport()` directly manipulate `fvp_curre
 
 | Change | Table | SQL |
 |--------|-------|-----|
-| Create lock table | `active_reports` | `CREATE TABLE active_reports (project_id uuid, report_date date, device_id text, inspector_name text, locked_at timestamptz, last_heartbeat timestamptz, PRIMARY KEY (project_id, report_date));` |
+| ~~Create lock table~~ | ~~`active_reports`~~ | **RESOLVED**: lock-manager.js removed, no table needed |
 | Drop legacy tables (optional) | `report_submissions`, `report_activities`, `report_operations`, `report_equipment` | `DROP TABLE ...` |
 
 No schema changes needed for the UUID migration itself — the `reports` table already uses UUID as its primary key. The migration is purely client-side.

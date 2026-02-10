@@ -16,7 +16,6 @@ Quick reference for development. Before adding a function to an HTML file, check
 | `media-utils.js` | Photo capture, GPS geotagging, image compression |
 | `indexeddb-utils.js` | IndexedDB database operations for local-first storage |
 | `pwa-utils.js` | Service worker registration, offline detection, PWA navigation |
-| `lock-manager.js` | Report locking to prevent multi-device edit conflicts |
 | `index.js` | Dashboard page — report cards, project picker, begin report |
 | `quick-interview.js` | Voice/text capture, guided + freeform modes, entry management |
 | `report.js` | Report editing page — AI-refined content display, auto-save |
@@ -131,19 +130,6 @@ Options: `{ onOnline, onOffline, skipServiceWorker }`
 <script>initPWA();</script>
 ```
 
-### lock-manager.js
-**Exports:** `window.lockManager` with methods:
-- `checkLock()` — Check if report is locked by another device
-- `acquireLock()` — Acquire lock for editing
-- `releaseLock()` — Release lock when done
-- `refreshLock()` — Heartbeat to keep lock alive
-
-Lock timeout: 30 minutes without heartbeat.
-
-```html
-<script src="./js/lock-manager.js"></script>
-```
-
 ## Page-Specific Modules
 
 These modules attach to the DOM and don't export functions:
@@ -183,7 +169,6 @@ Standard import order for pages:
 <script src="./js/report-rules.js"></script>
 <script src="./js/media-utils.js"></script>
 <script src="./js/sync-manager.js"></script>
-<script src="./js/lock-manager.js"></script>
 
 <!-- Page Module -->
 <script src="./js/[page].js"></script>

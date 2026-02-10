@@ -64,4 +64,4 @@ All tables have RLS enabled with permissive "allow all" policies (appropriate fo
 ## Recommendations
 1. For production, restrict RLS policies to user-specific access
 2. Consider consolidating the dual contractor storage into one approach
-3. The `active_reports` table is referenced in one file but doesn't exist — appears to be dead code
+3. ~~The `active_reports` table is referenced in one file but doesn't exist~~ — **RESOLVED**: `lock-manager.js` removed
