@@ -16,6 +16,34 @@ var panelLoaded = { weatherDetailsPanel: false, droneOpsPanel: false, emergencyP
 var weatherDataCache = null;
 var sunriseSunsetCache = null;
 
+// ============ SUPABASE REPORT ROW CREATION ============
+/**
+ * Fire-and-forget: create a draft row in Supabase reports table
+ * when a new report UUID is generated on the dashboard.
+ * Does not block navigation — errors are logged but not shown.
+ */
+function createSupabaseReportRow(reportId, projectId) {
+    if (typeof supabaseClient === 'undefined' || !supabaseClient) return;
+    const now = new Date().toISOString();
+    supabaseClient
+        .from('reports')
+        .upsert({
+            id: reportId,
+            project_id: projectId,
+            user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
+            device_id: getDeviceId(),
+            report_date: getTodayDateString(),
+            status: 'draft',
+            created_at: now,
+            updated_at: now
+        }, { onConflict: 'id' })
+        .then(({ error }) => {
+            if (error) console.error('[INDEX] Failed to create Supabase report row:', error);
+            else console.log('[INDEX] Supabase report row created:', reportId);
+        })
+        .catch(err => console.error('[INDEX] Supabase report row error:', err));
+}
+
 // ============ PROJECT MANAGEMENT ============
 /* DEPRECATED — now using window.dataLayer.loadProjects()
 async function loadProjects() {
@@ -231,6 +259,7 @@ function continueDailyReport() {
     }
 
     const newReportId = crypto.randomUUID();
+    createSupabaseReportRow(newReportId, getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID));
     window.location.href = `quick-interview.html?reportId=${newReportId}`;
 }
 
@@ -386,6 +415,7 @@ async function selectProjectAndProceed(projectId) {
 
     // No duplicate — proceed with new UUID
     const newReportId = crypto.randomUUID();
+    createSupabaseReportRow(newReportId, projectId);
     window.location.href = `quick-interview.html?reportId=${newReportId}`;
 }
 
@@ -473,6 +503,7 @@ function showDuplicateReportModal(projectName, date, existingReportId, projectId
 
             // Proceed with new UUID
             const newReportId = crypto.randomUUID();
+            createSupabaseReportRow(newReportId, projectId);
             window.location.href = `quick-interview.html?reportId=${newReportId}`;
         } catch (e) {
             console.error('[DUPLICATE] Error deleting report:', e);
