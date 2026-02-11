@@ -1,12 +1,13 @@
 // FieldVoice Pro Service Worker
 // Enables offline functionality for PWA
 
-const CACHE_VERSION = 'v6.9.8';
+const CACHE_VERSION = 'v6.9.9';
 const CACHE_NAME = `fieldvoice-pro-${CACHE_VERSION}`;
 
 // Files to cache for offline use
 const STATIC_ASSETS = [
     './',
+    // HTML pages
     './index.html',
     './quick-interview.html',
     './report.html',
@@ -14,23 +15,37 @@ const STATIC_ASSETS = [
     './permission-debug.html',
     './settings.html',
     './landing.html',
+    './login.html',
     './archives.html',
     './project-config.html',
     './projects.html',
+    // Core modules (js/ root)
     './js/config.js',
+    './js/storage-keys.js',
+    './js/indexeddb-utils.js',
+    './js/data-layer.js',
+    './js/supabase-utils.js',
+    './js/ui-utils.js',
+    './js/pwa-utils.js',
+    './js/report-rules.js',
+    './js/media-utils.js',
+    './js/auth.js',
+    // Shared modules
     './js/shared/delete-report.js',
-    './js/projects.js',
-    './js/report/data-loading.js',
-    './js/report/original-notes.js',
-    './js/report/form-fields.js',
-    './js/report/autosave.js',
-    './js/report/ai-refine.js',
-    './js/report/preview.js',
-    './js/report/pdf-generator.js',
-    './js/report/submit.js',
-    './js/report/delete-report.js',
-    './js/report/debug.js',
-    './js/report/main.js',
+    './js/shared/ai-assistant.js',
+    // Index (dashboard) modules
+    './js/index/report-cards.js',
+    './js/index/report-creation.js',
+    './js/index/panels.js',
+    './js/index/toggle-panel.js',
+    './js/index/calendar.js',
+    './js/index/weather.js',
+    './js/index/messages.js',
+    './js/index/cloud-recovery.js',
+    './js/index/field-tools.js',
+    './js/index/deep-links.js',
+    './js/index/main.js',
+    // Interview modules
     './js/interview/entries.js',
     './js/interview/toggles.js',
     './js/interview/draft-storage.js',
@@ -51,13 +66,33 @@ const STATIC_ASSETS = [
     './js/interview/processing-overlay.js',
     './js/interview/finish.js',
     './js/interview/main.js',
-    './js/data-layer.js',
-    './js/indexeddb-utils.js',
-    './js/storage-keys.js',
-    './js/supabase-utils.js',
-    './js/pwa-utils.js',
-    './js/ui-utils.js',
-    './js/media-utils.js',
+    // Report modules
+    './js/report/data-loading.js',
+    './js/report/original-notes.js',
+    './js/report/form-fields.js',
+    './js/report/autosave.js',
+    './js/report/ai-refine.js',
+    './js/report/preview.js',
+    './js/report/pdf-generator.js',
+    './js/report/submit.js',
+    './js/report/delete-report.js',
+    './js/report/debug.js',
+    './js/report/main.js',
+    // Project config modules
+    './js/project-config/crud.js',
+    './js/project-config/contractors.js',
+    './js/project-config/form.js',
+    './js/project-config/document-import.js',
+    './js/project-config/main.js',
+    // Page modules (single-file subfolders)
+    './js/archives/main.js',
+    './js/permissions/main.js',
+    './js/permission-debug/main.js',
+    './js/projects/main.js',
+    './js/settings/main.js',
+    './js/login/main.js',
+    './js/landing/main.js',
+    // Assets
     './manifest.json',
     './icons/icon-192x192.png',
     './icons/icon-512x512.png',
