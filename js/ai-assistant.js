@@ -15,6 +15,25 @@
     let conversation = loadConversation();
     let isOpen = false;
     let isProcessing = false;
+    let cachedGPS = { lat: null, lng: null };
+
+    // ── GPS (one-shot, silent) ──
+    function initGPS() {
+        const cached = typeof getCachedLocation === 'function' ? getCachedLocation() : null;
+        if (cached) {
+            cachedGPS = { lat: cached.lat, lng: cached.lng };
+            return;
+        }
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    cachedGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                },
+                () => { /* denied/failed — keep nulls */ },
+                { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+            );
+        }
+    }
 
     // ── Inject HTML ──
     function injectUI() {
@@ -684,7 +703,9 @@
                 projectName: projectData?.projectName || null,
                 projectId: projectData?.id || null,
                 reportDate: new Date().toISOString().split('T')[0],
-                deviceId: localStorage.getItem('fvp_device_id') || null
+                deviceId: localStorage.getItem('fvp_device_id') || null,
+                lat: cachedGPS.lat,
+                lng: cachedGPS.lng
             }
         };
 
@@ -760,9 +781,10 @@
 
     // ── Init ──
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', injectUI);
+        document.addEventListener('DOMContentLoaded', () => { injectUI(); initGPS(); });
     } else {
         injectUI();
+        initGPS();
     }
 
     // Expose for other scripts
