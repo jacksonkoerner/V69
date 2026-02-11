@@ -7,7 +7,7 @@
     'use strict';
 
     const DB_NAME = 'fieldvoice-pro';
-    const DB_VERSION = 2; // Bumped for photos + archives stores
+    const DB_VERSION = 3; // Bumped to remove dead archives store
 
     let db = null;
 
@@ -58,12 +58,10 @@
                     console.log('Created photos object store');
                 }
 
-                // Create archives store (v2)
-                if (!database.objectStoreNames.contains('archives')) {
-                    const archivesStore = database.createObjectStore('archives', { keyPath: 'id' });
-                    archivesStore.createIndex('projectId', 'projectId', { unique: false });
-                    archivesStore.createIndex('reportDate', 'reportDate', { unique: false });
-                    console.log('Created archives object store');
+                // Remove dead archives store (v3)
+                if (database.objectStoreNames.contains('archives')) {
+                    database.deleteObjectStore('archives');
+                    console.log('Deleted archives object store');
                 }
             };
         });
@@ -387,10 +385,6 @@
             });
         });
     }
-
-    // ============================================
-    // ARCHIVES STORE
-    // ============================================
 
     // ============================================
     // GENERAL
