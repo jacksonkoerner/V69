@@ -250,45 +250,11 @@ function showDuplicateReportModal(projectName, date, existingReportId, projectId
         try {
             // Delete from Supabase if it exists (UUID format, 36 chars)
             if (existingReportId && existingReportId.length === 36 && typeof supabaseClient !== 'undefined' && supabaseClient) {
-                try {
-                    // Delete photos from storage bucket first
-                    const { data: dupPhotos } = await supabaseClient
-                        .from('photos')
-                        .select('storage_path')
-                        .eq('report_id', existingReportId);
-                    if (dupPhotos && dupPhotos.length > 0) {
-                        const paths = dupPhotos.map(p => p.storage_path).filter(Boolean);
-                        if (paths.length > 0) {
-                            await supabaseClient.storage.from('report-photos').remove(paths);
-                        }
-                    }
-                    // Delete child records (new schema)
-                    await supabaseClient.from('interview_backup').delete().eq('report_id', existingReportId);
-                    await supabaseClient.from('report_backup').delete().eq('report_id', existingReportId);
-                    await supabaseClient.from('ai_submissions').delete().eq('report_id', existingReportId);
-
-                    // Delete PDF from storage bucket (if submitted)
-                    try {
-                        const { data: finalData } = await supabaseClient
-                            .from('final_reports')
-                            .select('pdf_url')
-                            .eq('report_id', existingReportId)
-                            .single();
-                        if (finalData?.pdf_url) {
-                            const pdfPath = finalData.pdf_url.split('/report-pdfs/')[1];
-                            if (pdfPath) {
-                                await supabaseClient.storage.from('report-pdfs').remove([decodeURIComponent(pdfPath)]);
-                            }
-                        }
-                    } catch (e) { /* no final_reports row = no PDF to clean */ }
-
-                    await supabaseClient.from('final_reports').delete().eq('report_id', existingReportId);
-                    await supabaseClient.from('photos').delete().eq('report_id', existingReportId);
-                    // Delete the report itself
-                    await supabaseClient.from('reports').delete().eq('id', existingReportId);
+                const result = await deleteReportCascade(existingReportId);
+                if (result.success) {
                     console.log('[DUPLICATE] Deleted existing report from Supabase:', existingReportId);
-                } catch (e) {
-                    console.warn('[DUPLICATE] Supabase delete failed (continuing):', e);
+                } else {
+                    console.warn('[DUPLICATE] Supabase delete had errors (continuing):', result.errors);
                 }
             }
 

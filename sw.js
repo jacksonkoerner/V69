@@ -18,6 +18,7 @@ const STATIC_ASSETS = [
     './project-config.html',
     './projects.html',
     './js/config.js',
+    './js/shared/delete-report.js',
     './js/projects.js',
     './js/report/data-loading.js',
     './js/report/original-notes.js',

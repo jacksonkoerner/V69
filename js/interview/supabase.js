@@ -232,6 +232,7 @@ async function deletePhotoFromSupabase(photoId, storagePath) {
 
 /**
  * Delete report and all related data from Supabase
+ * Wrapper around shared deleteReportCascade
  * @param {string} reportId - The report UUID to delete
  */
 async function deleteReportFromSupabase(reportId) {
@@ -239,79 +240,12 @@ async function deleteReportFromSupabase(reportId) {
 
     console.log('[CANCEL] Deleting report from Supabase:', reportId);
 
-    try {
-        // 1. Get photos to delete from storage
-        const { data: photos } = await supabaseClient
-            .from('photos')
-            .select('id, storage_path')
-            .eq('report_id', reportId);
-
-        // 2. Delete photos from storage bucket
-        if (photos && photos.length > 0) {
-            const storagePaths = photos.map(p => p.storage_path).filter(Boolean);
-            if (storagePaths.length > 0) {
-                await supabaseClient.storage
-                    .from('report-photos')
-                    .remove(storagePaths);
-            }
-        }
-
-        // 3. Delete from photos table
-        await supabaseClient
-            .from('photos')
-            .delete()
-            .eq('report_id', reportId);
-
-        // 4. Delete from interview_backup
-        await supabaseClient
-            .from('interview_backup')
-            .delete()
-            .eq('report_id', reportId);
-
-        // 5. Delete from ai_submissions
-        await supabaseClient
-            .from('ai_submissions')
-            .delete()
-            .eq('report_id', reportId);
-
-        // 6. Delete from report_backup
-        await supabaseClient
-            .from('report_backup')
-            .delete()
-            .eq('report_id', reportId);
-
-        // 7. Delete PDF from storage bucket (if submitted)
-        try {
-            const { data: finalData } = await supabaseClient
-                .from('final_reports')
-                .select('pdf_url')
-                .eq('report_id', reportId)
-                .single();
-            if (finalData?.pdf_url) {
-                const pdfPath = finalData.pdf_url.split('/report-pdfs/')[1];
-                if (pdfPath) {
-                    await supabaseClient.storage.from('report-pdfs').remove([decodeURIComponent(pdfPath)]);
-                }
-            }
-        } catch (e) { /* no final_reports row = no PDF to clean */ }
-
-        // 8. Delete from final_reports
-        await supabaseClient
-            .from('final_reports')
-            .delete()
-            .eq('report_id', reportId);
-
-        // 9. Delete from reports (last, as it's the parent)
-        await supabaseClient
-            .from('reports')
-            .delete()
-            .eq('id', reportId);
-
+    const result = await deleteReportCascade(reportId);
+    if (result.success) {
         console.log('[CANCEL] Report deleted from Supabase');
-
-    } catch (error) {
-        console.error('[CANCEL] Supabase deletion error:', error);
-        throw error;
+    } else {
+        console.error('[CANCEL] Supabase deletion errors:', result.errors);
+        throw new Error('Delete cascade failed: ' + result.errors.join(', '));
     }
 }
 

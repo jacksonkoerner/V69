@@ -54,47 +54,11 @@ async function executeDeleteReport() {
 
         // 4. Delete from Supabase (if synced)
         if (window.supabaseClient) {
-            try {
-                var photosResult = await window.supabaseClient
-                    .from('photos')
-                    .select('storage_path')
-                    .eq('report_id', RS.currentReportId);
-                var photosToDelete = photosResult.data;
-
-                if (photosToDelete && photosToDelete.length > 0) {
-                    var paths = photosToDelete.map(function(p) { return p.storage_path; }).filter(Boolean);
-                    if (paths.length > 0) {
-                        await window.supabaseClient.storage
-                            .from('report-photos')
-                            .remove(paths);
-                    }
-                }
-
-                await window.supabaseClient.from('interview_backup').delete().eq('report_id', RS.currentReportId);
-                await window.supabaseClient.from('report_backup').delete().eq('report_id', RS.currentReportId);
-                await window.supabaseClient.from('ai_submissions').delete().eq('report_id', RS.currentReportId);
-
-                try {
-                    var finalResult = await window.supabaseClient
-                        .from('final_reports')
-                        .select('pdf_url')
-                        .eq('report_id', RS.currentReportId)
-                        .single();
-                    var finalData = finalResult.data;
-                    if (finalData?.pdf_url) {
-                        var pdfPath = finalData.pdf_url.split('/report-pdfs/')[1];
-                        if (pdfPath) {
-                            await window.supabaseClient.storage.from('report-pdfs').remove([decodeURIComponent(pdfPath)]);
-                        }
-                    }
-                } catch (e) { /* no final_reports row = no PDF to clean */ }
-
-                await window.supabaseClient.from('final_reports').delete().eq('report_id', RS.currentReportId);
-                await window.supabaseClient.from('photos').delete().eq('report_id', RS.currentReportId);
-                await window.supabaseClient.from('reports').delete().eq('id', RS.currentReportId);
+            var result = await deleteReportCascade(RS.currentReportId);
+            if (result.success) {
                 console.log('[DELETE] Supabase records deleted');
-            } catch(e) {
-                console.warn('[DELETE] Supabase cleanup error (may not have been synced):', e);
+            } else {
+                console.warn('[DELETE] Supabase cleanup errors (may not have been synced):', result.errors);
             }
         }
 
