@@ -49,6 +49,13 @@ function registerServiceWorker() {
                 .then(registration => {
                     console.log('[PWA] Service Worker registered:', registration.scope);
 
+                    // Request persistent storage to prevent Android from evicting data
+                    if (navigator.storage && navigator.storage.persist) {
+                        navigator.storage.persist().then(granted => {
+                            console.log('[PWA] Persistent storage:', granted ? 'granted' : 'denied');
+                        });
+                    }
+
                     // Check for updates
                     registration.addEventListener('updatefound', () => {
                         const newWorker = registration.installing;

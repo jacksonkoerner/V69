@@ -383,41 +383,7 @@
                 </div>
             </div>
         </section>
-        <script>
-            function openFieldToolsModal() {
-                document.getElementById('fieldToolsModal').classList.remove('hidden');
-            }
-            function closeFieldToolsModal() {
-                document.getElementById('fieldToolsModal').classList.add('hidden');
-            }
-            function fieldToolAction(fn) {
-                closeFieldToolsModal();
-                fn();
-            }
-            (function() {
-                var carousel = document.getElementById('toolsCarousel');
-                var track = document.getElementById('toolsTrack');
-                if (!carousel || !track) return;
-                var resumeTimer = null;
-
-                function pauseCarousel() {
-                    track.classList.add('paused');
-                    if (resumeTimer) clearTimeout(resumeTimer);
-                }
-
-                function scheduleResume() {
-                    if (resumeTimer) clearTimeout(resumeTimer);
-                    resumeTimer = setTimeout(function() {
-                        track.classList.remove('paused');
-                    }, 3000);
-                }
-
-                carousel.addEventListener('touchstart', pauseCarousel, { passive: true });
-                carousel.addEventListener('pointerdown', pauseCarousel);
-                carousel.addEventListener('touchend', scheduleResume, { passive: true });
-                carousel.addEventListener('pointerup', scheduleResume);
-            })();
-        </script>
+        <script src="./js/index/field-tools.js"></script>
 
         <!-- REPORT ARCHIVES -->
         <section class="px-4 mb-4">
@@ -453,49 +419,7 @@
                 <div id="calendarGrid"></div>
             </div>
         </section>
-        <script>
-            (function() {
-                var panel = document.getElementById('calendarPanel');
-                var grid = document.getElementById('calendarGrid');
-                var rendered = false;
-                var origToggle = window.togglePanel;
-                // Render calendar on first open
-                var observer = new MutationObserver(function() {
-                    if (!panel.classList.contains('hidden') && !rendered) {
-                        rendered = true;
-                        renderCalendarGrid();
-                    }
-                });
-                observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
-
-                function renderCalendarGrid() {
-                    var now = new Date();
-                    var year = now.getFullYear();
-                    var month = now.getMonth();
-                    var today = now.getDate();
-                    var firstDay = new Date(year, month, 1).getDay();
-                    var daysInMonth = new Date(year, month + 1, 0).getDate();
-                    var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
-                    var html = '<p class="text-sm font-bold text-slate-800 text-center mb-3">' + monthNames[month] + ' ' + year + '</p>';
-                    html += '<div class="grid grid-cols-7 gap-1 text-center">';
-                    var days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
-                    for (var d = 0; d < 7; d++) {
-                        html += '<div class="text-[10px] text-slate-400 font-bold py-1">' + days[d] + '</div>';
-                    }
-                    for (var i = 0; i < firstDay; i++) {
-                        html += '<div></div>';
-                    }
-                    for (var day = 1; day <= daysInMonth; day++) {
-                        var isToday = day === today;
-                        html += '<div class="py-1.5 text-xs font-medium rounded ' +
-                            (isToday ? 'bg-dot-orange text-white font-bold' : 'text-slate-600') + '">' + day + '</div>';
-                    }
-                    html += '</div>';
-                    grid.innerHTML = html;
-                }
-            })();
-        </script>
+        <script src="./js/index/calendar.js"></script>
 
         <!-- MESSAGES CARD -->
         <section class="px-4 mb-4">
@@ -594,92 +518,7 @@
                 </div>
             </div>
         </section>
-        <script>
-            (function() {
-                var threads = [
-                    {
-                        name: 'Mike Rodriguez',
-                        bubbles: [
-                            { from: 'them', text: 'Hey, just got word from the batch plant.' },
-                            { from: 'them', text: 'Concrete delivery moved to 2pm instead of 11am. Truck had a mechanical issue.' },
-                            { from: 'you', text: 'Got it, thanks for the heads up. I\'ll adjust the pour schedule.' },
-                            { from: 'them', text: 'Sounds good. I\'ll make sure the crew knows.' }
-                        ]
-                    },
-                    {
-                        name: 'James Sullivan',
-                        bubbles: [
-                            { from: 'them', text: 'Just uploaded the inspector photos for Section 4.' },
-                            { from: 'them', text: 'Everything looks good on the rebar spacing. No issues found.' },
-                            { from: 'you', text: 'Perfect. Did you get the tie-down connections too?' },
-                            { from: 'them', text: 'Yes, all documented. Check the photo log.' }
-                        ]
-                    },
-                    {
-                        name: 'Diana Lopez',
-                        bubbles: [
-                            { from: 'them', text: 'RFI #247 response is attached.' },
-                            { from: 'them', text: 'The engineer approved the alternate detail for the drain inlet.' },
-                            { from: 'you', text: 'Great, I\'ll update the field drawings.' }
-                        ]
-                    },
-                    {
-                        name: 'Kevin Walsh',
-                        bubbles: [
-                            { from: 'you', text: 'How did the drainage test go?' },
-                            { from: 'them', text: 'All clear on drainage test. Flow rates within spec.' },
-                            { from: 'them', text: 'No ponding observed after 30 minutes.' },
-                            { from: 'you', text: 'Excellent. I\'ll note it in today\'s report.' }
-                        ]
-                    }
-                ];
-
-                window.openMessageThread = function(index) {
-                    var thread = threads[index];
-                    if (!thread) return;
-                    document.getElementById('messagesThreadList').classList.add('hidden');
-                    document.getElementById('messagesChatView').classList.remove('hidden');
-                    document.getElementById('messagesChatName').textContent = thread.name;
-                    var container = document.getElementById('messagesChatBubbles');
-                    container.innerHTML = '';
-                    thread.bubbles.forEach(function(b) {
-                        var div = document.createElement('div');
-                        div.className = b.from === 'you'
-                            ? 'flex justify-end'
-                            : 'flex justify-start';
-                        var bubble = document.createElement('div');
-                        bubble.className = b.from === 'you'
-                            ? 'bg-dot-blue text-white px-4 py-2 rounded-2xl rounded-br-sm max-w-[80%] text-sm'
-                            : 'bg-slate-100 text-slate-800 px-4 py-2 rounded-2xl rounded-bl-sm max-w-[80%] text-sm';
-                        bubble.textContent = b.text;
-                        div.appendChild(bubble);
-                        container.appendChild(div);
-                    });
-                    container.scrollTop = container.scrollHeight;
-                };
-
-                window.closeMessageThread = function() {
-                    document.getElementById('messagesChatView').classList.add('hidden');
-                    document.getElementById('messagesThreadList').classList.remove('hidden');
-                };
-
-                window.sendMessageChat = function() {
-                    var input = document.getElementById('messagesChatInput');
-                    var text = input.value.trim();
-                    if (!text) return;
-                    var container = document.getElementById('messagesChatBubbles');
-                    var div = document.createElement('div');
-                    div.className = 'flex justify-end';
-                    var bubble = document.createElement('div');
-                    bubble.className = 'bg-dot-blue text-white px-4 py-2 rounded-2xl rounded-br-sm max-w-[80%] text-sm';
-                    bubble.textContent = text;
-                    div.appendChild(bubble);
-                    container.appendChild(div);
-                    input.value = '';
-                    container.scrollTop = container.scrollHeight;
-                };
-            })();
-        </script>
+        <script src="./js/index/messages.js"></script>
 
         <!-- DELIVERIES CARD -->
         <section class="px-4 mb-4">
@@ -847,17 +686,17 @@
         </footer>
     </div>
 
-    <script src="./js/maps.js"></script>
-    <script src="./js/compass.js"></script>
-    <script src="./js/measure.js"></script>
-    <script src="./js/calc.js"></script>
-    <script src="./js/slope.js"></script>
-    <script src="./js/level.js"></script>
-    <script src="./js/decibel.js"></script>
-    <script src="./js/timer.js"></script>
-    <script src="./js/flashlight.js"></script>
-    <script src="./js/qrscanner.js"></script>
-    <script src="./js/ar-measure.js"></script>
+    <script src="./js/tools/maps.js"></script>
+    <script src="./js/tools/compass.js"></script>
+    <script src="./js/tools/measure.js"></script>
+    <script src="./js/tools/calc.js"></script>
+    <script src="./js/tools/slope.js"></script>
+    <script src="./js/tools/level.js"></script>
+    <script src="./js/tools/decibel.js"></script>
+    <script src="./js/tools/timer.js"></script>
+    <script src="./js/tools/flashlight.js"></script>
+    <script src="./js/tools/qrscanner.js"></script>
+    <script src="./js/tools/ar-measure.js"></script>
     <script src="./js/index/weather.js"></script>
     <script src="./js/index/panels.js"></script>
     <script src="./js/index/cloud-recovery.js"></script>
@@ -1210,172 +1049,7 @@
 
     <!-- Old AI assistant HTML removed — now injected by js/ai-assistant.js -->
 
-    <!-- Old AI Assistant Logic removed — now in js/ai-assistant.js -->
-    <script>
-        (function() {
-            // REMOVED — ai-assistant.js handles everything now
-            return;
-
-            var isDragging = false;
-            var startX = 0, startY = 0;
-            var btnX = 0, btnY = 0;
-            var lastTap = 0;
-            var dragThreshold = 10;
-            var moved = false;
-
-            // Position from CSS initially
-            function getInitialPos() {
-                var rect = btn.getBoundingClientRect();
-                btnX = rect.left;
-                btnY = rect.top;
-            }
-
-            // Snap to nearest edge
-            function snapToEdge() {
-                var rect = btn.getBoundingClientRect();
-                var vw = window.innerWidth;
-                var centerX = rect.left + rect.width / 2;
-                if (centerX < vw / 2) {
-                    btnX = 16;
-                } else {
-                    btnX = vw - rect.width - 16;
-                }
-                // Clamp vertical
-                var vh = window.innerHeight;
-                if (btnY < 16) btnY = 16;
-                if (btnY > vh - rect.height - 70) btnY = vh - rect.height - 70;
-                applyPos();
-            }
-
-            function applyPos() {
-                btn.style.left = btnX + 'px';
-                btn.style.top = btnY + 'px';
-                btn.style.right = 'auto';
-                btn.style.bottom = 'auto';
-            }
-
-            // Touch events for dragging
-            btn.addEventListener('touchstart', function(e) {
-                var touch = e.touches[0];
-                var rect = btn.getBoundingClientRect();
-                btnX = rect.left;
-                btnY = rect.top;
-                startX = touch.clientX - btnX;
-                startY = touch.clientY - btnY;
-                moved = false;
-                isDragging = true;
-                applyPos();
-            }, { passive: true });
-
-            btn.addEventListener('touchmove', function(e) {
-                if (!isDragging) return;
-                var touch = e.touches[0];
-                var newX = touch.clientX - startX;
-                var newY = touch.clientY - startY;
-                if (Math.abs(newX - btnX) > dragThreshold || Math.abs(newY - btnY) > dragThreshold) {
-                    moved = true;
-                }
-                btnX = newX;
-                btnY = newY;
-                applyPos();
-                e.preventDefault();
-            }, { passive: false });
-
-            btn.addEventListener('touchend', function(e) {
-                isDragging = false;
-                if (moved) {
-                    snapToEdge();
-                    return;
-                }
-                // Double-tap detection
-                var now = Date.now();
-                if (now - lastTap < 300) {
-                    lastTap = 0;
-                    openAIAssistant();
-                } else {
-                    lastTap = now;
-                }
-            }, { passive: true });
-
-            // Mouse double-click as fallback for desktop
-            btn.addEventListener('dblclick', function(e) {
-                e.preventDefault();
-                openAIAssistant();
-            });
-
-            // Hide button when tool overlays are open
-            var overlayIds = [
-                'mapsOverlay', 'compassOverlay', 'measureOverlay', 'calcOverlay',
-                'slopeOverlay', 'levelOverlay', 'decibelOverlay', 'timerOverlay',
-                'flashlightOverlay', 'qrOverlay', 'arMeasureOverlay', 'fieldToolsModal'
-            ];
-            var observer = new MutationObserver(function() {
-                var anyOpen = overlayIds.some(function(id) {
-                    var el = document.getElementById(id);
-                    return el && !el.classList.contains('hidden');
-                });
-                btn.style.display = anyOpen || !overlay.classList.contains('hidden') ? 'none' : '';
-            });
-            overlayIds.forEach(function(id) {
-                var el = document.getElementById(id);
-                if (el) observer.observe(el, { attributes: true, attributeFilter: ['class'] });
-            });
-            observer.observe(overlay, { attributes: true, attributeFilter: ['class'] });
-
-            window.openAIAssistant = function() {
-                overlay.classList.remove('hidden');
-                btn.style.display = 'none';
-                var strip = document.getElementById('emergencyStrip');
-                if (strip) strip.classList.add('hidden');
-                var panel = document.getElementById('emergencyPanel');
-                if (panel) panel.classList.add('hidden');
-            };
-
-            window.closeAIAssistant = function() {
-                overlay.classList.add('hidden');
-                btn.style.display = '';
-                var strip = document.getElementById('emergencyStrip');
-                if (strip) strip.classList.remove('hidden');
-            };
-
-            window.closeAIAssistantAndScrollTop = function() {
-                closeAIAssistant();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            };
-
-            window.closeAIAssistantAndOpenTools = function() {
-                closeAIAssistant();
-                openFieldToolsModal();
-            };
-
-            window.sendAIChat = function() {
-                var input = document.getElementById('aiChatInput');
-                var text = input.value.trim();
-                if (!text) return;
-                var area = document.getElementById('aiChatArea');
-                // User bubble
-                var userDiv = document.createElement('div');
-                userDiv.className = 'flex justify-end';
-                var userBubble = document.createElement('div');
-                userBubble.className = 'bg-dot-blue text-white px-4 py-3 rounded-2xl rounded-br-sm max-w-[85%] text-sm';
-                userBubble.textContent = text;
-                userDiv.appendChild(userBubble);
-                area.appendChild(userDiv);
-                input.value = '';
-                // Bot reply
-                setTimeout(function() {
-                    var botDiv = document.createElement('div');
-                    botDiv.className = 'flex justify-start';
-                    var botBubble = document.createElement('div');
-                    botBubble.className = 'bg-slate-100 text-slate-800 px-4 py-3 rounded-2xl rounded-bl-sm max-w-[85%] text-sm';
-                    botBubble.textContent = "I'm not connected yet, but I'll be ready soon! For now, check out the feature list above to see what I'll be able to do.";
-                    botDiv.appendChild(botBubble);
-                    area.appendChild(botDiv);
-                    area.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                }, 500);
-            };
-        })();
-    </script>
+    <!-- AI assistant logic now in js/ai-assistant.js -->
 
     <!-- Initialize PWA features -->
     <script>
@@ -1384,99 +1058,10 @@
     </script>
 
     <!-- Auto-open tools/panels from AI navigation (query params) -->
-    <script>
-    (function() {
-        var params = new URLSearchParams(window.location.search);
-        var tool = params.get('openTool');
-        var panel = params.get('openPanel');
-        var mapType = params.get('mapType');
-
-        if (!tool && !panel) return;
-
-        // Clean URL after reading params
-        if (window.history.replaceState) {
-            window.history.replaceState({}, '', window.location.pathname);
-        }
-
-        // Wait for DOM + scripts to load
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                if (tool) {
-                    var toolMap = {
-                        'compass': function() { if (typeof openCompass === 'function') openCompass(); },
-                        'calc': function() { if (typeof openCalc === 'function') openCalc(); },
-                        'level': function() { if (typeof openLevel === 'function') openLevel(); },
-                        'slope': function() { if (typeof openSlope === 'function') openSlope(); },
-                        'maps': function() {
-                            if (typeof openMapsOverlay === 'function') {
-                                openMapsOverlay();
-                                if (mapType && typeof switchMap === 'function') {
-                                    setTimeout(function() { switchMap(mapType); }, 500);
-                                }
-                            }
-                        },
-                        'qr': function() { if (typeof openQR === 'function') openQR(); },
-                        'measure': function() { if (typeof openMeasure === 'function') openMeasure(); },
-                        'ar': function() { if (typeof openARMeasure === 'function') openARMeasure(); },
-                        'decibel': function() { if (typeof openDecibel === 'function') openDecibel(); },
-                        'timer': function() { if (typeof openTimer === 'function') openTimer(); },
-                        'flashlight': function() { if (typeof openFlashlight === 'function') openFlashlight(); },
-                        'fieldtools': function() { if (typeof openFieldToolsModal === 'function') openFieldToolsModal(); }
-                    };
-                    if (toolMap[tool]) toolMap[tool]();
-                }
-
-                if (panel) {
-                    if (panel === 'emergencyPanel') {
-                        var strip = document.getElementById('emergencyStrip');
-                        if (strip) strip.click();
-                    } else {
-                        var panelEl = document.getElementById(panel);
-                        if (panelEl && panelEl.classList.contains('hidden')) {
-                            var trigger = document.querySelector('[onclick*="' + panel + '"]');
-                            if (trigger) {
-                                trigger.click();
-                                trigger.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }
-                        }
-                    }
-                }
-            }, 600);
-        });
-    })();
-    </script>
+    <script src="./js/index/deep-links.js"></script>
 
     <!-- Toggle Panel Logic -->
-    <script>
-        function togglePanel(panelId, trigger) {
-            var panel = document.getElementById(panelId);
-
-            // Mutual exclusion for conditions bar panels
-            var mutualPanels = { weatherDetailsPanel: 'droneOpsPanel', droneOpsPanel: 'weatherDetailsPanel' };
-            if (mutualPanels[panelId]) {
-                var otherPanel = document.getElementById(mutualPanels[panelId]);
-                if (otherPanel && !otherPanel.classList.contains('hidden')) {
-                    otherPanel.classList.add('hidden');
-                    // Reset the other panel's trigger chevron
-                    var otherTrigger = document.querySelector('[onclick*="' + mutualPanels[panelId] + '"]');
-                    if (otherTrigger) {
-                        var otherChevron = otherTrigger.querySelector('.fa-chevron-down');
-                        if (otherChevron) otherChevron.style.transform = '';
-                    }
-                }
-            }
-
-            panel.classList.toggle('hidden');
-            var chevron = trigger ? trigger.querySelector('.fa-chevron-down') : null;
-            if (chevron) {
-                chevron.style.transform = panel.classList.contains('hidden') ? '' : 'rotate(180deg)';
-            }
-            // Lazy-load panel content on first open
-            if (!panel.classList.contains('hidden') && typeof onPanelOpen === 'function') {
-                onPanelOpen(panelId);
-            }
-        }
-    </script>
+    <script src="./js/index/toggle-panel.js"></script>
 <script src="./js/ai-assistant.js"></script>
 </body>
 </html>
