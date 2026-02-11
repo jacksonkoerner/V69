@@ -13,13 +13,11 @@
  * @constant {Object}
  */
 const STORAGE_KEYS = {
-  USER_PROFILE: 'fvp_user_profile',
   PROJECTS: 'fvp_projects',
   ACTIVE_PROJECT_ID: 'fvp_active_project_id',
   CURRENT_REPORTS: 'fvp_current_reports',
   REPORT_DATA: 'fvp_report_',  // Pattern: fvp_report_{reportId}
   SYNC_QUEUE: 'fvp_sync_queue',
-  LAST_SYNC: 'fvp_last_sync',
   DEVICE_ID: 'fvp_device_id',
   USER_ID: 'fvp_user_id',
   MIC_GRANTED: 'fvp_mic_granted',
@@ -265,29 +263,8 @@ function deleteCurrentReport(reportId) {
 }
 
 /**
- * Gets the currently active project
- * Looks up the project ID from fvp_active_project_id and returns the full project object
- *
- * @returns {Project|null} The active project object or null if none set
- */
-function getActiveProject() {
-  const activeProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
-
-  if (!activeProjectId) {
-    return null;
-  }
-
-  const projects = getStorageItem(STORAGE_KEYS.PROJECTS);
-
-  if (!projects || typeof projects !== 'object') {
-    return null;
-  }
-
-  return projects[activeProjectId] || null;
-}
-
-/**
  * Adds an operation to the sync queue for later processing
+ * TODO: SYNC_QUEUE is written to but never processed by a background worker — remove when offline sync is redesigned
  * Used for offline operations that need to be synced when online
  *
  * @param {SyncOperation} operation - The operation to queue
@@ -310,23 +287,6 @@ function addToSyncQueue(operation) {
   console.log('Added to sync queue:', operation.type, operation.action);
 
   return setStorageItem(STORAGE_KEYS.SYNC_QUEUE, queue);
-}
-
-/**
- * Gets all operations in the sync queue
- *
- * @returns {SyncOperation[]} Array of queued operations (empty array if none)
- */
-function getSyncQueue() {
-  return getStorageItem(STORAGE_KEYS.SYNC_QUEUE) || [];
-}
-
-/**
- * Clears all operations from the sync queue
- */
-function clearSyncQueue() {
-  removeStorageItem(STORAGE_KEYS.SYNC_QUEUE);
-  console.log('Sync queue cleared');
 }
 
 /**
@@ -387,10 +347,7 @@ if (typeof window !== 'undefined') {
   window.getCurrentReport = getCurrentReport;
   window.saveCurrentReport = saveCurrentReport;
   window.deleteCurrentReport = deleteCurrentReport;
-  window.getActiveProject = getActiveProject;
   window.addToSyncQueue = addToSyncQueue;
-  window.getSyncQueue = getSyncQueue;
-  window.clearSyncQueue = clearSyncQueue;
   window.getReportDataKey = getReportDataKey;
   window.getReportData = getReportData;
   window.saveReportData = saveReportData;

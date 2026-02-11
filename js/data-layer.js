@@ -189,21 +189,6 @@
         };
     }
 
-    /**
-     * Normalize contractor object to consistent JS format
-     */
-    function normalizeContractor(c) {
-        if (!c) return null;
-        return {
-            id: c.id,
-            projectId: c.projectId || c.project_id || '',
-            name: c.name || '',
-            company: c.company || '',
-            type: c.type || 'sub',
-            status: c.status || 'active'
-        };
-    }
-
     // ========================================
     // USER SETTINGS
     // ========================================
