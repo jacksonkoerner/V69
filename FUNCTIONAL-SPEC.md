@@ -756,6 +756,80 @@ report_data:
 
 ---
 
+## Page 8: Settings
+
+**File:** `settings.html`
+**JS:** `js/settings/main.js`
+**JS (shared):** `config.js`, `supabase-utils.js`, `pwa-utils.js`, `ui-utils.js`, `storage-keys.js`, `indexeddb-utils.js`, `data-layer.js`, `auth.js`
+**Status:** ✅ Working — well-structured, no major issues
+
+### How It Works
+1. `auth.js` checks session
+2. On load: checks for unsaved "scratch pad" in localStorage → restores if found
+3. Otherwise loads profile from IndexedDB via `dataLayer.loadUserSettings()` → Supabase fallback
+4. User edits profile fields (name, title, company, email, phone)
+5. Dirty tracking: every keystroke checks if values differ from original → saves to scratch pad
+6. **Save** → IndexedDB first → then Supabase upsert (via `auth_user_id`)
+7. On save: updates `fvp_user_id`, `fvp_user_name`, `fvp_user_email` in localStorage
+8. **Refresh from Cloud** → pulls latest from Supabase → populates form → marks dirty (must Save to commit)
+9. **Refresh App** → deletes caches → unregisters service workers → reloads (localStorage preserved)
+10. **Nuclear Reset** → clears localStorage, sessionStorage, IndexedDB, caches, service workers → redirects to index
+
+### Profile Fields
+| Field | Form ID | Supabase Column | IndexedDB Key | localStorage |
+|-------|---------|-----------------|---------------|-------------|
+| Full Name | `inspectorName` | `full_name` | `fullName` | `fvp_user_name` |
+| Title | `title` | `title` | `title` | ❌ |
+| Company | `company` | `company` | `company` | ❌ |
+| Email | `email` | `email` | `email` | `fvp_user_email` |
+| Phone | `phone` | `phone` | `phone` | ❌ |
+
+### Where Data Is Stored
+| Data | localStorage | IndexedDB | Supabase |
+|------|-------------|-----------|----------|
+| Profile fields | `fvp_user_id`, `fvp_user_name`, `fvp_user_email` | `userProfile` store (keyed by deviceId) | `user_profiles` table |
+| Scratch pad (unsaved edits) | `fvp_settings_scratch` | ❌ | ❌ |
+| Auth user ID | `fvp_auth_user_id` | ❌ | `user_profiles.auth_user_id` |
+
+### What's Good About This Page
+- **Clean save flow**: IndexedDB first → Supabase sync → localStorage update
+- **Scratch pad pattern**: saves unsaved changes to localStorage so they survive page closes
+- **Dirty tracking**: only enables Save button when values actually changed
+- **Graceful offline**: saves locally and warns about cloud sync
+- **Uses `dataLayer.loadUserSettings()`** properly (IndexedDB-first, Supabase-fallback)
+- **Uses `toSupabaseUserProfile()`** from supabase-utils.js (proper converter)
+
+### ⚠️ Hardcoded localStorage Writes
+`saveSettings()` and `refreshFromCloud()` write directly to localStorage:
+```js
+localStorage.setItem('fvp_user_id', data.id);
+localStorage.setItem('fvp_user_name', data.full_name || '');
+localStorage.setItem('fvp_user_email', data.email || '');
+```
+Same issue as Login — bypasses `STORAGE_KEYS` constants for `user_name` and `user_email` (which aren't even defined in STORAGE_KEYS).
+
+### `refreshFromCloud` Name Collision
+This page exports `window.refreshFromCloud` — **same name** as `projects/main.js`. If both scripts were ever loaded on the same page, one would overwrite the other. Currently safe because they're on different pages, but it's a landmine.
+
+### Known Issues
+- [ ] Hardcoded localStorage writes for `fvp_user_name`, `fvp_user_email` — should use STORAGE_KEYS
+- [ ] `refreshFromCloud` name collision with `projects/main.js`
+- [ ] `fvp_user_id` read with `localStorage.getItem()` (raw) but written with `localStorage.setItem()` (raw) — inconsistent with `getStorageItem`/`setStorageItem` pattern on other pages
+- [ ] No `org_id` on profile — will need it when organizations are added
+
+### Confirmed Decisions
+- Scratch pad pattern for unsaved changes is good — keep it
+- IndexedDB-first save with Supabase sync is the right pattern
+- PWA refresh and nuclear reset features are useful — keep them
+- Signature preview is nice UX
+
+### Needs Adding
+- [ ] Migrate hardcoded localStorage writes to `STORAGE_KEYS` constants
+- [ ] Add `org_id` to user profile
+- [ ] Add device metadata (device type, OS, browser) — per Login decisions
+
+---
+
 ## Page 7: Report Archives
 
 **File:** `archives.html`
