@@ -163,13 +163,6 @@ return; // Stop initialization if redirecting
 updateLoadingStatus('Loading user settings...');
 IS.userSettings = await window.dataLayer.loadUserSettings();
 
-// Load active project and contractors from Supabase
-updateLoadingStatus('Loading project data...');
-IS.activeProject = await window.dataLayer.loadActiveProject();
-if (IS.activeProject) {
-IS.projectContractors = IS.activeProject.contractors || [];
-}
-
 // Load report from Supabase (baseline)
 updateLoadingStatus('Loading report data...');
 IS.report = await getReport();
@@ -194,6 +187,37 @@ const localDraft = loadFromLocalStorage();
 if (localDraft) {
 console.log('[INIT] Found localStorage draft, restoring...');
 restoreFromLocalStorage(localDraft);
+}
+
+// Sprint 1 fix: Load project from the REPORT's project_id, not ACTIVE_PROJECT_ID.
+// This prevents the project_id swap bug where opening the project picker for a
+// different project changes ACTIVE_PROJECT_ID and corrupts this report's data.
+updateLoadingStatus('Loading project data...');
+let reportProjectId = null;
+
+// 1. Check the localStorage draft for project_id (most reliable for in-progress reports)
+const storedReport = getCurrentReport(IS.currentReportId);
+if (storedReport && storedReport.project_id) {
+reportProjectId = storedReport.project_id;
+console.log('[INIT] Got project_id from fvp_current_reports:', reportProjectId);
+}
+
+// 2. Fallback to ACTIVE_PROJECT_ID (only for brand-new reports with no draft yet)
+if (!reportProjectId) {
+reportProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
+console.log('[INIT] No project_id in report data, falling back to ACTIVE_PROJECT_ID:', reportProjectId);
+}
+
+// Load the project by its specific ID (not from ACTIVE_PROJECT_ID)
+if (reportProjectId) {
+IS.activeProject = await window.dataLayer.loadProjectById(reportProjectId);
+} else {
+IS.activeProject = null;
+console.warn('[INIT] No project_id found for this report');
+}
+
+if (IS.activeProject) {
+IS.projectContractors = IS.activeProject.contractors || [];
 }
 
 // If user came back to edit a draft report that was marked completed but not yet refined,

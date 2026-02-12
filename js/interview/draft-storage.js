@@ -84,11 +84,14 @@ async function confirmCancelReport() {
  * This is called during editing - data only goes to Supabase on FINISH
  */
 function saveToLocalStorage() {
-    const activeProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
+    // Sprint 1 fix: Use the report's own project ID (from IS.activeProject, which is
+    // loaded from the report's project_id), NOT from ACTIVE_PROJECT_ID localStorage.
+    // This prevents the project_id swap bug.
+    const reportProjectId = IS.activeProject?.id || getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
     const todayStr = getTodayDateString();
 
     const data = {
-        projectId: activeProjectId,
+        projectId: reportProjectId,
         reportDate: todayStr,
         captureMode: IS.report.meta?.captureMode || null,
         lastSaved: new Date().toISOString(),
@@ -170,7 +173,7 @@ function saveToLocalStorage() {
         if (!IS.currentReportId) throw new Error('Cannot save: no report ID');
         const reportData = {
             id: IS.currentReportId,
-            project_id: activeProjectId,
+            project_id: reportProjectId,
             project_name: IS.activeProject?.projectName || IS.activeProject?.project_name || '',
             date: todayStr,
             status: 'draft',

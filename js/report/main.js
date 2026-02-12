@@ -19,19 +19,50 @@ var RS = window.reportState;
 // ============ INITIALIZATION ============
 document.addEventListener('DOMContentLoaded', async function() {
     try {
-        // Load project and user settings from Supabase
-        var results = await Promise.all([
-            window.dataLayer.loadActiveProject(),
-            window.dataLayer.loadUserSettings()
-        ]);
-        RS.activeProject = results[0];
-        RS.userSettings = results[1];
-        if (RS.activeProject) {
-            RS.projectContractors = RS.activeProject.contractors || [];
-        }
+        // Load user settings from Supabase
+        RS.userSettings = await window.dataLayer.loadUserSettings();
 
         // Load report data from localStorage
         RS.report = await loadReport();
+
+        // Sprint 1 fix: Load project from the REPORT's own project_id, not ACTIVE_PROJECT_ID.
+        // This prevents the project_id swap bug where browsing another project corrupts
+        // this report's data on save.
+        var reportProjectId = null;
+
+        // 1. Check loaded report data for projectId
+        var reportData = getReportData(RS.currentReportId);
+        if (reportData && reportData.projectId) {
+            reportProjectId = reportData.projectId;
+            console.log('[REPORT] Got project_id from report data:', reportProjectId);
+        }
+
+        // 2. Check fvp_current_reports for project_id
+        if (!reportProjectId) {
+            var storedReport = getCurrentReport(RS.currentReportId);
+            if (storedReport && storedReport.project_id) {
+                reportProjectId = storedReport.project_id;
+                console.log('[REPORT] Got project_id from fvp_current_reports:', reportProjectId);
+            }
+        }
+
+        // 3. Fallback to ACTIVE_PROJECT_ID (shouldn't happen for existing reports)
+        if (!reportProjectId) {
+            reportProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
+            console.log('[REPORT] Falling back to ACTIVE_PROJECT_ID:', reportProjectId);
+        }
+
+        // Load the project by its specific ID
+        if (reportProjectId) {
+            RS.activeProject = await window.dataLayer.loadProjectById(reportProjectId);
+        } else {
+            RS.activeProject = null;
+            console.warn('[REPORT] No project_id found for this report');
+        }
+
+        if (RS.activeProject) {
+            RS.projectContractors = RS.activeProject.contractors || [];
+        }
 
         // Initialize user edits tracking
         if (!RS.report.userEdits) RS.report.userEdits = {};

@@ -305,6 +305,66 @@
     }
 
     // ========================================
+    // LOAD PROJECT BY ID (Sprint 1: project_id fix)
+    // ========================================
+
+    /**
+     * Load a specific project by its ID (IndexedDB-first, Supabase-fallback).
+     * Used by Field Capture and Report Editor to load the report's own project
+     * instead of relying on ACTIVE_PROJECT_ID.
+     * @param {string} projectId - The project UUID
+     * @returns {Promise<Object|null>} Project object with contractors, or null
+     */
+    async function loadProjectById(projectId) {
+        if (!projectId) {
+            console.log('[DATA] No project ID provided to loadProjectById');
+            return null;
+        }
+
+        // 1. Try IndexedDB first (fast, offline-capable)
+        try {
+            const localProject = await window.idb.getProject(projectId);
+            if (localProject) {
+                console.log('[DATA] Loaded project by ID from IndexedDB:', projectId);
+                const project = normalizeProject(localProject);
+                project.contractors = localProject.contractors || [];
+                return project;
+            }
+        } catch (e) {
+            console.warn('[DATA] IndexedDB read failed:', e);
+        }
+
+        // 2. If offline, can't fetch from Supabase
+        if (!navigator.onLine) {
+            console.log('[DATA] Offline - cannot fetch project from Supabase');
+            return null;
+        }
+
+        // 3. Fallback to Supabase and cache locally
+        try {
+            console.log('[DATA] Project not in IndexedDB, fetching from Supabase:', projectId);
+            const { data, error } = await supabaseClient
+                .from('projects')
+                .select('*')
+                .eq('id', projectId)
+                .single();
+
+            if (error || !data) {
+                console.warn('[DATA] Could not fetch project from Supabase:', error);
+                return null;
+            }
+
+            const normalized = fromSupabaseProject(data);
+            await window.idb.saveProject(normalized);
+            console.log('[DATA] Fetched and cached project from Supabase:', projectId);
+            return normalized;
+        } catch (e) {
+            console.error('[DATA] Supabase fallback failed:', e);
+            return null;
+        }
+    }
+
+    // ========================================
     // EXPORTS
     // ========================================
 
@@ -312,6 +372,7 @@
         // Projects
         loadProjects,
         loadActiveProject,
+        loadProjectById,
         refreshProjectsFromCloud,
 
         // User Settings
