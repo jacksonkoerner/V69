@@ -45,6 +45,9 @@ function initRealtimeSync() {
             event: '*',
             schema: 'public',
             table: 'report_data'
+            // NOTE: report_data has no user_id column, so we can't filter server-side.
+            // RLS policies on Supabase MUST enforce tenant isolation for this channel.
+            // Client-side guard in _handleReportDataChange filters by known report IDs.
         }, function(payload) {
             console.log('[REALTIME] Report data change:', payload.eventType);
             _handleReportDataChange(payload);
@@ -128,6 +131,18 @@ function _handleReportChange(payload) {
 function _handleReportDataChange(payload) {
     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
         var data = payload.new;
+
+        // Client-side guard: only process report_data for reports we own.
+        // This prevents cross-tenant data from being written to local storage
+        // even if RLS is misconfigured. Belt-and-suspenders with server RLS.
+        var knownReports = (typeof getStorageItem === 'function')
+            ? getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {}
+            : {};
+        if (!knownReports[data.report_id]) {
+            console.warn('[REALTIME] Ignoring report_data for unknown report:', data.report_id);
+            return;
+        }
+
         var reportData = {
             aiGenerated: data.ai_generated,
             originalInput: data.original_input,

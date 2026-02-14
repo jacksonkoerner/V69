@@ -875,6 +875,7 @@ async function saveReportToSupabase() {
         const reportData = {
             id: reportId,
             project_id: IS.activeProject.id,
+            org_id: localStorage.getItem(STORAGE_KEYS.ORG_ID) || IS.activeProject.orgId || null,
             user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
             device_id: getDeviceId(),
             report_date: todayStr,

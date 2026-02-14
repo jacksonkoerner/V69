@@ -84,15 +84,42 @@
     async function signOut() {
         try {
             await supabaseClient.auth.signOut();
-            localStorage.removeItem(STORAGE_KEYS.AUTH_ROLE);
-            localStorage.removeItem(STORAGE_KEYS.ORG_ID);
-            console.log('[AUTH] User signed out');
-            window.location.href = 'login.html';
         } catch (e) {
             console.error('[AUTH] Error signing out:', e);
-            // Force redirect even on error
-            window.location.href = 'login.html';
         }
+
+        // Clear ALL sensitive user data from localStorage
+        // Prevents identity leakage on shared devices
+        const keysToRemove = [
+            STORAGE_KEYS.AUTH_ROLE,
+            STORAGE_KEYS.ORG_ID,
+            STORAGE_KEYS.USER_ID,
+            STORAGE_KEYS.USER_NAME,
+            STORAGE_KEYS.USER_EMAIL,
+            STORAGE_KEYS.AUTH_USER_ID,
+            STORAGE_KEYS.CURRENT_REPORTS,
+            STORAGE_KEYS.ONBOARDED,
+            STORAGE_KEYS.PERMISSIONS_DISMISSED,
+            STORAGE_KEYS.BANNER_DISMISSED,
+            STORAGE_KEYS.BANNER_DISMISSED_DATE
+        ];
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+
+        // Clear IndexedDB stores with user data
+        if (window.idb) {
+            try {
+                await Promise.all([
+                    window.idb.clearStore('currentReports'),
+                    window.idb.clearStore('draftData'),
+                    window.idb.clearStore('userProfile')
+                ]);
+            } catch (e) {
+                console.warn('[AUTH] Could not clear IndexedDB on sign-out:', e);
+            }
+        }
+
+        console.log('[AUTH] User signed out — all user data cleared');
+        window.location.href = 'login.html';
     }
 
     /**

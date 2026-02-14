@@ -132,6 +132,7 @@ async function ensureReportExists() {
     var reportRow = {
         id: RS.currentReportId,
         project_id: RS.activeProject?.id || null,
+        org_id: localStorage.getItem(STORAGE_KEYS.ORG_ID) || RS.activeProject?.orgId || null,
         device_id: getDeviceId(),
         user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
         report_date: reportDate,

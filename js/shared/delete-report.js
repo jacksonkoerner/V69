@@ -49,7 +49,7 @@ async function deleteReportCascade(reportId) {
     }
 
     // 3. Delete child table rows
-    var childTables = ['interview_backup', 'report_backup', 'ai_submissions'];
+    var childTables = ['interview_backup', 'report_backup', 'ai_submissions', 'report_data'];
     for (var i = 0; i < childTables.length; i++) {
         try {
             await client.from(childTables[i]).delete().eq('report_id', reportId);
