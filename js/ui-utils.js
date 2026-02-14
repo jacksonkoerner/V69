@@ -78,6 +78,23 @@ function formatDate(dateStr, format = 'short') {
 }
 
 /**
+ * Format date+time for display (e.g., "Jan 5, 3:30 PM")
+ * @param {string} isoStr - ISO date string
+ * @returns {string} Formatted date-time string
+ */
+function formatDateTime(isoStr) {
+    if (!isoStr) return '';
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    return d.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+/**
  * Format time for display
  * @param {string} timeStr - Time string (ISO format or HH:MM format)
  * @returns {string} Formatted time string (e.g., "6:00 AM")
