@@ -41,6 +41,8 @@ function fromSupabaseProject(row) {
         defaultStartTime: row.default_start_time || '',
         defaultEndTime: row.default_end_time || '',
         weatherDays: row.weather_days || null,
+        reportDate: row.report_date || null,
+        contractDayNo: row.contract_day_no || null,
         // New logo fields
         logoThumbnail: row.logo_thumbnail || null,
         logoUrl: row.logo_url || null,
@@ -76,6 +78,8 @@ function toSupabaseProject(project) {
         default_start_time: project.defaultStartTime || '',
         default_end_time: project.defaultEndTime || '',
         weather_days: project.weatherDays || null,
+        report_date: project.reportDate || null,
+        contract_day_no: project.contractDayNo || null,
         // New logo fields
         logo_thumbnail: project.logoThumbnail || null,
         logo_url: project.logoUrl || null,

@@ -203,6 +203,8 @@
             defaultStartTime: p.defaultStartTime || p.default_start_time || '',
             defaultEndTime: p.defaultEndTime || p.default_end_time || '',
             weatherDays: p.weatherDays || p.weather_days || 0,
+            reportDate: p.reportDate || p.report_date || null,
+            contractDayNo: p.contractDayNo || p.contract_day_no || null,
             // Existing fields
             status: p.status || 'active',
             userId: p.userId || p.user_id || '',
