@@ -5,7 +5,7 @@
 // The canonical version lives in version.json at the project root.
 // Update version.json first, then mirror the value here.
 
-const CACHE_VERSION = 'v6.9.17';
+const CACHE_VERSION = 'v6.9.18';
 const CACHE_NAME = `fieldvoice-pro-${CACHE_VERSION}`;
 
 // Files to cache for offline use
@@ -207,10 +207,10 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // JavaScript files: network-first so code updates take effect immediately
-    // (cache-first was causing users to get stale JS after deployments)
+    // JavaScript files: network-first with cache-busting so code updates take
+    // effect immediately. (cache-first was causing stale JS after deployments)
     if (url.pathname.endsWith('.js') && url.origin === self.location.origin) {
-        event.respondWith(handleNavigationRequest(event.request));
+        event.respondWith(handleJsRequest(event.request));
         return;
     }
 
@@ -257,6 +257,30 @@ async function handleStaticRequest(request) {
             status: 503,
             statusText: 'Service Unavailable',
             headers: { 'Content-Type': 'text/plain' }
+        });
+    }
+}
+
+// Handle JS file requests (network-first, bypasses browser HTTP cache)
+// This ensures code updates reach users immediately after deployment.
+async function handleJsRequest(request) {
+    try {
+        // cache: 'no-cache' tells the browser to revalidate with the server,
+        // bypassing the HTTP disk cache that was causing stale JS delivery.
+        const networkResponse = await fetch(request, { cache: 'no-cache' });
+        if (networkResponse.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(request, networkResponse.clone());
+        }
+        return networkResponse;
+    } catch (error) {
+        // Offline: fall back to SW cache
+        console.warn('[SW] JS fetch failed (offline):', request.url);
+        const cachedResponse = await caches.match(request);
+        if (cachedResponse) return cachedResponse;
+        return new Response('// Offline - JS not available', {
+            status: 503,
+            headers: { 'Content-Type': 'application/javascript' }
         });
     }
 }
