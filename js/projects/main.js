@@ -174,8 +174,8 @@ async function renderProjectList(projects = null) {
 
 function renderProjectRow(project) {
     const isActive = project.id === activeProjectId;
-    const projectName = project.projectName || project.project_name || 'Unnamed Project';
-    const projectNo = project.noab_project_no || project.noabProjectNo || '';
+    const projectName = project.projectName || 'Unnamed Project';
+    const projectNo = project.noabProjectNo || '';
     const location = project.location || '';
     const status = project.status || 'active';
     const contractors = project.contractors || [];
@@ -283,7 +283,7 @@ function updateActiveProjectBanner(projects) {
 
     const activeProject = projects.find(p => p.id === activeProjectId);
     if (activeProject) {
-        const projectName = activeProject.projectName || activeProject.project_name || 'Unknown Project';
+        const projectName = activeProject.projectName || 'Unknown Project';
         nameEl.textContent = projectName;
         banner.classList.remove('hidden');
     } else {

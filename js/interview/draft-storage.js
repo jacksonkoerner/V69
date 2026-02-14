@@ -173,7 +173,7 @@ function saveToLocalStorage() {
         const reportData = {
             id: IS.currentReportId,
             project_id: reportProjectId,
-            project_name: IS.activeProject?.projectName || IS.activeProject?.project_name || '',
+            project_name: IS.activeProject?.projectName || '',
             reportDate: todayStr,
             status: 'draft',
             capture_mode: data.captureMode,
@@ -349,7 +349,7 @@ function updateLocalReportToRefined() {
         ...existingReport,
         id: IS.currentReportId,
         project_id: IS.activeProject?.id,
-        project_name: IS.activeProject?.projectName || IS.activeProject?.project_name,
+        project_name: IS.activeProject?.projectName || '',
         reportDate: getTodayDateString(),
         status: 'refined',
         created_at: existingReport.created_at || IS.report.meta?.createdAt || new Date().toISOString()

@@ -146,7 +146,7 @@ async function finishReportFlow(options) {
         saveCurrentReport({
             id: IS.currentReportId,
             project_id: IS.activeProject?.id,
-            project_name: IS.activeProject?.projectName || IS.activeProject?.project_name,
+            project_name: IS.activeProject?.projectName || '',
             date: todayStr,
             report_date: todayStr,
             status: 'refined',

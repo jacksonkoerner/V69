@@ -99,8 +99,8 @@ function renderReportCards() {
 }
 
 function renderProjectSection(project, reports, expanded) {
-    const name = project.projectName || project.project_name || 'Unnamed Project';
-    const projectNo = project.noabProjectNo || project.project_number || '';
+    const name = project.projectName || 'Unnamed Project';
+    const projectNo = project.noabProjectNo || '';
     const pid = project.id;
     const hasReports = reports.length > 0;
     const sectionId = `project-section-${pid}`;

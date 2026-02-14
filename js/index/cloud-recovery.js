@@ -46,7 +46,7 @@ function recoverCloudDrafts() {
                 // Look up project name from cache or localStorage
                 const project = projectsMap[row.project_id]
                     || getProjects().find(p => p.id === row.project_id);
-                const projectName = project?.projectName || project?.project_name || '';
+                const projectName = project?.projectName || '';
 
                 localReports[row.id] = {
                     id: row.id,
