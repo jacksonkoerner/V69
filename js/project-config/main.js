@@ -55,6 +55,9 @@ function setupDirtyTracking() {
 }
 
 // ============ HELPERS ============
+// Sprint 5: These helpers read/write the dashboard picker selection.
+// ACTIVE_PROJECT_ID is used ONLY for UI display (highlighting active project,
+// "Currently Active" badge). Interview/report pages never read this value.
 function getActiveProjectId() {
     return getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
 }

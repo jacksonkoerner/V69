@@ -190,25 +190,27 @@ restoreFromLocalStorage(localDraft);
 }
 
 // Sprint 1 fix: Load project from the REPORT's project_id, not ACTIVE_PROJECT_ID.
-// This prevents the project_id swap bug where opening the project picker for a
-// different project changes ACTIVE_PROJECT_ID and corrupts this report's data.
+// Sprint 5: Removed ACTIVE_PROJECT_ID fallback — project_id comes from URL or report data.
 updateLoadingStatus('Loading project data...');
 let reportProjectId = null;
 
-// 1. Check the localStorage draft for project_id (most reliable for in-progress reports)
+// 1. Check URL params (set by report-creation.js at creation time)
+const urlProjectId = new URLSearchParams(window.location.search).get('projectId');
+if (urlProjectId) {
+reportProjectId = urlProjectId;
+console.log('[INIT] Got project_id from URL:', reportProjectId);
+}
+
+// 2. Check the localStorage draft for project_id (for in-progress reports)
+if (!reportProjectId) {
 const storedReport = getCurrentReport(IS.currentReportId);
 if (storedReport && storedReport.project_id) {
 reportProjectId = storedReport.project_id;
 console.log('[INIT] Got project_id from fvp_current_reports:', reportProjectId);
 }
-
-// 2. Fallback to ACTIVE_PROJECT_ID (only for brand-new reports with no draft yet)
-if (!reportProjectId) {
-reportProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
-console.log('[INIT] No project_id in report data, falling back to ACTIVE_PROJECT_ID:', reportProjectId);
 }
 
-// Load the project by its specific ID (not from ACTIVE_PROJECT_ID)
+// Load the project by its specific ID
 if (reportProjectId) {
 IS.activeProject = await window.dataLayer.loadProjectById(reportProjectId);
 } else {

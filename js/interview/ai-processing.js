@@ -219,7 +219,8 @@ function hideNetworkErrorModal() {
  * v6: Uses addToSyncQueue() from storage-keys.js for offline queue
  */
 function handleOfflineProcessing(payload, redirectToDrafts = false) {
-    const activeProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
+    // Sprint 5: Use the report's own project ID, not ACTIVE_PROJECT_ID
+    const activeProjectId = IS.activeProject?.id;
     const todayStr = getTodayDateString();
 
     // v6: Use addToSyncQueue for offline operations

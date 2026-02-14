@@ -193,7 +193,7 @@ The `data-layer.js` normalizer converts snake_case → camelCase, so if all data
 ### Known Issues
 - [x] `projects/main.js` has its own `fetchProjectsFromSupabase()` + `saveProjectsToIndexedDB()` that **bypass** `data-layer.js` — duplicate logic, no normalization
 - [x] `refreshFromCloud` name collision — also exported by `settings/main.js` (both on `window`)
-- [ ] `ACTIVE_PROJECT_ID` concept needs removal — project is selected per-report, not globally
+- [x] `ACTIVE_PROJECT_ID` concept needs removal — project is selected per-report, not globally *(Sprint 5: removed from interview/report pages; kept only for dashboard picker UI)*
 - [ ] Projects not filtered by org — `SELECT *` loads ALL projects from Supabase
 - [ ] Active project stored only in localStorage — breaks cross-platform
 - [ ] Dual field name checks (`projectName || project_name`) throughout render code — fragile
@@ -204,7 +204,7 @@ The `data-layer.js` normalizer converts snake_case → camelCase, so if all data
 - Page works today but will need changes after org + naming cleanup
 
 ### Needs Adding
-- [ ] Remove `ACTIVE_PROJECT_ID` usage from this page
+- [x] Remove `ACTIVE_PROJECT_ID` usage from this page *(Sprint 5: removed — projects page still sets it for picker display, but interview/report don't read it)*
 - [x] Refactor to use `data-layer.js` instead of duplicating Supabase fetch logic
 - [ ] Filter projects by `org_id` once organizations are implemented
 - [ ] Decide what tapping a project does (go to Dashboard? show project detail view?)
@@ -422,7 +422,7 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 - [ ] **🐛 project_id swap bug** — reports change project after editing (HIGH PRIORITY)
 - [ ] **Reports in localStorage only** — breaks cross-platform, vulnerable to iOS 7-day eviction
 - [x] `cloud-recovery.js` recovers metadata but NOT full report data — *(Sprint 4: now also caches report_data for recovered reports)*
-- [ ] `ACTIVE_PROJECT_ID` still used here (project picker sets it) — should be removed
+- [x] `ACTIVE_PROJECT_ID` still used here (project picker sets it) — should be removed *(Sprint 5: picker still writes it for UI display, but interview/report pages never read it)*
 - [ ] `report-rules.js` reads from `STORAGE_KEYS.PROJECTS` localStorage cache — if cache is stale, eligibility checks are wrong
 - [ ] `report-rules.js` reads from `STORAGE_KEYS.CURRENT_REPORTS` — all report state is localStorage
 - [x] `projects/main.js` bypass: Dashboard uses `dataLayer` properly, but Project List doesn't — inconsistent caching
@@ -441,7 +441,7 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 - **Org isolation for Supabase** — TBD approach (RLS vs schemas vs separate projects). Logged for later decision.
 
 ### Needs Adding
-- [ ] Remove `ACTIVE_PROJECT_ID` — project picker should work without setting a global active project
+- [x] Remove `ACTIVE_PROJECT_ID` — project picker should work without setting a global active project *(Sprint 5: removed from interview/report. Picker still writes it for dashboard UI — rename to SELECTED_PICKER_PROJECT_ID in future cleanup)*
 - [ ] Remove `UNFINISHED_PREVIOUS` blocking logic from `report-rules.js`
 - [ ] Add backend duplicate detection (flag when same project + same day has multiple submitted reports)
 - [ ] Move report tracking from localStorage (`fvp_current_reports`) to IndexedDB + Supabase sync
@@ -550,21 +550,21 @@ FINISH button:
 All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - `IS.currentReportId` — UUID for this report
 - `IS.report` — the full report object (in-memory)
-- `IS.activeProject` — loaded from `dataLayer.loadActiveProject()` ⚠️ uses ACTIVE_PROJECT_ID
+- `IS.activeProject` — loaded from `dataLayer.loadProjectById()` using report's own project_id ✅ (Sprint 5)
 - `IS.projectContractors` — from `IS.activeProject.contractors`
 - `IS.userSettings` — from `dataLayer.loadUserSettings()`
 - `IS.autoSaveState` — tracks which textareas have auto-saved entries
 
 ### Contractor Work Tracking
-- Contractors loaded from `IS.activeProject.contractors` (set at init from ACTIVE_PROJECT_ID)
+- Contractors loaded from `IS.activeProject.contractors` (set at init from report's own project_id) ✅ (Sprint 5)
 - Each contractor gets a card with "No work performed" toggle
 - If contractor has crews → crew sub-cards appear
 - Work entries stored as `entries` with section = `work_{contractorId}` or `work_{contractorId}_crew_{crewId}`
 - Activities array tracks `noWork` flag per contractor and per crew
 
 ### Known Issues
-- [ ] **🐛 project_id swap bug** — `saveToLocalStorage()` and `saveReportToSupabase()` read project from `ACTIVE_PROJECT_ID` instead of from the report's own data
-- [ ] **🐛 Contractor loading bug** — `IS.activeProject` loaded from `ACTIVE_PROJECT_ID`, so if you open a report for Project A but ACTIVE_PROJECT_ID is Project B, you get Project B's contractors
+- [x] **🐛 project_id swap bug** — `saveToLocalStorage()` and `saveReportToSupabase()` read project from `ACTIVE_PROJECT_ID` instead of from the report's own data *(Sprint 1+5: fixed — uses IS.activeProject.id loaded from report's project_id)*
+- [x] **🐛 Contractor loading bug** — `IS.activeProject` loaded from `ACTIVE_PROJECT_ID`, so if you open a report for Project A but ACTIVE_PROJECT_ID is Project B, you get Project B's contractors *(Sprint 1+5: fixed — loadProjectById() from report data)*
 - [ ] **Draft data in localStorage only** — `_draft_data` blob not synced to Supabase (only `interview_backup` page_state is)
 - [ ] `getReport()` calls `createFreshReport()` every time — ignores existing report data. Relies on localStorage restore to recover drafts.
 - [ ] `interview_backup` exists in Supabase but is never read back — it's write-only backup, not used for cross-device recovery
@@ -580,9 +580,9 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - Contractor work cards per-contractor and per-crew is correct structure
 
 ### Needs Fixing (High Priority)
-- [ ] **Fix project_id source**: `saveToLocalStorage()` must use the report's `project_id` (set at creation), NOT `ACTIVE_PROJECT_ID`
-- [ ] **Fix contractor loading**: Page must load contractors from the report's project, not from `ACTIVE_PROJECT_ID`
-- [ ] **Fix `saveReportToSupabase()`**: Must use report's own project_id
+- [x] **Fix project_id source**: `saveToLocalStorage()` must use the report's `project_id` (set at creation), NOT `ACTIVE_PROJECT_ID` *(Sprint 1+5)*
+- [x] **Fix contractor loading**: Page must load contractors from the report's project, not from `ACTIVE_PROJECT_ID` *(Sprint 1+5)*
+- [x] **Fix `saveReportToSupabase()`**: Must use report's own project_id *(Sprint 1+5)*
 
 ### Needs Adding
 - [ ] Read `interview_backup` from Supabase on page load (enables cross-device draft recovery) — write-back capability needs development
@@ -609,7 +609,7 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 1. Arrives via `report.html?date=YYYY-MM-DD&reportId=<uuid>` (or `?tab=preview`)
 2. `auth.js` checks session
 3. Init sequence (`main.js`):
-   a. Loads active project + user settings via `dataLayer` (⚠️ uses ACTIVE_PROJECT_ID)
+   a. Loads project from report's own project_id + user settings via `dataLayer` ✅ (Sprint 1+5)
    b. Loads report from `fvp_report_{reportId}` in localStorage
    c. If no data found → shows error, redirects to Dashboard
    d. Initializes userEdits tracking
@@ -644,13 +644,13 @@ This means the AI fills everything first, then user can override any field.
 ```js
 project_id: RS.activeProject.id,
 ```
-`RS.activeProject` is loaded from `dataLayer.loadActiveProject()` which reads `ACTIVE_PROJECT_ID`.
+`RS.activeProject` is loaded from `dataLayer.loadProjectById()` using the report's own project_id ✅ (Sprint 1+5).
 
 `report/submit.js` → `ensureReportExists()` and `saveToFinalReports()`:
 ```js
 project_id: RS.activeProject?.id || null,
 ```
-Same problem — if ACTIVE_PROJECT_ID changed since the report was created, all saves write the wrong project.
+✅ This now uses the correct project because `RS.activeProject` is loaded from the report's own `project_id`, not from `ACTIVE_PROJECT_ID`.
 
 ### Where Data Is Stored
 
@@ -696,7 +696,7 @@ localStorage.setItem('fvp_current_reports', JSON.stringify(currentReports));
 Bypasses `STORAGE_KEYS` and `getStorageItem/setStorageItem` helpers — direct localStorage access.
 
 ### Known Issues
-- [ ] **🐛 project_id bug** — `saveReportToSupabase()`, `ensureReportExists()`, `saveToFinalReports()` all use `RS.activeProject.id` from ACTIVE_PROJECT_ID
+- [x] **🐛 project_id bug** — `saveReportToSupabase()`, `ensureReportExists()`, `saveToFinalReports()` all use `RS.activeProject.id` from ACTIVE_PROJECT_ID *(Sprint 1+5: RS.activeProject now loaded from report's own project_id via loadProjectById())*
 - [x] **Report data in localStorage only** — *(Sprint 4: report_data table syncs AI output + user edits to Supabase)*
 - [ ] `report_backup` table written to but never read back (write-only, like `interview_backup`)
 - [ ] `cleanupLocalStorage()` uses hardcoded `fvp_current_reports` string instead of `STORAGE_KEYS`
