@@ -442,7 +442,7 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 ### Needs Adding
 - [x] Remove `ACTIVE_PROJECT_ID` — project picker should work without setting a global active project *(Sprint 5: removed from interview/report. Picker still writes it for dashboard UI — rename to SELECTED_PICKER_PROJECT_ID in future cleanup)*
 - [x] Remove `UNFINISHED_PREVIOUS` blocking logic from `report-rules.js` *(Sprint 6)*
-- [ ] Add backend duplicate detection (flag when same project + same day has multiple submitted reports)
+- [x] Add backend duplicate detection (flag when same project + same day has multiple submitted reports) *(Sprint 11: submit.js queries final_reports for same project_id + report_date before submit; shows warning if duplicate exists — user can proceed)*
 - [x] Move report tracking from localStorage (`fvp_current_reports`) to IndexedDB + Supabase sync *(Sprint 10: IndexedDB currentReports store added as durable backup; write-through on save/delete; hydration on load; cloud recovery merges active reports from Supabase reports table)*
 - [x] Cloud recovery should pull full report data, not just metadata (via report_data table + loadReport() fallback)
 - [x] Standardize report date field to one name across all code *(Sprint 6: `reportDate` is canonical JS name)*
@@ -457,11 +457,10 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 ## Page 5: Field Capture
 
 **File:** `quick-interview.html`
-**JS (core):** `js/interview/main.js`, `js/interview/entries.js`, `js/interview/draft-storage.js`, `js/interview/autosave.js`, `js/interview/supabase.js`, `js/interview/finish.js`
-**JS (sections):** `js/interview/capture-mode.js`, `js/interview/freeform.js`, `js/interview/guided-sections.js`, `js/interview/contractors.js`, `js/interview/personnel.js`, `js/interview/equipment.js`, `js/interview/manual-adds.js`, `js/interview/photos.js`, `js/interview/weather.js`, `js/interview/toggles.js`, `js/interview/previews.js`, `js/interview/na-marking.js`
-**JS (processing):** `js/interview/ai-processing.js`, `js/interview/processing-overlay.js`
+**JS (core):** `js/interview/main.js`, `js/interview/state-mgmt.js` (entries + toggles + N/A), `js/interview/persistence.js` (draft storage + autosave + supabase I/O), `js/interview/finish-processing.js` (AI processing + finish flow)
+**JS (sections):** `js/interview/ui-flow.js` (capture mode + processing overlay), `js/interview/freeform.js`, `js/interview/guided-sections.js`, `js/interview/contractors-personnel.js`, `js/interview/equipment-manual.js`, `js/interview/photos.js`, `js/interview/ui-display.js` (weather + previews + progress)
 **JS (shared):** `config.js`, `storage-keys.js`, `report-rules.js`, `supabase-utils.js`, `pwa-utils.js`, `ui-utils.js`, `indexeddb-utils.js`, `data-layer.js`, `auth.js`, `media-utils.js`, `tools/photo-markup.js`, `shared/delete-report.js`, `shared/ai-assistant.js`
-**Total: 34 script tags — heaviest page in the app**
+**Total: 25 script tags** *(Sprint 11: consolidated from 34 — merged 16 files into 7)*
 **Status:** ✅ Working *(project_id swap bug fixed in Sprint 1; storage partially improved in Sprint 4)*
 
 ### How It Works
@@ -470,9 +469,9 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 3. Init sequence (`main.js`):
    a. Loads user settings via `dataLayer.loadUserSettings()`
    b. *(Sprint 1 fix)* Loads project via `loadProjectById()` from report's own `project_id` in `fvp_current_reports` → gets contractors from it
-   c. Creates fresh report object via `getReport()` → `createFreshReport()`
+   c. *(Sprint 11)* `getReport()` tries localStorage → IndexedDB → Supabase `interview_backup` → creates fresh as last resort
    d. Reads `reportId` from URL params → sets `IS.currentReportId`
-   e. Checks localStorage for existing draft → restores if found
+   e. Safety-net: checks localStorage/IndexedDB again for draft → restores if found
    f. Auto-populates project name + reporter name from loaded data
 4. Shows **Mode Selection**: Quick Notes (freeform) or Guided Sections
 5. User enters field data (see capture modes below)
@@ -513,8 +512,8 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 
 | Data | localStorage | IndexedDB | Supabase |
 |------|-------------|-----------|----------|
-| Draft report (full data) | `fvp_current_reports[id]._draft_data` | ❌ | ❌ |
-| Report metadata | `fvp_current_reports[id]` (id, project_id, date, status) | ❌ | `reports` table |
+| Draft report (full data) | `fvp_current_reports[id]._draft_data` | `draftData` store *(Sprint 11)* | `interview_backup.page_state` *(Sprint 11: enriched)* |
+| Report metadata | `fvp_current_reports[id]` (id, project_id, date, status) | `currentReports` store *(Sprint 10)* | `reports` table |
 | Interview backup (autosave) | ❌ | ❌ | `interview_backup` table (page_state JSONB) |
 | Photos (binary) | ❌ | `photos` store (base64 + metadata) | Supabase Storage (`report-photos` bucket) |
 | Photo metadata | ❌ | `photos` store | `photos` table |
@@ -523,8 +522,8 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 
 ### Data Flow
 ```
-User types → 500ms → saveToLocalStorage() → fvp_current_reports[id]._draft_data
-         → 5s   → flushInterviewBackup() → Supabase interview_backup table
+User types → 500ms → saveToLocalStorage() → fvp_current_reports[id]._draft_data + IndexedDB draftData store
+         → 5s   → flushInterviewBackup() → Supabase interview_backup table (full draft data since Sprint 11)
          → visibilitychange/pagehide → both fire immediately
 
 FINISH button:
@@ -556,12 +555,12 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 ### Known Issues
 - [x] **🐛 project_id swap bug** — `saveToLocalStorage()` and `saveReportToSupabase()` read project from `ACTIVE_PROJECT_ID` instead of from the report's own data *(Sprint 1+5: fixed — uses IS.activeProject.id loaded from report's project_id)*
 - [x] **🐛 Contractor loading bug** — `IS.activeProject` loaded from `ACTIVE_PROJECT_ID`, so if you open a report for Project A but ACTIVE_PROJECT_ID is Project B, you get Project B's contractors *(Sprint 1+5: fixed — loadProjectById() from report data)*
-- [ ] **Draft data in localStorage only** — `_draft_data` blob not synced to Supabase (only `interview_backup` page_state is)
-- [ ] `getReport()` calls `createFreshReport()` every time — ignores existing report data. Relies on localStorage restore to recover drafts.
+- [x] **Draft data in localStorage only** — `_draft_data` blob not synced to Supabase (only `interview_backup` page_state is) *(Sprint 11: draft data now write-through to IndexedDB draftData store; interview_backup page_state enriched with all _draft_data fields; getReport() restores from localStorage → IDB → Supabase)*
+- [x] `getReport()` calls `createFreshReport()` every time — ignores existing report data. Relies on localStorage restore to recover drafts. *(Sprint 11: getReport() now tries localStorage → IndexedDB → Supabase interview_backup before creating fresh)*
 - [x] `interview_backup` exists in Supabase but is never read back — it's write-only backup, not used for cross-device recovery *(Sprint 7: interview/main.js now reads interview_backup as fallback when no localStorage draft exists; cloud-recovery.js pre-caches it for recovered drafts)*
 - [x] AI response saved to `fvp_report_{id}` in localStorage — *(Sprint 4: also synced to Supabase report_data table on finish)*
 - [x] `finishMinimalReport()` and `finishReport()` are near-duplicate functions (~200 lines each) — comment says "keep in sync" *(Sprint 3: refactored into shared `finishReportFlow(options)` with thin wrappers)*
-- [ ] 34 script tags on one page — largest in the app
+- [x] 34 script tags on one page — largest in the app *(Sprint 11: consolidated to 25 — merged 16 interview JS files into 7 consolidated modules)*
 
 ### Confirmed Decisions
 - Two capture modes (freeform + guided) — both stay
