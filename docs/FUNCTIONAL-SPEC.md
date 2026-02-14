@@ -426,9 +426,9 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 - [ ] `report-rules.js` reads from `STORAGE_KEYS.PROJECTS` localStorage cache — if cache is stale, eligibility checks are wrong
 - [ ] `report-rules.js` reads from `STORAGE_KEYS.CURRENT_REPORTS` — all report state is localStorage
 - [x] `projects/main.js` bypass: Dashboard uses `dataLayer` properly, but Project List doesn't — inconsistent caching
-- [ ] Report date field uses 3 different names across the codebase (`report_date`, `reportDate`, `date`)
-- [ ] `pruneCurrentReports()` deletes submitted reports after 24h from localStorage — should rely on Supabase/Archives instead
-- [ ] Inline `<script>` for `initPWA()` in HTML — should be in main.js
+- [x] Report date field uses 3 different names across the codebase (`report_date`, `reportDate`, `date`) *(Sprint 6: standardized to `reportDate` in JS-side fvp_current_reports entries)*
+- [x] `pruneCurrentReports()` deletes submitted reports after 24h from localStorage — should rely on Supabase/Archives instead *(Sprint 6: relaxed to 7 days)*
+- [x] Inline `<script>` for `initPWA()` in HTML — should be in main.js *(Sprint 6: moved to page main.js files)*
 
 ### Confirmed Decisions
 - **Project picker flow is good** — tap Begin → pick project → check duplicates → go to Field Capture
@@ -442,15 +442,15 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 
 ### Needs Adding
 - [ ] Remove `ACTIVE_PROJECT_ID` — project picker should work without setting a global active project
-- [ ] Remove `UNFINISHED_PREVIOUS` blocking logic from `report-rules.js`
+- [x] Remove `UNFINISHED_PREVIOUS` blocking logic from `report-rules.js` *(Sprint 6)*
 - [ ] Add backend duplicate detection (flag when same project + same day has multiple submitted reports)
 - [ ] Move report tracking from localStorage (`fvp_current_reports`) to IndexedDB + Supabase sync
 - [x] Cloud recovery should pull full report data, not just metadata (via report_data table + loadReport() fallback)
-- [ ] Standardize report date field to one name across all code
+- [x] Standardize report date field to one name across all code *(Sprint 6: `reportDate` is canonical JS name)*
 - [ ] Add `org_id` filtering to project loading
 - [ ] Report creation should include `org_id` on the Supabase draft row
 - [ ] Remove Active Project card/banner — add "no projects" empty state
-- [ ] Move inline `initPWA()` script into main.js
+- [x] Move inline `initPWA()` script into main.js *(Sprint 6)*
 - [ ] Ensure all feature JS stays isolated from report management JS
 
 ---
@@ -688,18 +688,14 @@ Same problem — if ACTIVE_PROJECT_ID changed since the report was created, all 
 
 This data is **never synced to Supabase** (only `report_backup` page_state is). If localStorage is cleared or you switch devices, **this data is gone**.
 
-### `cleanupLocalStorage()` Uses Hardcoded Keys
-```js
-var currentReports = JSON.parse(localStorage.getItem('fvp_current_reports') || '{}');
-localStorage.setItem('fvp_current_reports', JSON.stringify(currentReports));
-```
-Bypasses `STORAGE_KEYS` and `getStorageItem/setStorageItem` helpers — direct localStorage access.
+### `cleanupLocalStorage()` ~~Uses Hardcoded Keys~~ Fixed (Sprint 6)
+Now uses `getStorageItem(STORAGE_KEYS.CURRENT_REPORTS)` and `setStorageItem()` helpers.
 
 ### Known Issues
 - [ ] **🐛 project_id bug** — `saveReportToSupabase()`, `ensureReportExists()`, `saveToFinalReports()` all use `RS.activeProject.id` from ACTIVE_PROJECT_ID
 - [x] **Report data in localStorage only** — *(Sprint 4: report_data table syncs AI output + user edits to Supabase)*
 - [ ] `report_backup` table written to but never read back (write-only, like `interview_backup`)
-- [ ] `cleanupLocalStorage()` uses hardcoded `fvp_current_reports` string instead of `STORAGE_KEYS`
+- [x] `cleanupLocalStorage()` uses hardcoded `fvp_current_reports` string instead of `STORAGE_KEYS` *(Sprint 6)*
 - [x] `loadReport()` only reads localStorage — *(Sprint 4: falls back to Supabase report_data table when localStorage misses)*
 - [x] If report data missing from localStorage — *(Sprint 4: tries Supabase report_data before showing error)*
 
@@ -743,7 +739,7 @@ report_data:
 ### Needs Fixing (High Priority)
 - [ ] **Fix project_id source**: all Supabase writes must use the report's own project_id, not `RS.activeProject.id`
 - [ ] **Fix refined status not showing on Dashboard** — part of the project_id bug chain (status writes to wrong report entry in fvp_current_reports)
-- [ ] **Fix `cleanupLocalStorage()`**: use `STORAGE_KEYS` constants
+- [x] **Fix `cleanupLocalStorage()`**: use `STORAGE_KEYS` constants *(Sprint 6)*
 - [ ] **Fix submit redirect**: go to Dashboard with success banner, not archives.html
 
 ### Needs Adding
@@ -872,11 +868,11 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 
 ### Known Issues
 - [ ] Duplicates `escapeHtml()` and `formatDate()` — should use shared `ui-utils.js`
-- [ ] Missing Font Awesome CSS include (only page without it)
+- [x] Missing Font Awesome CSS include (only page without it) *(Sprint 6)*
 - [ ] Path inconsistency: uses `css/output.css` and `js/config.js` (no `./` prefix) unlike all other pages
 - [ ] No offline support — shows warning and stops. Could cache last-viewed reports in IndexedDB.
 - [ ] Reports not filtered by org — queries ALL submitted reports
-- [ ] PDF viewer originally had an iframe modal (`pdfModal`) but `viewPdf()` now just opens in new tab — dead modal HTML may still be in the page
+- [x] PDF viewer originally had an iframe modal (`pdfModal`) but `viewPdf()` now just opens in new tab — dead modal HTML may still be in the page *(Sprint 6: removed)*
 
 ### Confirmed Decisions
 - Online-only is acceptable for now (archives are view-only)
@@ -886,8 +882,8 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 
 ### Needs Adding
 - [ ] Filter reports by `org_id` once organizations are implemented
-- [ ] Add `./` prefix to CSS/JS paths for consistency
-- [ ] Include Font Awesome CSS
-- [ ] Remove dead `pdfModal` HTML if it exists
+- [x] Add `./` prefix to CSS/JS paths for consistency *(Sprint 6)*
+- [x] Include Font Awesome CSS *(Sprint 6)*
+- [x] Remove dead `pdfModal` HTML if it exists *(Sprint 6)*
 - [ ] Consider offline caching (IndexedDB) for previously viewed reports
 - [ ] Use shared `ui-utils.js` functions instead of local duplicates
