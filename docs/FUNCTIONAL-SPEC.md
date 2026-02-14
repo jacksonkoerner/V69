@@ -195,7 +195,7 @@ The `data-layer.js` normalizer converts snake_case → camelCase, so if all data
 - [x] `refreshFromCloud` name collision — also exported by `settings/main.js` (both on `window`)
 - [x] `ACTIVE_PROJECT_ID` concept needs removal — project is selected per-report, not globally *(Sprint 5: removed from interview/report pages; kept only for dashboard picker UI)*
 - [x] Projects not filtered by org — `SELECT *` loads ALL projects from Supabase *(Sprint 8: filtered by org_id)*
-- [ ] Active project stored only in localStorage — breaks cross-platform
+- [x] Active project stored only in localStorage — breaks cross-platform *(Sprint 12: Documented as UI-only preference. Since Sprint 5 removed all critical reads of ACTIVE_PROJECT_ID from interview/report pages, this is now just a picker convenience — not data-critical. Cross-device sync would be nice-to-have but is low priority.)*
 - [x] Dual field name checks (`projectName || project_name`) throughout render code — fragile *(Sprint 9: removed from render code, use normalized camelCase only)*
 
 ### Confirmed Decisions
