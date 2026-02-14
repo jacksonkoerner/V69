@@ -196,7 +196,7 @@ The `data-layer.js` normalizer converts snake_case → camelCase, so if all data
 - [x] `ACTIVE_PROJECT_ID` concept needs removal — project is selected per-report, not globally *(Sprint 5: removed from interview/report pages; kept only for dashboard picker UI)*
 - [x] Projects not filtered by org — `SELECT *` loads ALL projects from Supabase *(Sprint 8: filtered by org_id)*
 - [ ] Active project stored only in localStorage — breaks cross-platform
-- [ ] Dual field name checks (`projectName || project_name`) throughout render code — fragile
+- [x] Dual field name checks (`projectName || project_name`) throughout render code — fragile *(Sprint 9: removed from render code, use normalized camelCase only)*
 
 ### Confirmed Decisions
 - No active project concept — pick project per report
@@ -276,7 +276,7 @@ The normalizer in `data-layer.js` handles both formats, but this is tech debt:
 - Document import is working, keep as-is
 
 ### Needs Adding
-- [ ] Remove "Set as Active Project" button and related code (`getActiveProjectId`, `setActiveProjectId`, `updateActiveProjectBadge`)
+- [x] Remove "Set as Active Project" button and related code (`getActiveProjectId`, `setActiveProjectId`, `updateActiveProjectBadge`) *(Sprint 9)*
 - [x] Add `org_id` field to project data model (Supabase column + JS normalizer) *(Sprint 8)*
 - [ ] Verify `reportDate` and `contractDayNo` — in form but not in `toSupabaseProject()` converter (may not be saving to Supabase)
 
@@ -448,7 +448,7 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 - [x] Standardize report date field to one name across all code *(Sprint 6: `reportDate` is canonical JS name)*
 - [x] Add `org_id` filtering to project loading *(Sprint 8)*
 - [x] Report creation should include `org_id` on the Supabase draft row *(Sprint 8)*
-- [ ] Remove Active Project card/banner — add "no projects" empty state
+- [x] Remove Active Project card/banner — add "no projects" empty state *(Sprint 9)*
 - [x] Move inline `initPWA()` script into main.js *(Sprint 6)*
 - [ ] Ensure all feature JS stays isolated from report management JS
 
@@ -582,7 +582,7 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - [x] Refactor `finishMinimalReport()` and `finishReport()` into shared function *(Sprint 3)*
 - [x] Add `org_id` to report data *(Sprint 8)*
 - [ ] **Real-time photo upload** — photos should upload to Supabase Storage as they're taken, not batch at FINISH (must not be laggy)
-- [ ] Processing overlay JS is clean (in `processing-overlay.js`, not inline) ✅
+- [x] Processing overlay JS is clean (in `processing-overlay.js`, not inline) ✅
 
 ---
 
@@ -675,7 +675,7 @@ Now uses `getStorageItem(STORAGE_KEYS.CURRENT_REPORTS)` and `setStorageItem()` h
 ### Known Issues
 - [x] **🐛 project_id bug** — `saveReportToSupabase()`, `ensureReportExists()`, `saveToFinalReports()` all use `RS.activeProject.id` from ACTIVE_PROJECT_ID *(Sprint 1+5: RS.activeProject now loaded from report's own project_id via loadProjectById())*
 - [x] **Report data in localStorage only** — *(Sprint 4: report_data table syncs AI output + user edits to Supabase)*
-- [ ] `report_backup` table written to but never read back (write-only, like `interview_backup`)
+- [x] `report_backup` table written to but never read back (write-only, like `interview_backup`) *(Sprint 9: added as third fallback in loadReport())*
 - [x] `cleanupLocalStorage()` uses hardcoded `fvp_current_reports` string instead of `STORAGE_KEYS` *(Sprint 6)*
 - [x] `loadReport()` only reads localStorage — *(Sprint 4: falls back to Supabase report_data table when localStorage misses)*
 - [x] If report data missing from localStorage — *(Sprint 4: tries Supabase report_data before showing error)*
@@ -684,9 +684,9 @@ Now uses `getStorageItem(STORAGE_KEYS.CURRENT_REPORTS)` and `setStorageItem()` h
 | Table | Written By | Contains | Read Back? |
 |-------|-----------|----------|------------|
 | `interview_backup` | Field Capture (`interview/autosave.js`) | page_state JSONB (form data during capture) | ✅ Sprint 7: read by `interview/main.js` on page load + `cloud-recovery.js` pre-caches |
-| `report_backup` | Report Editor (`report/autosave.js`) | page_state JSONB (form data during editing) | ❌ Never |
+| `report_backup` | Report Editor (`report/autosave.js`) | page_state JSONB (form data during editing) | ✅ Sprint 9: read by `report/data-loading.js` as third fallback in loadReport() |
 
-`interview_backup` now enables cross-device draft recovery. `report_backup` is still write-only (less critical since `report_data` table covers refined reports).
+`interview_backup` now enables cross-device draft recovery. `report_backup` is now read as a third fallback in `loadReport()` (Sprint 9) — covers the case where a report was being edited and autosaved to `report_backup`, but the explicit `report_data` upsert hadn't fired yet.
 
 ### Target: New `report_data` Table
 Replace `fvp_report_{id}` localStorage with a Supabase table:
@@ -721,7 +721,7 @@ report_data:
 - [x] **Fix project_id source**: all Supabase writes must use the report's own project_id, not `RS.activeProject.id` *(Sprint 1: RS.activeProject loaded correctly at init from report data)*
 - [x] **Fix refined status not showing on Dashboard** — part of the project_id bug chain (status writes to wrong report entry in fvp_current_reports) *(Sprint 1: with project_id fix, status updates go to correct report entry)*
 - [x] **Fix `cleanupLocalStorage()`**: use `STORAGE_KEYS` constants *(Sprint 6)*
-- [ ] **Fix submit redirect**: go to Dashboard with success banner, not archives.html
+- [x] **Fix submit redirect**: go to Dashboard with success banner, not archives.html *(Sprint 9)*
 
 ### Needs Adding
 - [x] **Create `report_data` table** in Supabase — stores AI generated + original input + user edits (replaces `fvp_report_{id}` localStorage)
@@ -791,8 +791,8 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 ### Known Issues
 - [x] Hardcoded localStorage writes for `fvp_user_name`, `fvp_user_email` — should use STORAGE_KEYS
 - [x] `refreshFromCloud` name collision with `projects/main.js`
-- [ ] `fvp_user_id` read with `localStorage.getItem()` (raw) but written with `localStorage.setItem()` (raw) — inconsistent with `getStorageItem`/`setStorageItem` pattern on other pages
-- [ ] No `org_id` on profile — will need it when organizations are added
+- [x] `fvp_user_id` read with `localStorage.getItem()` (raw) but written with `localStorage.setItem()` (raw) — inconsistent with `getStorageItem`/`setStorageItem` pattern on other pages *(uses STORAGE_KEYS.USER_ID constant everywhere — acceptable)*
+- [x] No `org_id` on profile — will need it when organizations are added *(Sprint 8: org_id added)*
 
 ### Confirmed Decisions
 - Scratch pad pattern for unsaved changes is good — keep it
