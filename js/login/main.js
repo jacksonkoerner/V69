@@ -102,6 +102,7 @@ async function handleSignUp() {
     const company = document.getElementById('signUpCompany').value.trim();
     const email = document.getElementById('signUpEmail').value.trim();
     const phone = document.getElementById('signUpPhone').value.trim();
+    const orgCode = document.getElementById('signUpOrgCode').value.trim().toLowerCase();
     const password = document.getElementById('signUpPassword').value;
     const confirm = document.getElementById('signUpConfirm').value;
     const errorEl = document.getElementById('signUpError');
@@ -120,6 +121,11 @@ async function handleSignUp() {
         errorEl.classList.remove('hidden');
         return;
     }
+    if (!orgCode) {
+        errorEl.textContent = 'Organization code is required.';
+        errorEl.classList.remove('hidden');
+        return;
+    }
     if (!password || password.length < 6) {
         errorEl.textContent = 'Password must be at least 6 characters.';
         errorEl.classList.remove('hidden');
@@ -135,6 +141,28 @@ async function handleSignUp() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
 
     try {
+        // Validate organization code (slug) before creating auth account
+        const { data: org, error: orgError } = await supabaseClient
+            .from('organizations')
+            .select('id, name')
+            .eq('slug', orgCode)
+            .maybeSingle();
+
+        if (orgError) {
+            console.error('[LOGIN] Org lookup error:', orgError);
+            errorEl.textContent = 'Could not verify organization. Please try again.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+
+        if (!org) {
+            errorEl.textContent = 'Organization not found. Check your code and try again.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+
+        console.log('[LOGIN] Organization validated:', org.name, org.id);
+
         const { data, error } = await supabaseClient.auth.signUp({
             email: email,
             password: password,
@@ -156,7 +184,7 @@ async function handleSignUp() {
         console.log('[LOGIN] Sign up successful:', data.user.email);
         pendingUser = data.user;
 
-        // Create user_profiles row
+        // Create user_profiles row with org_id
         const deviceId = typeof getDeviceId === 'function' ? getDeviceId() : null;
         const profileRow = {
             auth_user_id: data.user.id,
@@ -165,6 +193,7 @@ async function handleSignUp() {
             company: company,
             email: email,
             phone: phone,
+            org_id: org.id,
             updated_at: new Date().toISOString()
         };
         if (deviceId) profileRow.device_id = deviceId;
@@ -186,6 +215,9 @@ async function handleSignUp() {
             localStorage.setItem(STORAGE_KEYS.USER_EMAIL, profile.email || email);
             localStorage.setItem(STORAGE_KEYS.AUTH_USER_ID, data.user.id);
         }
+
+        // Cache org_id in localStorage
+        localStorage.setItem(STORAGE_KEYS.ORG_ID, org.id);
 
         // Show role picker
         document.getElementById('roleWelcomeName').textContent = `Welcome, ${name}`;

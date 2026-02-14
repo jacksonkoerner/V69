@@ -36,7 +36,8 @@ const STORAGE_KEYS = {
   BANNER_DISMISSED: 'fvp_banner_dismissed',
   BANNER_DISMISSED_DATE: 'fvp_banner_dismissed_date',
   DICTATION_HINT_DISMISSED: 'fvp_dictation_hint_dismissed',
-  PERMISSIONS_DISMISSED: 'fvp_permissions_dismissed'
+  PERMISSIONS_DISMISSED: 'fvp_permissions_dismissed',
+  ORG_ID: 'fvp_org_id'
 };
 
 /**
