@@ -215,41 +215,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Hydrate current reports from IndexedDB if localStorage is empty/stale
-    try {
-        await hydrateCurrentReportsFromIDB();
-    } catch (hydErr) {
-        console.warn('[INDEX] IDB hydration failed:', hydErr);
-    }
+    // Use the shared refreshDashboard() for all data loading + rendering
+    await refreshDashboard('DOMContentLoaded');
 
     try {
-        // Load local projects first
-        let projects = await window.dataLayer.loadProjects();
-
-        // Always refresh from Supabase when online to get all projects
-        if (navigator.onLine) {
-            try {
-                console.log('[INDEX] Refreshing projects from cloud...');
-                projects = await window.dataLayer.refreshProjectsFromCloud();
-            } catch (e) {
-                console.warn('[INDEX] Cloud refresh failed, using local projects:', e);
-                // Keep using local projects on error
-            }
-        }
-
-        // Cache projects for this page
-        projectsCache = projects;
-
-        // Prune stale reports before rendering
-        pruneCurrentReports();
-
-        // Update UI - reports come from localStorage now
-        renderReportCards();
-        updateReportStatus();
-
-        // Fire-and-forget: recover drafts missing from localStorage
-        recoverCloudDrafts();
-
         // Start Realtime subscriptions for multi-device sync
         if (typeof initRealtimeSync === 'function') initRealtimeSync();
 
@@ -259,48 +228,101 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (todaySubmitted.length > 0 && !bannerDismissedThisSession) {
             document.getElementById('submittedBanner').classList.remove('hidden');
         }
-
-        // Sync weather
-        syncWeather();
     } catch (err) {
-        console.error('Failed to initialize:', err);
-        // Still update UI with whatever we have
-        renderReportCards();
-        updateReportStatus();
-        recoverCloudDrafts();
-        syncWeather();
+        console.error('Failed to initialize post-refresh tasks:', err);
     }
 });
 
 // ============ BACK-NAVIGATION / BFCACHE FIX ============
-// On mobile PWA, navigating back (or returning from backgrounded app) may serve
-// the page from bfcache without firing DOMContentLoaded. This listener detects
-// that scenario and refreshes the dashboard UI.
-window.addEventListener('pageshow', function(event) {
-    if (event.persisted) {
-        // Page was restored from bfcache — re-render the dynamic sections
-        console.log('[INDEX] Page restored from bfcache, refreshing UI...');
+// When returning to the dashboard (bfcache restore, iOS app switch, or back-nav),
+// we must reload ALL data before rendering — projectsCache and localStorage may
+// be stale because other pages (interview, report editor) modified storage while
+// the dashboard was frozen/cached.
+
+var _dashboardRefreshing = false; // debounce flag
+
+/**
+ * Full dashboard data refresh — reloads projects + reports, then re-renders.
+ * Safe to call multiple times; concurrent calls are debounced.
+ * @param {string} source - caller label for logging
+ */
+async function refreshDashboard(source) {
+    if (_dashboardRefreshing) {
+        console.log('[INDEX] refreshDashboard already running, skipping (' + source + ')');
+        return;
+    }
+    _dashboardRefreshing = true;
+    console.log('[INDEX] refreshDashboard triggered by:', source);
+
+    try {
+        // 1. Hydrate current reports from IndexedDB → localStorage
+        //    (picks up reports created on other pages that wrote to IDB)
+        try {
+            await hydrateCurrentReportsFromIDB();
+        } catch (e) {
+            console.warn('[INDEX] IDB hydration failed during refresh:', e);
+        }
+
+        // 2. Reload projects (IndexedDB first, then cloud if online)
+        let projects = await window.dataLayer.loadProjects();
+
+        if (navigator.onLine) {
+            try {
+                projects = await window.dataLayer.refreshProjectsFromCloud();
+            } catch (e) {
+                console.warn('[INDEX] Cloud project refresh failed:', e);
+            }
+        }
+
+        // 3. Update the in-memory cache
+        projectsCache = projects;
+
+        // 4. Prune stale reports
+        pruneCurrentReports();
+
+        // 5. Render
+        renderReportCards();
+        updateReportStatus();
+
+        // 6. Recover any cloud drafts we don't have locally
+        recoverCloudDrafts();
+
+        // 7. Sync weather
+        syncWeather();
+    } catch (err) {
+        console.error('[INDEX] refreshDashboard error:', err);
+        // Best-effort render with whatever data is available
         try {
             renderReportCards();
             updateReportStatus();
-            recoverCloudDrafts();
-            syncWeather();
-        } catch (e) {
-            console.error('[INDEX] bfcache refresh error:', e);
-        }
+        } catch (e) { /* give up */ }
+    } finally {
+        _dashboardRefreshing = false;
+    }
+}
+
+// bfcache restore — page was literally frozen and restored
+window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+        console.log('[INDEX] Page restored from bfcache');
+        refreshDashboard('pageshow-bfcache');
     }
 });
 
-// Also handle visibilitychange — covers iOS "swipe out and back" where
-// pageshow.persisted may not be set but the page was frozen.
+// iOS app switch / tab switch — page was hidden and is now visible again.
+// Also covers normal back-navigation on iOS standalone PWA where pageshow.persisted
+// is not set but the page was frozen in the background.
 document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible' && window.location.pathname.endsWith('index.html')) {
-        console.log('[INDEX] Page became visible, refreshing report cards...');
-        try {
-            renderReportCards();
-            updateReportStatus();
-        } catch (e) {
-            console.error('[INDEX] visibility refresh error:', e);
+    if (document.visibilityState === 'visible') {
+        // Check we're on the dashboard (handles both /index.html and / or /V69/)
+        const path = window.location.pathname;
+        const isDashboard = path.endsWith('index.html')
+            || path.endsWith('/')
+            || path === ''
+            || path.endsWith('/V69/')
+            || path.endsWith('/V69');
+        if (isDashboard) {
+            refreshDashboard('visibilitychange');
         }
     }
 });
