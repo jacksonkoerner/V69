@@ -727,6 +727,9 @@ async function runFullDiagnostics() {
 
 // ============ INIT ============
 function init() {
+    // Initialize PWA features (moved from inline script)
+    if (typeof initPWA === 'function') initPWA();
+
     log('Permission Debug Page Loaded');
     log(`URL: ${window.location.href}`);
     log(`User Agent: ${navigator.userAgent}`);

@@ -1051,12 +1051,6 @@
 
     <!-- AI assistant logic now in js/shared/ai-assistant.js -->
 
-    <!-- Initialize PWA features -->
-    <script>
-        if (typeof updateDraftsSection === 'undefined') { var updateDraftsSection = function() {}; }
-        initPWA({ onOnline: updateDraftsSection });
-    </script>
-
     <!-- Auto-open tools/panels from AI navigation (query params) -->
     <script src="./js/index/deep-links.js"></script>
 

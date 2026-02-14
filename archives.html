@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Report Archives - FieldVoice Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="css/output.css">
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="./css/output.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
@@ -79,27 +80,10 @@
         </div>
     </main>
 
-    <!-- PDF Viewer Modal -->
-    <div id="pdfModal" class="fixed inset-0 bg-black bg-opacity-80 z-50 hidden">
-        <div class="h-full flex flex-col">
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between p-3 bg-gray-900 text-white flex-shrink-0">
-                <span id="pdfTitle" class="font-medium text-sm truncate flex-1 mr-4"></span>
-                <button id="closePdfModal" class="p-2 hover:bg-gray-700 rounded-lg transition-colors">
-                    <span class="text-xl">✕</span>
-                </button>
-            </div>
-            <!-- PDF Iframe Container -->
-            <div class="flex-1 overflow-hidden">
-                <iframe id="pdfViewer" class="w-full h-full bg-gray-200" style="border: none;"></iframe>
-            </div>
-        </div>
-    </div>
-
-    <script src="js/config.js"></script>
-    <script src="js/storage-keys.js"></script>
-    <script src="js/ui-utils.js"></script>
-    <script src="js/auth.js"></script>
+    <script src="./js/config.js"></script>
+    <script src="./js/storage-keys.js"></script>
+    <script src="./js/ui-utils.js"></script>
+    <script src="./js/auth.js"></script>
     <script src="./js/archives/main.js"></script>
 <script src="./js/shared/ai-assistant.js"></script>
 </body>

@@ -189,7 +189,7 @@ async function selectProjectAndProceed(projectId) {
     const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
     const existing = Object.values(reports).find(
         r => r.project_id === projectId &&
-             r.date === today &&
+             r.reportDate === today &&
              r.status !== REPORT_STATUS.SUBMITTED
     );
 

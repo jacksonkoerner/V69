@@ -35,21 +35,6 @@ function setupEventListeners() {
         loadReports(e.target.value || null);
     });
 
-    // Close PDF modal
-    document.getElementById('closePdfModal').addEventListener('click', closePdfModal);
-
-    // Close modal on backdrop click
-    document.getElementById('pdfModal').addEventListener('click', (e) => {
-        if (e.target.id === 'pdfModal') {
-            closePdfModal();
-        }
-    });
-
-    // Close modal on Escape
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closePdfModal();
-    });
-
     // Online/offline listeners
     window.addEventListener('online', () => {
         hideOfflineWarning();
@@ -248,15 +233,6 @@ function viewPdf(reportId) {
 
     // Open PDF directly in a new tab — works in both browser and WebView
     window.open(report.pdfUrl, '_blank');
-}
-
-function closePdfModal() {
-    const modal = document.getElementById('pdfModal');
-    const viewer = document.getElementById('pdfViewer');
-
-    modal.classList.add('hidden');
-    viewer.src = '';
-    document.body.style.overflow = '';
 }
 
 // ============ UI State Management ============

@@ -37,7 +37,7 @@ function renderReportCards() {
     // Sort reports within each group: newest date first, then by updated_at
     for (const pid of Object.keys(reportsByProject)) {
         reportsByProject[pid].sort((a, b) => {
-            const dateCompare = (b.date || '').localeCompare(a.date || '');
+            const dateCompare = (b.reportDate || '').localeCompare(a.reportDate || '');
             if (dateCompare !== 0) return dateCompare;
             return (b.updated_at || 0) - (a.updated_at || 0);
         });
@@ -148,7 +148,7 @@ function toggleProjectSection(sectionId) {
 
 function getReportHref(report) {
     const status = report.status;
-    const reportDate = report.report_date || report.reportDate || report.date;
+    const reportDate = report.reportDate;
 
     if (status === REPORT_STATUS.SUBMITTED) {
         return `archives.html?id=${report.id}`;
@@ -182,9 +182,9 @@ function formatTimestamp(ts) {
 
 function renderReportCard(report) {
     const href = getReportHref(report);
-    const dateStr = formatDate(report.date, 'long');
+    const dateStr = formatDate(report.reportDate, 'long');
     const status = report.status || 'draft';
-    const isLate = report.date < getTodayDateString() && status !== REPORT_STATUS.SUBMITTED;
+    const isLate = report.reportDate < getTodayDateString() && status !== REPORT_STATUS.SUBMITTED;
     const captureMode = report.capture_mode || report._draft_data?.captureMode || '\u2014';
     const uuid = report.id || '\u2014';
     const truncUuid = uuid.length > 12 ? uuid.substring(0, 8) + '\u2026' : uuid;

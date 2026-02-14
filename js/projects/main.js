@@ -293,6 +293,9 @@ function updateActiveProjectBanner(projects) {
 
 // ============ INIT ============
 document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize PWA features (moved from inline script)
+    if (typeof initPWA === 'function') initPWA();
+
     // Get current active project
     activeProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
 

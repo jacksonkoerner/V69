@@ -73,6 +73,9 @@ function cancelEdit() {
 
 // ============ INITIALIZATION ============
 document.addEventListener('DOMContentLoaded', async function() {
+    // Initialize PWA features (moved from inline script)
+    if (typeof initPWA === 'function') initPWA();
+
     // Initialize IndexedDB first for local-first storage
     try {
         await window.idb.initDB();

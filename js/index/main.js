@@ -37,7 +37,7 @@ function pruneCurrentReports() {
     if (!reports || typeof reports !== 'object') return;
 
     const now = Date.now();
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
     let pruned = 0;
 
     for (const [id, report] of Object.entries(reports)) {
@@ -48,13 +48,13 @@ function pruneCurrentReports() {
             continue;
         }
 
-        // Remove submitted reports older than 24 hours
+        // Remove submitted reports older than 7 days
         if (report.status === 'submitted') {
             const submitTime = report.submitted_at
                 ? new Date(report.submitted_at).getTime()
                 : (typeof report.updated_at === 'number' ? report.updated_at : new Date(report.updated_at || 0).getTime());
 
-            if (now - submitTime > TWENTY_FOUR_HOURS) {
+            if (now - submitTime > SEVEN_DAYS) {
                 delete reports[id];
                 pruned++;
             }
@@ -139,6 +139,11 @@ async function dismissSubmittedBanner() {
 
 // ============ INIT ============
 document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize PWA features (moved from inline script in index.html)
+    if (typeof initPWA === 'function') {
+        initPWA({ onOnline: typeof updateDraftsSection === 'function' ? updateDraftsSection : function() {} });
+    }
+
     if (shouldShowOnboarding()) {
         window.location.href = 'permissions.html';
         return;
