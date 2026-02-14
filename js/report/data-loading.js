@@ -135,8 +135,29 @@ async function loadReport() {
         loadedReport.overview.weather = reportData.originalInput.weather;
     }
 
-    if (reportData.originalInput?.photos) {
+    if (reportData.originalInput?.photos && reportData.originalInput.photos.length > 0) {
         loadedReport.photos = reportData.originalInput.photos;
+    }
+
+    // Sprint 15: If no photos loaded locally, try Supabase photos table (cross-device rehydration)
+    if ((!loadedReport.photos || loadedReport.photos.length === 0) && navigator.onLine && typeof fetchCloudPhotos === 'function') {
+        try {
+            var cloudPhotos = await fetchCloudPhotos(reportIdParam);
+            if (cloudPhotos && cloudPhotos.length > 0) {
+                loadedReport.photos = cloudPhotos;
+                console.log('[LOAD] Rehydrated ' + cloudPhotos.length + ' photo(s) from cloud');
+
+                // Cache back to localStorage so we don't re-fetch next time
+                if (reportData.originalInput) {
+                    reportData.originalInput.photos = cloudPhotos;
+                } else {
+                    reportData.originalInput = { photos: cloudPhotos };
+                }
+                saveReportData(reportIdParam, reportData);
+            }
+        } catch (photoErr) {
+            console.warn('[LOAD] Cloud photo rehydration failed:', photoErr);
+        }
     }
 
     return loadedReport;

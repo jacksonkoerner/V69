@@ -105,6 +105,43 @@ function recoverCloudDrafts() {
                 if (draftIds.length > 0) {
                     cacheInterviewBackups(draftIds, localReports);
                 }
+
+                // Sprint 15: Rehydrate photos from Supabase photos table
+                // Ensures cross-device photo display for recovered reports
+                var allRecoveredIds = data.map(function(r) { return r.id; });
+                if (allRecoveredIds.length > 0 && typeof fetchCloudPhotosBatch === 'function') {
+                    fetchCloudPhotosBatch(allRecoveredIds)
+                        .then(function(photoMap) {
+                            if (!photoMap || Object.keys(photoMap).length === 0) return;
+
+                            // Inject photos into report_data in localStorage
+                            for (var reportId in photoMap) {
+                                var photos = photoMap[reportId];
+                                if (!photos || photos.length === 0) continue;
+
+                                // Update originalInput.photos in cached report data
+                                var reportData = getReportData(reportId);
+                                if (reportData) {
+                                    if (!reportData.originalInput) reportData.originalInput = {};
+                                    if (!reportData.originalInput.photos || reportData.originalInput.photos.length === 0) {
+                                        reportData.originalInput.photos = photos;
+                                        saveReportData(reportId, reportData);
+                                        console.log('[RECOVERY] Rehydrated ' + photos.length + ' photo(s) for:', reportId);
+                                    }
+                                }
+
+                                // Also update _draft_data if it exists
+                                var currentReports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
+                                if (currentReports[reportId] && currentReports[reportId]._draft_data) {
+                                    currentReports[reportId]._draft_data.photos = photos;
+                                    setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, currentReports);
+                                }
+                            }
+                        })
+                        .catch(function(err) {
+                            console.warn('[RECOVERY] Photo rehydration failed:', err);
+                        });
+                }
             } else {
                 console.log('[RECOVERY] All cloud drafts already in localStorage');
             }
