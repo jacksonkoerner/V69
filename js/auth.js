@@ -310,11 +310,22 @@
 
     // ── Page-load auth gate ────────────────────────────────────────────
 
+    // Auth-ready signal: other modules (e.g. main.js) can await this
+    // to ensure the auth session is established before making Supabase queries.
+    // Resolves with the session object, or null if redirecting to login.
+    let _authReadyResolve;
+    const _authReadyPromise = new Promise(function(resolve) {
+        _authReadyResolve = resolve;
+    });
+
     // Auto-run auth check on protected pages (not login.html)
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
     if (currentPage !== 'login.html' && currentPage !== 'landing.html') {
         document.addEventListener('DOMContentLoaded', async () => {
             const session = await requireAuth();
+            // Signal auth ready (even if null — callers handle that)
+            _authReadyResolve(session);
+
             if (session) {
                 // Inject sign-out button into header if it has a nav area
                 injectSignOutButton();
@@ -335,6 +346,9 @@
                 }
             }
         });
+    } else {
+        // Non-protected pages: resolve immediately
+        _authReadyResolve(null);
     }
 
     /**
@@ -376,7 +390,9 @@
         setAuthRole,
         signOut,
         upsertAuthProfile,
-        loadAuthProfile
+        loadAuthProfile,
+        /** Promise that resolves when auth check completes. Resolves with session or null. */
+        ready: _authReadyPromise
     };
 
     console.log('[AUTH] Auth module loaded');
