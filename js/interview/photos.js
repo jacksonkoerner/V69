@@ -59,7 +59,7 @@ async function handlePhotoInput(e) {
             // Create timestamp
             const now = new Date();
             const timestamp = now.toISOString();
-            const date = now.toLocaleDateString();
+            const date = getLocalDateString(now);
             const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
 
             const photoId = crypto.randomUUID();

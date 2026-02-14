@@ -672,19 +672,22 @@ _interviewBackupDirty = false;
 
 const pageState = buildInterviewPageState();
 
-// Fire and forget — do NOT await, do NOT block UI
+// Fire and forget with retry — do NOT await, do NOT block UI (SUP-02)
 const orgId = localStorage.getItem('fvp_org_id');
-supabaseClient
-.from('interview_backup')
-.upsert({
-report_id: IS.currentReportId,
-page_state: pageState,
-org_id: orgId || null,
-updated_at: new Date().toISOString()
-}, { onConflict: 'report_id' })
-.then(({ error }) => {
-if (error) console.warn('[BACKUP] Interview backup failed:', error.message);
-else console.log('[BACKUP] Interview backup saved');
+const reportId = IS.currentReportId;
+supabaseRetry(function() {
+    return supabaseClient
+        .from('interview_backup')
+        .upsert({
+            report_id: reportId,
+            page_state: pageState,
+            org_id: orgId || null,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'report_id' });
+}, 3, 'flushInterviewBackup').then(function() {
+    console.log('[BACKUP] Interview backup saved');
+}).catch(function(err) {
+    console.warn('[BACKUP] Interview backup failed after retries:', err.message);
 });
 }
 // ============================================================
@@ -833,7 +836,7 @@ function createFreshReport() {
         },
         overview: {
             projectName: IS.activeProject?.projectName || "",
-            date: new Date().toLocaleDateString(),
+            date: getLocalDateString(),
             startTime: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
             completedBy: IS.userSettings?.full_name || "",
             weather: { highTemp: "--", lowTemp: "--", precipitation: "0.00\"", generalCondition: "Syncing...", jobSiteCondition: "", adverseConditions: "N/A" }
