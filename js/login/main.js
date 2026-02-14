@@ -71,14 +71,20 @@ async function handleSignIn() {
                 localStorage.setItem(STORAGE_KEYS.ORG_ID, profile.org_id);
             }
 
-            // Update device_id on this profile (informational, not for lookups)
+            // Update device_id and device_info on this profile
             const deviceId = typeof getDeviceId === 'function' ? getDeviceId() : null;
             if (deviceId) {
+                const deviceInfo = {
+                    userAgent: navigator.userAgent || '',
+                    platform: navigator.userAgentData?.platform || navigator.platform || '',
+                    screen: (screen.width || 0) + 'x' + (screen.height || 0),
+                    capturedAt: new Date().toISOString()
+                };
                 supabaseClient
                     .from('user_profiles')
-                    .update({ device_id: deviceId })
+                    .update({ device_id: deviceId, device_info: deviceInfo })
                     .eq('auth_user_id', data.user.id)
-                    .then(() => console.log('[LOGIN] Updated device_id on profile'));
+                    .then(() => console.log('[LOGIN] Updated device_id and device_info on profile'));
             }
 
             window.location.href = 'index.html';
@@ -202,6 +208,13 @@ async function handleSignUp() {
             updated_at: new Date().toISOString()
         };
         if (deviceId) profileRow.device_id = deviceId;
+        // Capture device metadata
+        profileRow.device_info = {
+            userAgent: navigator.userAgent || '',
+            platform: navigator.userAgentData?.platform || navigator.platform || '',
+            screen: (screen.width || 0) + 'x' + (screen.height || 0),
+            capturedAt: new Date().toISOString()
+        };
 
         const { data: profile, error: profileError } = await supabaseClient
             .from('user_profiles')
