@@ -170,7 +170,7 @@ async function saveSettings() {
     }
 
     // Step 2: Get user_id (the user_profiles row id)
-    let userId = localStorage.getItem('fvp_user_id');
+    let userId = localStorage.getItem(STORAGE_KEYS.USER_ID);
 
     // Step 3: Build profile object with all fields
     const profile = {
@@ -193,7 +193,7 @@ async function saveSettings() {
 
     // Step 5: Only store user_id if we have one
     if (userId) {
-        localStorage.setItem('fvp_user_id', userId);
+        localStorage.setItem(STORAGE_KEYS.USER_ID, userId);
         currentProfileId = userId;
     }
 
@@ -234,9 +234,9 @@ async function saveSettings() {
         // Step 7: Store the Supabase-returned id (important for new devices)
         if (result.data && result.data.id) {
             const returnedId = result.data.id;
-            localStorage.setItem('fvp_user_id', returnedId);
-            localStorage.setItem('fvp_user_name', result.data.full_name || '');
-            localStorage.setItem('fvp_user_email', result.data.email || '');
+            localStorage.setItem(STORAGE_KEYS.USER_ID, returnedId);
+            localStorage.setItem(STORAGE_KEYS.USER_NAME, result.data.full_name || '');
+            localStorage.setItem(STORAGE_KEYS.USER_EMAIL, result.data.email || '');
             currentProfileId = returnedId;
 
             // Update IndexedDB with the id from Supabase
@@ -316,9 +316,9 @@ async function refreshFromCloud() {
 
         // Store user info
         if (data.id) {
-            localStorage.setItem('fvp_user_id', data.id);
-            localStorage.setItem('fvp_user_name', data.full_name || '');
-            localStorage.setItem('fvp_user_email', data.email || '');
+            localStorage.setItem(STORAGE_KEYS.USER_ID, data.id);
+            localStorage.setItem(STORAGE_KEYS.USER_NAME, data.full_name || '');
+            localStorage.setItem(STORAGE_KEYS.USER_EMAIL, data.email || '');
         }
 
         // Mark as dirty - user needs to Save to commit to IndexedDB
