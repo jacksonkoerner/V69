@@ -220,18 +220,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Wait for auth to be ready before loading data.
     // auth.js registers its own DOMContentLoaded handler that calls requireAuth().
     // That handler fires before this one (auth.js is in <head>, main.js is at end of <body>).
-    // But requireAuth() is async — we need to ensure auth session is active before
-    // making Supabase queries that depend on the auth token.
+    // But requireAuth() is async — we use auth.ready promise to coordinate.
+    // Timeout after 5s to prevent indefinite hang if auth is stuck.
     try {
-        var _authResult = await supabaseClient.auth.getSession();
-        if (!_authResult.data.session) {
-            console.warn('[INDEX] No auth session during DOMContentLoaded — auth.js will redirect');
-            return; // Don't try to load data without auth
+        var _authSession = await withTimeout(
+            window.auth.ready,
+            5000, null, 'auth.ready'
+        );
+        if (!_authSession) {
+            console.warn('[INDEX] No auth session — auth.js will redirect or session timed out');
+            // Don't return! Render what we can from localStorage even without auth.
+            // If auth.js redirects to login, this code is harmless.
+        } else {
+            console.log('[INDEX] Auth session confirmed, proceeding with dashboard init');
         }
-        console.log('[INDEX] Auth session confirmed, proceeding with dashboard init');
     } catch (_authErr) {
         console.warn('[INDEX] Auth check failed:', _authErr);
-        // Continue anyway — refreshDashboard will do best-effort with IDB
+        // Continue anyway — refreshDashboard will do best-effort with localStorage
     }
 
     // Use the shared refreshDashboard() for all data loading + rendering
@@ -252,17 +257,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ============ SAFETY NET: Verify render completed ============
-    // If after 4 seconds the report cards section is still empty but we have
-    // projects in localStorage, something went wrong — force a re-render.
+    // If after 2 seconds the dashboard is still blank, force a render from
+    // whatever localStorage data we have. Covers edge cases where
+    // refreshDashboard hangs (IDB timeout, stuck Supabase call, etc.)
     setTimeout(function() {
         var container = document.getElementById('reportCardsSection');
         var statusSection = document.getElementById('reportStatusSection');
         var hasRenderedCards = container && container.innerHTML.trim().length > 0;
         var hasRenderedStatus = statusSection && statusSection.innerHTML.trim().length > 0;
 
-        if (!hasRenderedCards && !hasRenderedStatus) {
-            console.warn('[INDEX] SAFETY NET: Dashboard appears blank after 4s, forcing re-render');
-            // Try rendering from whatever data we have
+        if (!hasRenderedCards || !hasRenderedStatus) {
+            console.warn('[INDEX] SAFETY NET: Dashboard appears blank/incomplete after 2s, forcing re-render');
             try {
                 // Re-populate projectsCache from localStorage if empty
                 if (projectsCache.length === 0) {
@@ -276,12 +281,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             } catch (e) {
                 console.error('[INDEX] SAFETY NET: Re-render failed:', e);
             }
-
-            // Also trigger a full refresh
-            _lastRefreshTime = 0; // Reset cooldown
-            refreshDashboard('safety-net');
         }
-    }, 4000);
+    }, 2000);
 });
 
 // ============ BACK-NAVIGATION / BFCACHE FIX ============
@@ -295,9 +296,34 @@ var _lastRefreshTime = 0;         // cooldown timestamp (ms)
 var _REFRESH_COOLDOWN = 2000;     // minimum ms between refreshes
 
 /**
+ * Race a promise against a timeout. Returns the promise result if it resolves
+ * in time, or a fallback value on timeout.
+ * @param {Promise} promise
+ * @param {number} ms - timeout in milliseconds
+ * @param {*} fallback - value to return on timeout
+ * @param {string} label - for logging
+ * @returns {Promise<*>}
+ */
+function withTimeout(promise, ms, fallback, label) {
+    return Promise.race([
+        promise,
+        new Promise(function(resolve) {
+            setTimeout(function() {
+                console.warn('[INDEX] ' + label + ' timed out after ' + ms + 'ms, using fallback');
+                resolve(fallback);
+            }, ms);
+        })
+    ]);
+}
+
+/**
  * Full dashboard data refresh — reloads projects + reports, then re-renders.
  * Safe to call multiple times; concurrent calls are debounced and a 2s cooldown
  * prevents rapid-fire from multiple event sources (DOMContentLoaded + pageshow + visibilitychange).
+ *
+ * All async data loading has timeouts to prevent indefinite hangs (iOS IDB bug).
+ * Rendering always happens, even if data loading fails — uses localStorage fallback.
+ *
  * @param {string} source - caller label for logging
  */
 async function refreshDashboard(source) {
@@ -322,17 +348,24 @@ async function refreshDashboard(source) {
     try {
         // 1. Hydrate current reports from IndexedDB → localStorage
         //    (picks up reports created on other pages that wrote to IDB)
+        //    Timeout: 3s — if IDB is frozen, skip hydration (localStorage reports still work)
         try {
-            await hydrateCurrentReportsFromIDB();
-            console.log('[INDEX] IDB hydration complete');
+            await withTimeout(
+                hydrateCurrentReportsFromIDB(),
+                3000, false, 'IDB hydration'
+            );
         } catch (e) {
             console.warn('[INDEX] IDB hydration failed during refresh:', e);
         }
 
         // 2. Reload projects (IndexedDB first, then cloud if online)
-        let projects = [];
+        //    Timeout: 4s for IDB, 8s for cloud
+        var projects = [];
         try {
-            projects = await window.dataLayer.loadProjects();
+            projects = await withTimeout(
+                window.dataLayer.loadProjects(),
+                4000, [], 'loadProjects'
+            );
             console.log('[INDEX] Loaded', projects.length, 'projects from IDB');
         } catch (e) {
             console.warn('[INDEX] loadProjects failed:', e);
@@ -340,8 +373,14 @@ async function refreshDashboard(source) {
 
         if (navigator.onLine) {
             try {
-                projects = await window.dataLayer.refreshProjectsFromCloud();
-                console.log('[INDEX] Refreshed', projects.length, 'projects from cloud');
+                var cloudProjects = await withTimeout(
+                    window.dataLayer.refreshProjectsFromCloud(),
+                    8000, null, 'refreshProjectsFromCloud'
+                );
+                if (cloudProjects && cloudProjects.length > 0) {
+                    projects = cloudProjects;
+                    console.log('[INDEX] Refreshed', projects.length, 'projects from cloud');
+                }
             } catch (e) {
                 console.warn('[INDEX] Cloud project refresh failed:', e);
             }
@@ -363,35 +402,43 @@ async function refreshDashboard(source) {
         // 4. Prune stale reports
         pruneCurrentReports();
 
-        // 5. Render
+        // 5. Render — ALWAYS reaches here thanks to timeouts above
         console.log('[INDEX] Rendering with', projectsCache.length, 'projects,',
             Object.keys(getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {}).length, 'reports');
         renderReportCards();
         updateReportStatus();
 
-        // 6. Recover any cloud drafts we don't have locally
-        recoverCloudDrafts();
+        // 6. Recover any cloud drafts we don't have locally (fire-and-forget)
+        try { recoverCloudDrafts(); } catch (e) { /* non-critical */ }
 
-        // 7. Sync weather
-        syncWeather();
+        // 7. Sync weather (fire-and-forget)
+        try { syncWeather(); } catch (e) { /* non-critical */ }
     } catch (err) {
         console.error('[INDEX] refreshDashboard error:', err);
         // Best-effort render with whatever data is available
-        try {
-            // Recover projectsCache from localStorage
-            if (projectsCache.length === 0) {
-                var fallbackProjects = getStorageItem(STORAGE_KEYS.PROJECTS);
-                if (fallbackProjects && typeof fallbackProjects === 'object') {
-                    projectsCache = Object.values(fallbackProjects);
-                }
-            }
-            renderReportCards();
-            updateReportStatus();
-        } catch (e) {
-            console.error('[INDEX] Best-effort render also failed:', e);
-        }
+        _renderFromLocalStorage();
     } finally {
         _dashboardRefreshing = false;
+    }
+}
+
+/**
+ * Emergency render from localStorage only.
+ * Used as a last resort when all async data loading fails.
+ */
+function _renderFromLocalStorage() {
+    try {
+        if (projectsCache.length === 0) {
+            var fallbackProjects = getStorageItem(STORAGE_KEYS.PROJECTS);
+            if (fallbackProjects && typeof fallbackProjects === 'object') {
+                projectsCache = Object.values(fallbackProjects);
+            }
+        }
+        renderReportCards();
+        updateReportStatus();
+        console.log('[INDEX] Emergency localStorage render complete');
+    } catch (e) {
+        console.error('[INDEX] Emergency render also failed:', e);
     }
 }
 
@@ -399,15 +446,21 @@ async function refreshDashboard(source) {
 //
 // iOS standalone PWA does NOT reliably fire pageshow with event.persisted on
 // back-navigation. We use three complementary listeners:
-//   1. pageshow — always (not gated on event.persisted), with cooldown
+//   1. pageshow — always (not gated on event.persisted), with cooldown + IDB reset
 //   2. visibilitychange — covers iOS app switch / tab switch
 //   3. focus — belt-and-suspenders for iOS PWA resume
 // The cooldown prevents all three from triggering separate refreshes.
 
 // 1. pageshow — fires on every navigation to this page (forward, back, bfcache)
 //    NOT gated on event.persisted because iOS PWA often doesn't set it.
+//    Resets IDB connection on bfcache restore to prevent stale connection errors.
 window.addEventListener('pageshow', function(event) {
     console.log('[INDEX] pageshow fired (persisted=' + event.persisted + ')');
+    // Reset IDB connection on bfcache restore — the old connection is likely dead.
+    // Also reset unconditionally because iOS PWA doesn't reliably set persisted=true.
+    if (window.idb && window.idb.resetDB) {
+        window.idb.resetDB();
+    }
     refreshDashboard('pageshow');
 });
 
