@@ -338,9 +338,14 @@
     }
 
     /**
-     * Inject a small sign-out icon button into the page header
+     * Inject a small sign-out icon button into the page header.
+     * Only injects on settings.html — all other pages rely on settings for sign-out.
      */
     function injectSignOutButton() {
+        // Only show sign-out button on settings page
+        const page = window.location.pathname.split('/').pop() || '';
+        if (page !== 'settings.html') return;
+
         // Look for header button area (most pages have a flex container in header with gap)
         const header = document.querySelector('header');
         if (!header) return;
