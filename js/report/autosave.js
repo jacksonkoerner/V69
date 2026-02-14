@@ -215,6 +215,20 @@ function saveReportToLocalStorage() {
     } else {
         console.error('[LOCAL] Failed to save report to localStorage');
     }
+
+    // Also update current_reports status so dashboard reflects correct state
+    if (RS.currentReportId) {
+        var currentReport = getCurrentReport(RS.currentReportId);
+        if (currentReport) {
+            currentReport.status = RS.report?.meta?.status || currentReport.status;
+            currentReport.updated_at = Date.now();
+            if (typeof saveCurrentReportSync === 'function') {
+                saveCurrentReportSync(currentReport);
+            } else {
+                saveCurrentReport(currentReport);
+            }
+        }
+    }
 }
 
 /**

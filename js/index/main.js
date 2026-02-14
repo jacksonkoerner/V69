@@ -271,6 +271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 var _dashboardRefreshing = false; // debounce flag
 var _lastRefreshTime = 0;         // cooldown timestamp (ms)
+var _lastRefreshSource = '';      // last refresh source (for cooldown scoping)
 var _REFRESH_COOLDOWN = 2000;     // minimum ms between refreshes
 
 /**
@@ -314,13 +315,14 @@ async function refreshDashboard(source) {
     // Cooldown: skip if we just refreshed < 2s ago (prevents double-fire from
     // DOMContentLoaded + immediate pageshow or visibilitychange)
     var now = Date.now();
-    if (source !== 'DOMContentLoaded' && (now - _lastRefreshTime) < _REFRESH_COOLDOWN) {
+    if (source !== 'DOMContentLoaded' && source === _lastRefreshSource && (now - _lastRefreshTime) < _REFRESH_COOLDOWN) {
         console.log('[INDEX] refreshDashboard cooldown, skipping (' + source + ', ' + (now - _lastRefreshTime) + 'ms since last)');
         return;
     }
 
     _dashboardRefreshing = true;
     _lastRefreshTime = now;
+    _lastRefreshSource = source;
     console.log('[INDEX] refreshDashboard triggered by:', source);
 
     // Step 0: Render immediately from localStorage (instant, synchronous)

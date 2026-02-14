@@ -181,8 +181,13 @@ function saveToLocalStorage() {
             // Store the full draft data in a nested object for compatibility
             _draft_data: data
         };
-        saveCurrentReport(reportData);
-        console.log('[LOCAL] Draft saved to localStorage via saveCurrentReport');
+        // Use synchronous save to survive iOS pagehide (async queue may not complete)
+        if (typeof saveCurrentReportSync === 'function') {
+            saveCurrentReportSync(reportData);
+        } else {
+            saveCurrentReport(reportData);
+        }
+        console.log('[LOCAL] Draft saved to localStorage (sync emergency path)');
 
         // Sprint 11: Write-through draft data to IndexedDB for durability
         if (window.idb && window.idb.saveDraftDataIDB) {

@@ -210,6 +210,9 @@ async function cleanupLocalStorage() {
     }
     setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, currentReports);
 
+    // Sync updated current_reports to IndexedDB
+    syncCurrentReportsToIDB();
+
     if (window.idb && typeof window.idb.deletePhotosByReportId === 'function') {
         try {
             await window.idb.deletePhotosByReportId(RS.currentReportId);

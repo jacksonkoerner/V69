@@ -435,6 +435,25 @@ function syncCurrentReportsToIDB() {
   });
 }
 
+/**
+ * SYNCHRONOUS emergency save — bypasses the async queue.
+ * Use ONLY in pagehide/visibilitychange handlers where async may not complete.
+ * Skips IDB write-through (can't await it anyway in pagehide).
+ */
+function saveCurrentReportSync(report) {
+    if (!report || !report.id) return false;
+    try {
+        var reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
+        report.updated_at = Date.now();
+        reports[report.id] = report;
+        localStorage.setItem(STORAGE_KEYS.CURRENT_REPORTS, JSON.stringify(reports));
+        return true;
+    } catch (e) {
+        console.error('[STORAGE] Sync emergency save failed:', e);
+        return false;
+    }
+}
+
 // Expose to window for non-module scripts
 if (typeof window !== 'undefined') {
   window.STORAGE_KEYS = STORAGE_KEYS;
@@ -452,4 +471,5 @@ if (typeof window !== 'undefined') {
   window.deleteReportData = deleteReportData;
   window.hydrateCurrentReportsFromIDB = hydrateCurrentReportsFromIDB;
   window.syncCurrentReportsToIDB = syncCurrentReportsToIDB;
+  window.saveCurrentReportSync = saveCurrentReportSync;
 }
