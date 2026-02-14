@@ -107,6 +107,9 @@ function renderReportCards() {
     }
 
     container.innerHTML = html;
+
+    // Initialize swipe-to-delete on the newly rendered cards
+    initSwipeToDelete();
 }
 
 function renderProjectSection(project, reports, expanded) {
@@ -211,34 +214,39 @@ function renderReportCard(report) {
     const bgColor = isLate ? 'bg-red-50' : 'bg-white';
 
     return `
-        <div class="${bgColor} border-l-4 ${borderColor} mb-2 shadow-sm">
-            <a href="${href}" class="block p-3 hover:bg-slate-50 transition-colors">
-                <div class="flex items-center justify-between mb-1">
-                    <p class="font-semibold text-sm text-slate-800">${isLate ? '<i class="fas fa-exclamation-triangle text-red-500 mr-1"></i>' : ''}${escapeHtml(dateStr)}</p>
-                    ${getStatusBadge(status)}
-                </div>
-                <div class="flex items-center gap-4 text-[11px] text-slate-500">
-                    <span><i class="fas fa-play text-[9px] mr-1"></i>Started ${formatTimestamp(report.created_at)}</span>
-                    <span><i class="fas fa-pencil text-[9px] mr-1"></i>Edited ${formatTimestamp(report.updated_at)}</span>
-                </div>
-            </a>
-            <div class="border-t border-slate-100">
-                <button onclick="event.preventDefault(); document.getElementById('${cardId}').classList.toggle('hidden'); this.querySelector('i.fa-chevron-down,i.fa-chevron-right').classList.toggle('fa-chevron-down'); this.querySelector('i.fa-chevron-down,i.fa-chevron-right').classList.toggle('fa-chevron-right');" class="w-full px-3 py-1.5 text-left text-[10px] text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1">
-                    <i class="fas fa-chevron-right text-[8px]"></i> Details
-                </button>
-                <div id="${cardId}" class="hidden px-3 pb-2 text-[11px] text-slate-500 space-y-1">
-                    <div class="flex items-center gap-2">
-                        <span class="text-slate-400 w-14 shrink-0">UUID</span>
-                        <code class="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded truncate">${escapeHtml(uuid)}</code>
-                        <button onclick="event.preventDefault(); event.stopPropagation(); navigator.clipboard.writeText('${uuid}'); this.innerHTML='<i class=\\'fas fa-check\\'></i>'; setTimeout(() => this.innerHTML='<i class=\\'fas fa-copy\\'></i>', 1500);" class="text-slate-400 hover:text-dot-blue shrink-0" title="Copy UUID"><i class="fas fa-copy"></i></button>
+        <div class="swipe-card-wrapper" data-report-id="${escapeHtml(uuid)}">
+            <div class="swipe-delete-action" onclick="event.stopPropagation(); confirmDeleteReport('${uuid}');">
+                <i class="fas fa-trash"></i><br>Delete
+            </div>
+            <div class="swipe-card-content ${bgColor} border-l-4 ${borderColor} mb-2 shadow-sm">
+                <a href="${href}" class="block p-3 hover:bg-slate-50 transition-colors">
+                    <div class="flex items-center justify-between mb-1">
+                        <p class="font-semibold text-sm text-slate-800">${isLate ? '<i class="fas fa-exclamation-triangle text-red-500 mr-1"></i>' : ''}${escapeHtml(dateStr)}</p>
+                        ${getStatusBadge(status)}
                     </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-slate-400 w-14 shrink-0">Mode</span>
-                        <span class="capitalize">${escapeHtml(captureMode)}</span>
+                    <div class="flex items-center gap-4 text-[11px] text-slate-500">
+                        <span><i class="fas fa-play text-[9px] mr-1"></i>Started ${formatTimestamp(report.created_at)}</span>
+                        <span><i class="fas fa-pencil text-[9px] mr-1"></i>Edited ${formatTimestamp(report.updated_at)}</span>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-slate-400 w-14 shrink-0">Project</span>
-                        <span class="truncate">${escapeHtml(report.project_name || '\u2014')}</span>
+                </a>
+                <div class="border-t border-slate-100">
+                    <button onclick="event.preventDefault(); document.getElementById('${cardId}').classList.toggle('hidden'); this.querySelector('i.fa-chevron-down,i.fa-chevron-right').classList.toggle('fa-chevron-down'); this.querySelector('i.fa-chevron-down,i.fa-chevron-right').classList.toggle('fa-chevron-right');" class="w-full px-3 py-1.5 text-left text-[10px] text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1">
+                        <i class="fas fa-chevron-right text-[8px]"></i> Details
+                    </button>
+                    <div id="${cardId}" class="hidden px-3 pb-2 text-[11px] text-slate-500 space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-400 w-14 shrink-0">UUID</span>
+                            <code class="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded truncate">${escapeHtml(uuid)}</code>
+                            <button onclick="event.preventDefault(); event.stopPropagation(); navigator.clipboard.writeText('${uuid}'); this.innerHTML='<i class=\\'fas fa-check\\'></i>'; setTimeout(() => this.innerHTML='<i class=\\'fas fa-copy\\'></i>', 1500);" class="text-slate-400 hover:text-dot-blue shrink-0" title="Copy UUID"><i class="fas fa-copy"></i></button>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-400 w-14 shrink-0">Mode</span>
+                            <span class="capitalize">${escapeHtml(captureMode)}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-400 w-14 shrink-0">Project</span>
+                            <span class="truncate">${escapeHtml(report.project_name || '\u2014')}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -271,4 +279,344 @@ function updateReportStatus() {
         </div>
     `;
 }
+
+// ============================================================================
+// SWIPE-TO-DELETE
+// ============================================================================
+
+/**
+ * Inject swipe-to-delete CSS styles (called once on init)
+ */
+function injectSwipeStyles() {
+    if (document.getElementById('swipe-delete-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'swipe-delete-styles';
+    style.textContent = `
+        .swipe-card-wrapper {
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+        .swipe-card-content {
+            position: relative;
+            z-index: 1;
+            transition: transform 0.3s ease;
+            will-change: transform;
+            margin-bottom: 0 !important;
+        }
+        .swipe-card-content.swiped {
+            transform: translateX(-100px);
+        }
+        .swipe-card-content.dragging {
+            transition: none;
+        }
+        .swipe-delete-action {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 100px;
+            background: #ef4444;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+            gap: 4px;
+            cursor: pointer;
+            user-select: none;
+            z-index: 0;
+        }
+        .swipe-delete-action i {
+            font-size: 18px;
+        }
+        .swipe-card-wrapper.removing {
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            max-height: 0 !important;
+            opacity: 0;
+            overflow: hidden;
+        }
+        /* Delete confirmation modal */
+        .delete-confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .delete-confirm-modal {
+            background: white;
+            max-width: 360px;
+            width: 100%;
+            padding: 1.5rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+/**
+ * Initialize swipe-to-delete on all report cards
+ * Call after renderReportCards() to attach event listeners
+ */
+function initSwipeToDelete() {
+    injectSwipeStyles();
+
+    const wrappers = document.querySelectorAll('.swipe-card-wrapper');
+    wrappers.forEach(wrapper => {
+        const content = wrapper.querySelector('.swipe-card-content');
+        if (!content || content._swipeInitialized) return;
+        content._swipeInitialized = true;
+
+        let startX = 0;
+        let startY = 0;
+        let currentX = 0;
+        let isDragging = false;
+        let isHorizontal = null; // null = undecided, true = horizontal, false = vertical
+
+        function onStart(x, y) {
+            // Close any other swiped cards first
+            document.querySelectorAll('.swipe-card-content.swiped').forEach(el => {
+                if (el !== content) el.classList.remove('swiped');
+            });
+
+            startX = x;
+            startY = y;
+            currentX = 0;
+            isDragging = true;
+            isHorizontal = null;
+            content.classList.add('dragging');
+        }
+
+        function onMove(x, y) {
+            if (!isDragging) return;
+
+            const dx = x - startX;
+            const dy = y - startY;
+
+            // Decide direction on first significant move
+            if (isHorizontal === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+                isHorizontal = Math.abs(dx) > Math.abs(dy);
+                if (!isHorizontal) {
+                    // Vertical scroll — abort swipe
+                    isDragging = false;
+                    content.classList.remove('dragging');
+                    return;
+                }
+            }
+
+            if (!isHorizontal) return;
+
+            // Prevent vertical scroll while swiping horizontally
+            // (handled by the touchmove preventDefault below)
+
+            // Only allow swipe left (negative dx), or right to close
+            const isSwiped = content.classList.contains('swiped');
+            if (isSwiped) {
+                // Swiped state: allow dragging right to close (offset from -100)
+                currentX = Math.min(100, Math.max(0, dx));
+                content.style.transform = `translateX(${-100 + currentX}px)`;
+            } else {
+                // Normal state: allow dragging left to reveal delete
+                currentX = Math.min(0, dx);
+                content.style.transform = `translateX(${currentX}px)`;
+            }
+        }
+
+        function onEnd() {
+            if (!isDragging) return;
+            isDragging = false;
+            content.classList.remove('dragging');
+            content.style.transform = '';
+
+            const isSwiped = content.classList.contains('swiped');
+
+            if (isSwiped) {
+                // Was swiped: close if dragged right enough
+                if (currentX > 40) {
+                    content.classList.remove('swiped');
+                } 
+                // else stays swiped
+            } else {
+                // Was normal: open if dragged left enough
+                if (currentX < -80) {
+                    content.classList.add('swiped');
+                }
+                // else snaps back
+            }
+        }
+
+        // Touch events
+        content.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            onStart(touch.clientX, touch.clientY);
+        }, { passive: true });
+
+        content.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            const touch = e.touches[0];
+
+            // If we decided it's horizontal, prevent scroll
+            if (isHorizontal) {
+                e.preventDefault();
+            }
+
+            onMove(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        content.addEventListener('touchend', onEnd);
+        content.addEventListener('touchcancel', onEnd);
+
+        // Mouse events (desktop)
+        content.addEventListener('mousedown', (e) => {
+            // Don't interfere with buttons/links
+            if (e.target.closest('button, a')) return;
+            e.preventDefault();
+            onStart(e.clientX, e.clientY);
+
+            const onMouseMove = (e2) => {
+                onMove(e2.clientX, e2.clientY);
+            };
+            const onMouseUp = () => {
+                onEnd();
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            };
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    });
+}
+
+/**
+ * Show confirmation modal for deleting a report
+ * @param {string} reportId - The report UUID to delete
+ */
+function confirmDeleteReport(reportId) {
+    // Remove any existing modal
+    const existing = document.getElementById('deleteConfirmOverlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'deleteConfirmOverlay';
+    overlay.className = 'delete-confirm-overlay';
+    overlay.innerHTML = `
+        <div class="delete-confirm-modal">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+                    <i class="fas fa-trash text-red-500"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-800">Delete this report?</h3>
+                    <p class="text-sm text-slate-500">This cannot be undone.</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button id="deleteConfirmCancel" class="flex-1 px-4 py-3 border border-slate-300 text-slate-700 font-bold uppercase text-sm hover:bg-slate-50 transition-colors">
+                    Cancel
+                </button>
+                <button id="deleteConfirmOk" class="flex-1 px-4 py-3 bg-red-500 text-white font-bold uppercase text-sm hover:bg-red-600 transition-colors">
+                    <i class="fas fa-trash mr-1"></i> Delete
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Cancel
+    document.getElementById('deleteConfirmCancel').onclick = () => {
+        overlay.remove();
+        // Reset the swiped card
+        const wrapper = document.querySelector(`.swipe-card-wrapper[data-report-id="${reportId}"]`);
+        if (wrapper) {
+            const content = wrapper.querySelector('.swipe-card-content');
+            if (content) content.classList.remove('swiped');
+        }
+    };
+
+    // Close on overlay click (outside modal)
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            overlay.remove();
+            const wrapper = document.querySelector(`.swipe-card-wrapper[data-report-id="${reportId}"]`);
+            if (wrapper) {
+                const content = wrapper.querySelector('.swipe-card-content');
+                if (content) content.classList.remove('swiped');
+            }
+        }
+    };
+
+    // Confirm delete
+    document.getElementById('deleteConfirmOk').onclick = () => executeDeleteReport(reportId, overlay);
+}
+
+/**
+ * Execute the full delete cascade for a report
+ * @param {string} reportId - The report UUID
+ * @param {HTMLElement} overlay - The modal overlay to update/remove
+ */
+async function executeDeleteReport(reportId, overlay) {
+    const btn = document.getElementById('deleteConfirmOk');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Deleting...';
+
+    try {
+        // 1. Delete from Supabase (full cascade: photos, child tables, PDF, report)
+        if (reportId.length === 36 && typeof deleteReportCascade === 'function' && typeof supabaseClient !== 'undefined') {
+            const result = await deleteReportCascade(reportId);
+            if (!result.success) {
+                console.warn('[SWIPE-DELETE] Supabase cascade had errors:', result.errors);
+            }
+        }
+
+        // 2. Delete from IndexedDB
+        if (window.idb) {
+            try { await window.idb.deleteCurrentReportIDB(reportId); } catch(e) { /* ok */ }
+            try { await window.idb.deletePhotosByReportId(reportId); } catch(e) { /* ok */ }
+            try { await window.idb.deleteDraftDataIDB(reportId); } catch(e) { /* ok */ }
+        }
+
+        // 3. Delete from localStorage
+        if (typeof deleteCurrentReport === 'function') deleteCurrentReport(reportId);
+        if (typeof deleteReportData === 'function') deleteReportData(reportId);
+
+        console.log('[SWIPE-DELETE] Deleted report:', reportId);
+
+        // 4. Close modal
+        overlay.remove();
+
+        // 5. Animate card removal
+        const wrapper = document.querySelector(`.swipe-card-wrapper[data-report-id="${reportId}"]`);
+        if (wrapper) {
+            // Set explicit max-height for animation
+            wrapper.style.maxHeight = wrapper.offsetHeight + 'px';
+            // Force reflow
+            wrapper.offsetHeight;
+            wrapper.classList.add('removing');
+            setTimeout(() => {
+                wrapper.remove();
+                // Re-render if no cards left
+                const container = document.getElementById('reportCardsSection');
+                if (container && container.querySelectorAll('.swipe-card-wrapper').length === 0) {
+                    renderReportCards();
+                }
+            }, 350);
+        }
+    } catch (e) {
+        console.error('[SWIPE-DELETE] Error:', e);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-trash mr-1"></i> Delete';
+        alert('Failed to delete report. Please try again.');
+    }
+}
+
+// Expose to window for onclick handlers
+window.confirmDeleteReport = confirmDeleteReport;
 
