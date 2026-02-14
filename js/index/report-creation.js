@@ -45,28 +45,8 @@ function beginDailyReport() {
     showProjectPickerModal();
 }
 
-async function continueDailyReport() {
-    // v6.9: Duplicate check before proceeding
-    const activeProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
-    if (activeProjectId) {
-        const today = getTodayDateString();
-        const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
-        const existing = Object.values(reports).find(
-            r => r.project_id === activeProjectId &&
-                 r.date === today &&
-                 r.status !== REPORT_STATUS.SUBMITTED
-        );
-        if (existing) {
-            const projectName = existing.project_name || getActiveProjectFromCache()?.projectName || 'this project';
-            showDuplicateReportModal(projectName, today, existing.id, activeProjectId);
-            return;
-        }
-    }
-
-    const newReportId = crypto.randomUUID();
-    await createSupabaseReportRow(newReportId, getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID));
-    window.location.href = `quick-interview.html?reportId=${newReportId}`;
-}
+// continueDailyReport removed — all report creation goes through project picker modal
+// (selectProjectAndProceed passes projectId explicitly)
 
 // ============ PROJECT PICKER MODAL ============
 async function showProjectPickerModal() {
@@ -95,6 +75,7 @@ async function showProjectPickerModal() {
         }
     }
     projectsCache = projects;
+    // Use picker selection from localStorage to highlight active project in the list
     const activeId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
 
     if (projects.length === 0) {
@@ -190,11 +171,12 @@ function closeProjectPickerModal() {
 }
 
 async function selectProjectAndProceed(projectId) {
-    // Set as active project in localStorage using storage-keys helper
+    // Set as active project in localStorage (picker selection only — interview/report
+    // pages load project from the report's own project_id, not this value)
     setStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID, projectId);
 
-    // Update cache
-    activeProjectCache = await window.dataLayer.loadActiveProject();
+    // Update cache using loadProjectById (explicit ID, not ACTIVE_PROJECT_ID)
+    activeProjectCache = await window.dataLayer.loadProjectById(projectId);
 
     // Update the active project card on dashboard (visible when they return)
     updateActiveProjectCard();
@@ -213,7 +195,7 @@ async function selectProjectAndProceed(projectId) {
 
     if (existing) {
         // Show duplicate report dialog
-        const projectName = existing.project_name || getActiveProjectFromCache()?.projectName || 'this project';
+        const projectName = existing.project_name || activeProjectCache?.projectName || 'this project';
         showDuplicateReportModal(projectName, today, existing.id, projectId);
         return;
     }
@@ -221,7 +203,8 @@ async function selectProjectAndProceed(projectId) {
     // No duplicate — proceed with new UUID
     const newReportId = crypto.randomUUID();
     await createSupabaseReportRow(newReportId, projectId);
-    window.location.href = `quick-interview.html?reportId=${newReportId}`;
+    // Pass projectId in URL so interview page doesn't need ACTIVE_PROJECT_ID
+    window.location.href = `quick-interview.html?reportId=${newReportId}&projectId=${projectId}`;
 }
 
 // ============ DUPLICATE REPORT CHECK ============
@@ -239,7 +222,7 @@ function showDuplicateReportModal(projectName, date, existingReportId, projectId
     // Wire up buttons
     goBtn.onclick = () => {
         closeDuplicateReportModal();
-        window.location.href = `quick-interview.html?reportId=${existingReportId}`;
+        window.location.href = `quick-interview.html?reportId=${existingReportId}&projectId=${projectId}`;
     };
 
     deleteBtn.onclick = async () => {
@@ -275,7 +258,7 @@ function showDuplicateReportModal(projectName, date, existingReportId, projectId
             // Proceed with new UUID
             const newReportId = crypto.randomUUID();
             await createSupabaseReportRow(newReportId, projectId);
-            window.location.href = `quick-interview.html?reportId=${newReportId}`;
+            window.location.href = `quick-interview.html?reportId=${newReportId}&projectId=${projectId}`;
         } catch (e) {
             console.error('[DUPLICATE] Error deleting report:', e);
             deleteBtn.disabled = false;

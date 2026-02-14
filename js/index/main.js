@@ -209,8 +209,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Cache projects for this page
         projectsCache = projects;
 
-        // Load active project
-        activeProjectCache = await window.dataLayer.loadActiveProject();
+        // Load active project (picker selection) for dashboard display
+        const activeId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
+        activeProjectCache = activeId ? await window.dataLayer.loadProjectById(activeId) : null;
 
         // Prune stale reports before rendering
         pruneCurrentReports();
