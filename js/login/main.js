@@ -66,6 +66,11 @@ async function handleSignIn() {
             localStorage.setItem(STORAGE_KEYS.USER_EMAIL, profile.email || '');
             localStorage.setItem(STORAGE_KEYS.AUTH_USER_ID, data.user.id);
 
+            // Cache org_id if present
+            if (profile.org_id) {
+                localStorage.setItem(STORAGE_KEYS.ORG_ID, profile.org_id);
+            }
+
             // Update device_id on this profile (informational, not for lookups)
             const deviceId = typeof getDeviceId === 'function' ? getDeviceId() : null;
             if (deviceId) {

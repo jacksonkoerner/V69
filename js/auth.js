@@ -85,6 +85,7 @@
         try {
             await supabaseClient.auth.signOut();
             localStorage.removeItem(STORAGE_KEYS.AUTH_ROLE);
+            localStorage.removeItem(STORAGE_KEYS.ORG_ID);
             console.log('[AUTH] User signed out');
             window.location.href = 'login.html';
         } catch (e) {
@@ -158,6 +159,32 @@
         return data;
     }
 
+    /**
+     * Ensure org_id is cached in localStorage.
+     * Fetches from user_profiles if not already cached.
+     * Called on session restore (page load auth check).
+     */
+    async function ensureOrgIdCached(authUserId) {
+        // Skip if already cached
+        if (localStorage.getItem(STORAGE_KEYS.ORG_ID)) return;
+        if (!authUserId) return;
+
+        try {
+            const { data: profile, error } = await supabaseClient
+                .from('user_profiles')
+                .select('org_id')
+                .eq('auth_user_id', authUserId)
+                .maybeSingle();
+
+            if (!error && profile && profile.org_id) {
+                localStorage.setItem(STORAGE_KEYS.ORG_ID, profile.org_id);
+                console.log('[AUTH] Cached org_id from user profile:', profile.org_id);
+            }
+        } catch (e) {
+            console.warn('[AUTH] Could not fetch org_id for caching:', e);
+        }
+    }
+
     // Auto-run auth check on protected pages (not login.html)
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
     if (currentPage !== 'login.html' && currentPage !== 'landing.html') {
@@ -166,6 +193,9 @@
             if (session) {
                 // Inject sign-out button into header if it has a nav area
                 injectSignOutButton();
+
+                // Ensure org_id is cached (for org-scoped queries)
+                ensureOrgIdCached(session.user.id);
 
                 // Request persistent storage — prevents browser from evicting localStorage/IDB
                 // Idempotent: safe to call every page load
