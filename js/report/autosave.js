@@ -186,6 +186,24 @@ function flushReportBackup() {
             if (result.error) console.warn('[BACKUP] Report backup failed:', result.error.message);
             else console.log('[BACKUP] Report backup saved');
         });
+
+    // Sprint 4: Also sync user edits to report_data table (fire-and-forget)
+    try {
+        supabaseClient
+            .from('report_data')
+            .upsert({
+                report_id: RS.currentReportId,
+                user_edits: RS.userEdits || {},
+                status: RS.report?.meta?.status || 'refined',
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'report_id' })
+            .then(function(res) {
+                if (res.error) console.warn('[AUTOSAVE] report_data sync failed:', res.error.message);
+                else console.log('[AUTOSAVE] report_data synced');
+            });
+    } catch (e) {
+        console.warn('[AUTOSAVE] report_data sync error:', e);
+    }
 }
 
 /**
