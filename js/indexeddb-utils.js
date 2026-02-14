@@ -7,7 +7,7 @@
     'use strict';
 
     const DB_NAME = 'fieldvoice-pro';
-    const DB_VERSION = 4; // v4: add currentReports store
+    const DB_VERSION = 5; // v5: add draftData store
 
     let db = null;
 
@@ -70,6 +70,12 @@
                     crStore.createIndex('project_id', 'project_id', { unique: false });
                     crStore.createIndex('status', 'status', { unique: false });
                     console.log('Created currentReports object store');
+                }
+
+                // Create draftData store (v5)
+                if (!database.objectStoreNames.contains('draftData')) {
+                    database.createObjectStore('draftData', { keyPath: 'reportId' });
+                    console.log('Created draftData object store');
                 }
             };
         });
@@ -507,6 +513,89 @@
     }
 
     // ============================================
+    // DRAFT DATA STORE (v5)
+    // ============================================
+
+    /**
+     * Saves draft data for a report to IndexedDB
+     * @param {string} reportId - The report UUID
+     * @param {Object} data - The draft data object
+     * @returns {Promise<void>}
+     */
+    function saveDraftDataIDB(reportId, data) {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('draftData')) {
+                    resolve();
+                    return;
+                }
+                var transaction = database.transaction(['draftData'], 'readwrite');
+                var store = transaction.objectStore('draftData');
+                var record = Object.assign({}, data, { reportId: reportId, _idbSavedAt: new Date().toISOString() });
+                var request = store.put(record);
+
+                request.onsuccess = function() { resolve(); };
+                request.onerror = function(event) {
+                    console.error('Error saving draft data to IDB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    /**
+     * Gets draft data for a report from IndexedDB
+     * @param {string} reportId - The report UUID
+     * @returns {Promise<Object|undefined>}
+     */
+    function getDraftDataIDB(reportId) {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('draftData')) {
+                    resolve(undefined);
+                    return;
+                }
+                var transaction = database.transaction(['draftData'], 'readonly');
+                var store = transaction.objectStore('draftData');
+                var request = store.get(reportId);
+
+                request.onsuccess = function(event) {
+                    resolve(event.target.result);
+                };
+                request.onerror = function(event) {
+                    console.error('Error getting draft data from IDB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    /**
+     * Deletes draft data for a report from IndexedDB
+     * @param {string} reportId - The report UUID
+     * @returns {Promise<void>}
+     */
+    function deleteDraftDataIDB(reportId) {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('draftData')) {
+                    resolve();
+                    return;
+                }
+                var transaction = database.transaction(['draftData'], 'readwrite');
+                var store = transaction.objectStore('draftData');
+                var request = store.delete(reportId);
+
+                request.onsuccess = function() { resolve(); };
+                request.onerror = function(event) {
+                    console.error('Error deleting draft data from IDB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    // ============================================
     // GENERAL
     // ============================================
 
@@ -569,6 +658,11 @@
         saveCurrentReportIDB,
         deleteCurrentReportIDB,
         replaceAllCurrentReports,
+
+        // Draft data store
+        saveDraftDataIDB,
+        getDraftDataIDB,
+        deleteDraftDataIDB,
 
         // General
         clearStore

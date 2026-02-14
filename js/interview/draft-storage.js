@@ -183,9 +183,19 @@ function saveToLocalStorage() {
         };
         saveCurrentReport(reportData);
         console.log('[LOCAL] Draft saved to localStorage via saveCurrentReport');
+
+        // Sprint 11: Write-through draft data to IndexedDB for durability
+        if (window.idb && window.idb.saveDraftDataIDB) {
+            window.idb.saveDraftDataIDB(IS.currentReportId, data).catch(function(e) {
+                console.warn('[LOCAL] IDB draft write-through failed:', e);
+            });
+        }
     } catch (e) {
         console.error('[LOCAL] Failed to save to localStorage:', e);
-        // If localStorage is full, try to continue without local save
+        // If localStorage is full, try IDB as fallback
+        if (IS.currentReportId && window.idb && window.idb.saveDraftDataIDB) {
+            window.idb.saveDraftDataIDB(IS.currentReportId, data).catch(function() {});
+        }
     }
 }
 
@@ -212,6 +222,41 @@ function loadFromLocalStorage() {
         deleteCurrentReport(IS.currentReportId);
         return null;
     }
+}
+
+/**
+ * Sprint 11: Async fallback — load draft data from IndexedDB
+ * Called when localStorage has no draft (e.g., iOS 7-day eviction)
+ * @returns {Promise<Object|null>}
+ */
+async function loadDraftFromIDB() {
+    if (!IS.currentReportId) return null;
+    if (!window.idb || !window.idb.getDraftDataIDB) return null;
+
+    try {
+        const idbData = await window.idb.getDraftDataIDB(IS.currentReportId);
+        if (idbData) {
+            console.log('[LOCAL] Found draft in IndexedDB, saved at:', idbData.lastSaved || idbData._idbSavedAt);
+            // Re-cache to localStorage for fast sync reads
+            const reportProjectId = idbData.projectId || IS.activeProject?.id;
+            const reportData = {
+                id: IS.currentReportId,
+                project_id: reportProjectId,
+                project_name: IS.activeProject?.projectName || '',
+                reportDate: idbData.reportDate || getTodayDateString(),
+                status: 'draft',
+                capture_mode: idbData.captureMode,
+                created_at: idbData.meta?.createdAt || Date.now(),
+                _draft_data: idbData
+            };
+            saveCurrentReport(reportData);
+            console.log('[LOCAL] Re-cached IDB draft to localStorage');
+            return idbData;
+        }
+    } catch (e) {
+        console.warn('[LOCAL] IDB draft load failed:', e);
+    }
+    return null;
 }
 
 /**
@@ -336,7 +381,14 @@ function clearLocalStorageDraft() {
     // v6.9: UUID-only — delete by currentReportId
     deleteCurrentReport(IS.currentReportId);
 
-    console.log('[LOCAL] Draft cleared from localStorage');
+    // Sprint 11: Also clean up IndexedDB draft data
+    if (window.idb && window.idb.deleteDraftDataIDB) {
+        window.idb.deleteDraftDataIDB(IS.currentReportId).catch(function(e) {
+            console.warn('[LOCAL] IDB draft cleanup failed:', e);
+        });
+    }
+
+    console.log('[LOCAL] Draft cleared from localStorage + IndexedDB');
 }
 
 // v6.9: Update localStorage report to 'refined' status — UUID-only

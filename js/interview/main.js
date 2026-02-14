@@ -186,9 +186,15 @@ console.warn('[QUICK-INTERVIEW] No reportId in URL — generated fallback:', IS.
 // LOCALSTORAGE-FIRST: Check if we have a localStorage draft with unsaved changes
 // This recovers data if user swiped away the app without clicking FINISH
 updateLoadingStatus('Checking for saved draft...');
-const localDraft = loadFromLocalStorage();
+let localDraft = loadFromLocalStorage();
+
+// Sprint 11: If localStorage miss, try IndexedDB (survives iOS 7-day eviction)
+if (!localDraft && IS.currentReportId) {
+localDraft = await loadDraftFromIDB();
+}
+
 if (localDraft) {
-console.log('[INIT] Found localStorage draft, restoring...');
+console.log('[INIT] Found draft, restoring...');
 restoreFromLocalStorage(localDraft);
 }
 
