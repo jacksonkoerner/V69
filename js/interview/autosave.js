@@ -226,6 +226,7 @@ function buildInterviewPageState() {
 return {
 captureMode: IS.report.meta?.captureMode || 'guided',
 freeform_entries: IS.report.freeform_entries || [],
+freeform_checklist: IS.report.freeform_checklist || {},
 fieldNotes: IS.report.fieldNotes || {},
 guidedNotes: IS.report.guidedNotes || {},
 activities: IS.report.activities || [],
@@ -235,8 +236,23 @@ equipmentRows: IS.report.equipmentRows || [],
 overview: IS.report.overview || {},
 safety: IS.report.safety || {},
 generalIssues: IS.report.generalIssues || [],
+qaqcNotes: IS.report.qaqcNotes || [],
+contractorCommunications: IS.report.contractorCommunications || '',
+visitorsRemarks: IS.report.visitorsRemarks || '',
+additionalNotes: IS.report.additionalNotes || '',
 toggleStates: IS.report.toggleStates || {},
 entries: IS.report.entries || [],
+// Sprint 11: Include fields previously only in _draft_data
+meta: {
+    naMarked: IS.report.meta?.naMarked || {},
+    createdAt: IS.report.meta?.createdAt,
+    version: IS.report.meta?.version || 2,
+    status: IS.report.meta?.status || 'draft'
+},
+reporter: IS.report.reporter || {},
+photos: (IS.report.photos || []).map(function(p) {
+    return { id: p.id, storagePath: p.storagePath || '', url: p.url || '', caption: p.caption || '', timestamp: p.timestamp, fileName: p.fileName };
+}),
 savedAt: new Date().toISOString()
 };
 }

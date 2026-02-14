@@ -68,7 +68,9 @@ async function getReport() {
                     var report = createFreshReport();
                     var ps = result.data.page_state;
                     if (ps.captureMode) report.meta.captureMode = ps.captureMode;
+                    if (ps.meta) report.meta = Object.assign(report.meta, ps.meta);
                     if (ps.freeform_entries) report.freeform_entries = ps.freeform_entries;
+                    if (ps.freeform_checklist) report.freeform_checklist = ps.freeform_checklist;
                     if (ps.fieldNotes) report.fieldNotes = Object.assign(report.fieldNotes, ps.fieldNotes);
                     if (ps.guidedNotes) report.guidedNotes = Object.assign(report.guidedNotes, ps.guidedNotes);
                     if (ps.activities) report.activities = ps.activities;
@@ -78,8 +80,14 @@ async function getReport() {
                     if (ps.overview) report.overview = Object.assign(report.overview, ps.overview);
                     if (ps.safety) report.safety = Object.assign(report.safety, ps.safety);
                     if (ps.generalIssues) report.generalIssues = ps.generalIssues;
+                    if (ps.qaqcNotes) report.qaqcNotes = ps.qaqcNotes;
+                    if (ps.contractorCommunications) report.contractorCommunications = ps.contractorCommunications;
+                    if (ps.visitorsRemarks) report.visitorsRemarks = ps.visitorsRemarks;
+                    if (ps.additionalNotes) report.additionalNotes = ps.additionalNotes;
                     if (ps.toggleStates) report.toggleStates = ps.toggleStates;
                     if (ps.entries) report.entries = ps.entries;
+                    if (ps.reporter) report.reporter = Object.assign(report.reporter, ps.reporter);
+                    if (ps.photos) report.photos = ps.photos;
                     return report;
                 }
             } catch (e) {
