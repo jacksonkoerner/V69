@@ -1,5 +1,9 @@
 // FieldVoice Pro Service Worker
 // Enables offline functionality for PWA
+//
+// CACHE_VERSION must be bumped on every deploy to bust stale caches.
+// The canonical version lives in version.json at the project root.
+// Update version.json first, then mirror the value here.
 
 const CACHE_VERSION = 'v6.9.15';
 const CACHE_NAME = `fieldvoice-pro-${CACHE_VERSION}`;
@@ -25,6 +29,7 @@ const STATIC_ASSETS = [
     './js/indexeddb-utils.js',
     './js/data-layer.js',
     './js/supabase-utils.js',
+    './js/supabase-retry.js',
     './js/ui-utils.js',
     './js/pwa-utils.js',
     './js/report-rules.js',

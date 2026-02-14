@@ -82,6 +82,12 @@
      * Sign out the current user
      */
     async function signOut() {
+        // Clear session check interval to prevent leaked timers (CQ-07)
+        if (_sessionCheckInterval) {
+            clearInterval(_sessionCheckInterval);
+            _sessionCheckInterval = null;
+        }
+
         try {
             await supabaseClient.auth.signOut();
         } catch (e) {

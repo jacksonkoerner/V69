@@ -174,7 +174,7 @@ function createFreshReport() {
             noabProjectNo: RS.activeProject?.noabProjectNo || '',
             cnoSolicitationNo: RS.activeProject?.cnoSolicitationNo || 'N/A',
             location: RS.activeProject?.location || '',
-            date: new Date().toLocaleDateString(),
+            date: getLocalDateString(),
             contractDay: RS.activeProject?.contractDayNo || '',
             weatherDays: RS.activeProject?.weatherDays || 0,
             engineer: RS.activeProject?.engineer || '',

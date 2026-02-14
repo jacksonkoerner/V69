@@ -463,6 +463,9 @@ async function generateVectorPDF() {
                             drawPageFooter(); doc.addPage(); pageNum++; curY = MT;
                             drawReportHeader(); wsContentY = curY + wsPadding;
                             wsStartY = curY; // Reset box start for new page
+                            // Draw top border on new page (PDF-05 fix)
+                            setDrawColor.apply(null, BLACK); doc.setLineWidth(0.5);
+                            doc.line(ML, wsStartY, ML + CW, wsStartY);
                         }
                         doc.text(i === 0 ? wl : '  ' + wl, ML + wsPadding + 5, wsContentY + BODY_SIZE);
                         wsContentY += BODY_SIZE * 1.3;
@@ -485,6 +488,9 @@ async function generateVectorPDF() {
                     drawPageFooter(); doc.addPage(); pageNum++; curY = MT;
                     drawReportHeader(); wsContentY = curY + wsPadding;
                     wsStartY = curY; // Reset box start for new page
+                    // Draw top border on new page (PDF-05 fix)
+                    setDrawColor.apply(null, BLACK); doc.setLineWidth(0.5);
+                    doc.line(ML, wsStartY, ML + CW, wsStartY);
                 }
 
                 setFont('bold', BODY_SIZE);

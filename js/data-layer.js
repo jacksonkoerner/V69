@@ -1,5 +1,5 @@
 /**
- * FieldVoice Pro v6.6 — Data Layer
+ * FieldVoice Pro v6.9 — Data Layer
  *
  * Single source of truth for all data operations.
  * All pages import from here instead of implementing their own loading logic.
@@ -123,66 +123,6 @@
         } catch (e) {
             console.error('[DATA] Supabase fetch failed:', e);
             throw e;
-        }
-    }
-
-    /**
-     * @deprecated Sprint 5: Use loadProjectById(id) instead. This reads from
-     * ACTIVE_PROJECT_ID localStorage which is unreliable for report context.
-     * Kept for backward compatibility but all callers have been migrated.
-     */
-    async function loadActiveProject() {
-        console.warn('[DATA] loadActiveProject() is deprecated — use loadProjectById() instead');
-        const activeId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
-        if (!activeId) {
-            console.log('[DATA] No active project ID set');
-            return null;
-        }
-
-        // 1. Try IndexedDB first (fast, offline-capable)
-        try {
-            const localProject = await window.idb.getProject(activeId);
-            if (localProject) {
-                console.log('[DATA] Loaded active project from IndexedDB:', activeId);
-                const project = normalizeProject(localProject);
-                // Contractors (with crews) come from JSONB — already structured
-                project.contractors = localProject.contractors || [];
-                return project;
-            }
-        } catch (e) {
-            console.warn('[DATA] IndexedDB read failed:', e);
-        }
-
-        // 2. If offline, can't fetch from Supabase
-        if (!navigator.onLine) {
-            console.log('[DATA] Offline - cannot fetch active project from Supabase');
-            return null;
-        }
-
-        // 3. Fallback to Supabase and cache locally
-        try {
-            console.log('[DATA] Active project not in IndexedDB, fetching from Supabase...');
-            const { data, error } = await supabaseClient
-                .from('projects')
-                .select('*')
-                .eq('id', activeId)
-                .single();
-
-            if (error || !data) {
-                console.warn('[DATA] Could not fetch active project from Supabase:', error);
-                return null;
-            }
-
-            // Convert from Supabase format (contractors parsed from JSONB)
-            const normalized = fromSupabaseProject(data);
-
-            await window.idb.saveProject(normalized);
-            console.log('[DATA] Fetched and cached active project from Supabase:', activeId);
-
-            return normalized;
-        } catch (e) {
-            console.error('[DATA] Supabase fallback failed:', e);
-            return null;
         }
     }
 
@@ -405,7 +345,6 @@
     window.dataLayer = {
         // Projects
         loadProjects,
-        loadActiveProject,
         loadProjectById,
         refreshProjectsFromCloud,
 

@@ -220,7 +220,9 @@ async function cleanupLocalStorage() {
 }
 
 /**
- * Helper to read form field value (for submit/PDF functions)
+ * Helper to read form field value.
+ * Note: pdf-generator.js and preview.js each define their own IIFE-scoped copy.
+ * This global version is used by submit.js functions.
  */
 function formVal(id, fallback) {
     var el = document.getElementById(id);
