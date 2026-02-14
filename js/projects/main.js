@@ -102,7 +102,7 @@ async function getAllProjects() {
 }
 
 // ============ REFRESH FROM CLOUD ============
-async function refreshFromCloud() {
+async function refreshProjectsFromCloud() {
     if (isRefreshing) return;
 
     if (!navigator.onLine) {
@@ -380,5 +380,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ============ EXPOSE TO WINDOW FOR ONCLICK HANDLERS ============
 window.selectProject = selectProject;
 window.editProject = editProject;
-window.refreshFromCloud = refreshFromCloud;
+window.refreshProjectsFromCloud = refreshProjectsFromCloud;
 window.toggleContractors = toggleContractors;
