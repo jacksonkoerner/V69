@@ -93,6 +93,12 @@ function toSupabaseProject(project) {
         row.id = project.id;
     }
 
+    // Include org_id from project or from localStorage
+    var orgId = project.orgId || project.org_id || localStorage.getItem(STORAGE_KEYS.ORG_ID);
+    if (orgId) {
+        row.org_id = orgId;
+    }
+
     return row;
 }
 
