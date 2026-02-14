@@ -296,28 +296,54 @@ function getLocationFromCache(maxAgeMs = 60 * 60 * 1000) {
  * Always attempts a live GPS read when permission is granted,
  * so every feature reflects the user's current position.
  * Falls back to cache only when the live read fails.
+ *
+ * FIX (2026-02-13): Browser permission is the real authority, not localStorage.
+ * If the browser says 'granted', get GPS even if localStorage flag is missing
+ * (e.g., after cache clear). localStorage LOC_GRANTED is now a hint, not a gate.
  * @returns {Promise<{lat: number, lng: number}|null>}
  */
 async function getFreshLocation() {
-    const granted = localStorage.getItem(STORAGE_KEYS.LOC_GRANTED) === 'true';
-    if (!granted || !navigator.geolocation) return null;
+    if (!navigator.geolocation) return null;
 
-    // Check browser permission to avoid triggering a prompt
+    // Check browser permission state FIRST — this is the real authority
     let browserPermissionState = 'prompt';
     if (navigator.permissions) {
         try {
             const result = await navigator.permissions.query({ name: 'geolocation' });
             browserPermissionState = result.state;
         } catch (e) {
-            // Permissions API not available
+            // Permissions API not available — fall through to localStorage check
         }
     }
 
-    if (browserPermissionState !== 'granted') {
-        // Can't get fresh location without prompting — use cache as-is
-        return getCachedLocation();
+    const localGranted = localStorage.getItem(STORAGE_KEYS.LOC_GRANTED) === 'true';
+
+    if (browserPermissionState === 'denied') {
+        // Browser explicitly denied — clear stale localStorage flag if present
+        if (localGranted) clearCachedLocation();
+        return null;
     }
 
+    if (browserPermissionState === 'granted') {
+        // Browser says yes — get GPS regardless of localStorage state.
+        // cacheLocation() will re-set LOC_GRANTED automatically.
+        return await _readGPS();
+    }
+
+    // browserPermissionState === 'prompt' (or Permissions API unavailable)
+    if (localGranted) {
+        // Our app previously granted — try GPS (may trigger a prompt on some browsers)
+        return await _readGPS();
+    }
+
+    // No permission from browser or app — return cache if available, else null
+    return getCachedLocation();
+}
+
+/**
+ * Internal: read GPS position, cache result, return {lat, lng} or fall back to cache.
+ */
+async function _readGPS() {
     try {
         const position = await new Promise((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -328,13 +354,13 @@ async function getFreshLocation() {
         });
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
-        cacheLocation(lat, lng);
+        cacheLocation(lat, lng); // also sets LOC_GRANTED = true
         console.log('[Location] Got fresh GPS position');
         return { lat, lng };
     } catch (geoError) {
         console.warn('[Location] Fresh GPS failed, falling back to cache:', geoError.message);
         if (geoError.code === 1) {
-            // Permission denied
+            // Permission denied at OS/browser level
             clearCachedLocation();
             return null;
         }

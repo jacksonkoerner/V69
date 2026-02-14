@@ -45,8 +45,9 @@ function setupPWANavigation() {
 function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            const swScope = new URL('./', location.href).pathname;
-            navigator.serviceWorker.register('./sw.js', { scope: swScope })
+            // Scope must match where sw.js lives — use pathname up to last /
+            const pathDir = location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1);
+            navigator.serviceWorker.register(pathDir + 'sw.js', { scope: pathDir })
                 .then(registration => {
                     console.log('[PWA] Service Worker registered:', registration.scope);
 
