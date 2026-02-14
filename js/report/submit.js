@@ -63,7 +63,7 @@ async function handleSubmit() {
         await cleanupLocalStorage();
 
         console.log('[SUBMIT] Submit complete!');
-        window.location.href = 'archives.html?submitted=true';
+        window.location.href = 'index.html?submitted=true';
 
     } catch (error) {
         console.error('[SUBMIT] Error:', error);

@@ -144,6 +144,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         initPWA({ onOnline: typeof updateDraftsSection === 'function' ? updateDraftsSection : function() {} });
     }
 
+    // Check for submit success redirect param
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('submitted') === 'true') {
+        // Remove the URL param so it doesn't persist on refresh
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+        // Show success banner
+        const banner = document.getElementById('submittedBanner');
+        if (banner) {
+            banner.innerHTML = `
+                <div class="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
+                    <i class="fas fa-check-circle"></i>
+                    <p class="flex-1 text-sm font-medium">Report submitted successfully! <a href="archives.html" class="underline font-bold">View in Archives</a></p>
+                    <button onclick="dismissSubmittedBanner()" class="text-white/80 hover:text-white">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            banner.classList.remove('hidden');
+        }
+    }
+
     if (shouldShowOnboarding()) {
         window.location.href = 'permissions.html';
         return;
