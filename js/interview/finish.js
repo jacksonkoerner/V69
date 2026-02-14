@@ -123,6 +123,27 @@ async function finishMinimalReport() {
             console.warn('[LOCAL] Failed to save report package to localStorage');
         }
 
+        // Sprint 4: Sync report data to Supabase report_data table (fire-and-forget)
+        try {
+            supabaseClient
+                .from('report_data')
+                .upsert({
+                    report_id: IS.currentReportId,
+                    ai_generated: reportDataPackage.aiGenerated || {},
+                    original_input: reportDataPackage.originalInput || {},
+                    user_edits: {},
+                    capture_mode: reportDataPackage.captureMode || 'minimal',
+                    status: 'refined'
+                }, { onConflict: 'report_id' })
+                .then(function(res) {
+                    if (res.error) console.warn('[FINISH] report_data sync failed:', res.error.message);
+                    else console.log('[FINISH] Report data synced to Supabase:', IS.currentReportId);
+                });
+        } catch (rdErr) {
+            console.warn('[FINISH] report_data sync error:', rdErr);
+        }
+
+
         // v6.9: Use saveCurrentReport helper (sets updated_at, validates)
         saveCurrentReport({
             id: IS.currentReportId,
@@ -351,6 +372,27 @@ async function finishReport() {
         } else {
             console.warn('[LOCAL] Failed to save report package to localStorage');
         }
+
+        // Sprint 4: Sync report data to Supabase report_data table (fire-and-forget)
+        try {
+            supabaseClient
+                .from('report_data')
+                .upsert({
+                    report_id: IS.currentReportId,
+                    ai_generated: reportDataPackage.aiGenerated || {},
+                    original_input: reportDataPackage.originalInput || {},
+                    user_edits: {},
+                    capture_mode: reportDataPackage.captureMode || 'guided',
+                    status: 'refined'
+                }, { onConflict: 'report_id' })
+                .then(function(res) {
+                    if (res.error) console.warn('[FINISH] report_data sync failed:', res.error.message);
+                    else console.log('[FINISH] Report data synced to Supabase:', IS.currentReportId);
+                });
+        } catch (rdErr) {
+            console.warn('[FINISH] report_data sync error:', rdErr);
+        }
+
 
         // v6.9: Use saveCurrentReport helper (sets updated_at, validates)
         saveCurrentReport({
