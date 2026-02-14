@@ -93,6 +93,14 @@
             // Convert to JS format (contractors already parsed from JSONB by fromSupabaseProject)
             const projects = (data || []).map(row => fromSupabaseProject(row));
 
+            // Clear IndexedDB projects store before caching to remove stale data
+            // (e.g. projects from before org filtering)
+            try {
+                await window.idb.clearStore('projects');
+            } catch (e) {
+                console.warn('[DATA] Could not clear projects store:', e);
+            }
+
             // Cache to IndexedDB (with contractors)
             for (const project of projects) {
                 try {
