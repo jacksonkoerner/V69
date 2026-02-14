@@ -26,14 +26,20 @@
      */
     async function loadProjects() {
         // Load from IndexedDB only - NO Supabase fallback
-        // All users see all projects (no user_id filtering)
+        // Filter by org_id if available (backwards compatible: no org = load all)
+        const orgId = getStorageItem(STORAGE_KEYS.ORG_ID);
         try {
             const allLocalProjects = await window.idb.getAllProjects();
 
             if (allLocalProjects && allLocalProjects.length > 0) {
                 console.log('[DATA] Loaded projects from IndexedDB:', allLocalProjects.length);
                 // Convert to JS format in case raw Supabase data was cached
-                const normalized = allLocalProjects.map(p => normalizeProject(p));
+                let normalized = allLocalProjects.map(p => normalizeProject(p));
+
+                // Filter by org_id if set (backwards compatible — no org = all projects)
+                if (orgId) {
+                    normalized = normalized.filter(p => p.orgId === orgId || !p.orgId);
+                }
 
                 // Also cache to localStorage for report-rules.js
                 const projectsMap = {};
@@ -63,12 +69,19 @@
         }
 
         try {
-            // Fetch ALL projects (contractors + crews are in the JSONB column)
-            // All users see all projects (no user_id filtering)
-            const { data, error } = await supabaseClient
+            // Fetch projects filtered by org_id if available
+            // Backwards compatible: no org_id = load all projects
+            const orgId = getStorageItem(STORAGE_KEYS.ORG_ID);
+            let query = supabaseClient
                 .from('projects')
                 .select('*')
                 .order('project_name');
+
+            if (orgId) {
+                query = query.eq('org_id', orgId);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
 
@@ -187,6 +200,7 @@
             userId: p.userId || p.user_id || '',
             logoUrl: p.logoUrl || p.logo_url || null,
             logoThumbnail: p.logoThumbnail || p.logo_thumbnail || null,
+            orgId: p.orgId || p.org_id || null,
             contractors: p.contractors || []
         };
     }

@@ -47,12 +47,19 @@ function setupEventListeners() {
 
 async function loadProjects() {
     try {
-        const { data, error } = await supabaseClient
+        // Filter projects by org_id if available (backwards compatible)
+        const orgId = typeof getStorageItem === 'function' ? getStorageItem(STORAGE_KEYS.ORG_ID) : null;
+        let query = supabaseClient
             .from('projects')
             .select('id, project_name')
             .eq('status', 'active')
             .order('project_name');
 
+        if (orgId) {
+            query = query.eq('org_id', orgId);
+        }
+
+        const { data, error } = await query;
         if (error) throw error;
 
         allProjects = data || [];
@@ -79,6 +86,8 @@ async function loadReports(projectId = null) {
 
     try {
         // Query reports with status = 'submitted'
+        // Filter by org_id if available (backwards compatible)
+        const orgId = typeof getStorageItem === 'function' ? getStorageItem(STORAGE_KEYS.ORG_ID) : null;
         let query = supabaseClient
             .from('reports')
             .select(`
@@ -92,6 +101,10 @@ async function loadReports(projectId = null) {
             `)
             .eq('status', 'submitted')
             .order('report_date', { ascending: false });
+
+        if (orgId) {
+            query = query.eq('org_id', orgId);
+        }
 
         if (projectId) {
             query = query.eq('project_id', projectId);
