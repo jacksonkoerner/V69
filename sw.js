@@ -1,7 +1,7 @@
 // FieldVoice Pro Service Worker
 // Enables offline functionality for PWA
 
-const CACHE_VERSION = 'v6.9.9';
+const CACHE_VERSION = 'v6.9.10';
 const CACHE_NAME = `fieldvoice-pro-${CACHE_VERSION}`;
 
 // Files to cache for offline use
@@ -33,6 +33,7 @@ const STATIC_ASSETS = [
     // Shared modules
     './js/shared/delete-report.js',
     './js/shared/ai-assistant.js',
+    './js/shared/realtime-sync.js',
     // Index (dashboard) modules
     './js/index/report-cards.js',
     './js/index/report-creation.js',
@@ -45,26 +46,17 @@ const STATIC_ASSETS = [
     './js/index/field-tools.js',
     './js/index/deep-links.js',
     './js/index/main.js',
-    // Interview modules
-    './js/interview/entries.js',
-    './js/interview/toggles.js',
-    './js/interview/draft-storage.js',
-    './js/interview/autosave.js',
-    './js/interview/capture-mode.js',
+    // Interview modules (consolidated in Sprint 11)
+    './js/interview/state-mgmt.js',
+    './js/interview/persistence.js',
+    './js/interview/ui-display.js',
+    './js/interview/ui-flow.js',
     './js/interview/freeform.js',
     './js/interview/guided-sections.js',
-    './js/interview/contractors.js',
-    './js/interview/personnel.js',
-    './js/interview/equipment.js',
-    './js/interview/manual-adds.js',
+    './js/interview/contractors-personnel.js',
+    './js/interview/equipment-manual.js',
     './js/interview/photos.js',
-    './js/interview/supabase.js',
-    './js/interview/weather.js',
-    './js/interview/previews.js',
-    './js/interview/na-marking.js',
-    './js/interview/ai-processing.js',
-    './js/interview/processing-overlay.js',
-    './js/interview/finish.js',
+    './js/interview/finish-processing.js',
     './js/interview/main.js',
     // Report modules
     './js/report/data-loading.js',
@@ -84,6 +76,19 @@ const STATIC_ASSETS = [
     './js/project-config/form.js',
     './js/project-config/document-import.js',
     './js/project-config/main.js',
+    // Field tools modules
+    './js/tools/ar-measure.js',
+    './js/tools/calc.js',
+    './js/tools/compass.js',
+    './js/tools/decibel.js',
+    './js/tools/flashlight.js',
+    './js/tools/level.js',
+    './js/tools/maps.js',
+    './js/tools/measure.js',
+    './js/tools/photo-markup.js',
+    './js/tools/qrscanner.js',
+    './js/tools/slope.js',
+    './js/tools/timer.js',
     // Page modules (single-file subfolders)
     './js/archives/main.js',
     './js/permissions/main.js',
@@ -180,9 +185,9 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache or network
 self.addEventListener('fetch', (event) => {
-    // NEVER intercept navigation requests — Safari iOS crashes on redirected responses
-    // Let the browser handle all page navigations natively
+    // Navigation requests: network-first with cache fallback for offline support
     if (event.request.mode === 'navigate') {
+        event.respondWith(handleNavigationRequest(event.request));
         return;
     }
 
@@ -237,6 +242,37 @@ async function handleStaticRequest(request) {
 
         // Return a generic error response
         return new Response('Offline - Resource not available', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain' }
+        });
+    }
+}
+
+// Handle navigation requests (network-first, cache fallback, index.html last resort)
+async function handleNavigationRequest(request) {
+    try {
+        const networkResponse = await fetch(request);
+        // Cache successful navigations for future offline use
+        if (networkResponse.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(request, networkResponse.clone());
+        }
+        return networkResponse;
+    } catch (error) {
+        console.warn('[SW] Navigation failed (offline):', request.url);
+        const cache = await caches.open(CACHE_NAME);
+        // Try the exact cached URL first
+        const cachedPage = await cache.match(request);
+        if (cachedPage) {
+            return cachedPage;
+        }
+        // Last resort: serve cached index.html
+        const cachedIndex = await cache.match('./index.html');
+        if (cachedIndex) {
+            return cachedIndex;
+        }
+        return new Response('Offline - Page not available', {
             status: 503,
             statusText: 'Service Unavailable',
             headers: { 'Content-Type': 'text/plain' }
