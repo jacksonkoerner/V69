@@ -122,7 +122,7 @@ These need to be migrated to `setStorageItem(STORAGE_KEYS.*)`. Note: `STORAGE_KE
 - [x] Migrate `login/main.js` hardcoded localStorage calls to use `STORAGE_KEYS` constants
 - [x] Migrate `auth.js` hardcoded `fvp_auth_role` to use `STORAGE_KEYS.AUTH_ROLE`
 - [x] Capture device metadata on login (device type, OS, browser) alongside `device_id` *(Sprint 10: device_info JSONB column added to user_profiles, captured on sign-in and sign-up)*
-- [ ] Support multiple active sessions per user (don't overwrite device_id — store per-device instead)
+- [ ] Support multiple active sessions per user (don't overwrite device_id — store per-device instead) *(Future work: needs session management design — store array of device records per user, handle concurrent edits. Low priority since current single-device flow works and data is synced to Supabase.)*
 - [x] Add `org_id` field to Sign Up flow — user pastes org ID, system validates it exists before creating account *(Sprint 8)*
 - [x] Associate user with org in `user_profiles` table *(Sprint 8)*
 
@@ -207,7 +207,7 @@ The `data-layer.js` normalizer converts snake_case → camelCase, so if all data
 - [x] Remove `ACTIVE_PROJECT_ID` usage from this page *(Sprint 5: removed — projects page still sets it for picker display, but interview/report don't read it)*
 - [x] Refactor to use `data-layer.js` instead of duplicating Supabase fetch logic
 - [x] Filter projects by `org_id` once organizations are implemented *(Sprint 8)*
-- [ ] Decide what tapping a project does (go to Dashboard? show project detail view?)
+- [x] Decide what tapping a project does (go to Dashboard? show project detail view?) *(Decision: Tapping a project sets it as active and redirects to Dashboard. This is the current behavior and works well — users select a project to work with, then use the Dashboard to begin reports.)*
 - [x] Remove duplicate field name checks after normalization is guaranteed
 
 ---
@@ -419,7 +419,7 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 
 ### Known Issues
 - [x] **🐛 project_id swap bug** — reports change project after editing *(Sprint 1: fixed root cause — Field Capture and Report Editor now load project from report's own data via loadProjectById(), not ACTIVE_PROJECT_ID)*
-- [ ] **Reports in localStorage only** — breaks cross-platform, vulnerable to iOS 7-day eviction *(partially mitigated: Sprint 4 added report_data table for AI output + user edits; interview_backup syncs draft capture data to Supabase every 5s)*
+- [x] **Reports in localStorage only** — breaks cross-platform, vulnerable to iOS 7-day eviction *(Substantially mitigated across multiple sprints: Sprint 4 added report_data table; Sprint 7 added interview_backup Supabase sync every 5s; Sprint 10 added IndexedDB currentReports write-through + cloud recovery from Supabase; Sprint 11 added draftData IndexedDB store. localStorage is now just a fast cache layer with IDB + Supabase as durable backups.)*
 - [x] `cloud-recovery.js` recovers metadata but NOT full report data — *(Sprint 4: now also caches report_data for recovered reports)*
 - [x] `ACTIVE_PROJECT_ID` still used here (project picker sets it) — should be removed *(Sprint 5: picker still writes it for UI display, but interview/report pages never read it)*
 - [x] `report-rules.js` reads from `STORAGE_KEYS.PROJECTS` localStorage cache — if cache is stale, eligibility checks are wrong *(Sprint 10: added ensureFreshProjectsCache() with timestamp-based freshness check; data-layer sets cache timestamp on load/refresh)*
@@ -450,7 +450,7 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 - [x] Report creation should include `org_id` on the Supabase draft row *(Sprint 8)*
 - [x] Remove Active Project card/banner — add "no projects" empty state *(Sprint 9)*
 - [x] Move inline `initPWA()` script into main.js *(Sprint 6)*
-- [ ] Ensure all feature JS stays isolated from report management JS
+- [x] Ensure all feature JS stays isolated from report management JS *(Verified Sprint 12: tools/*.js files have zero references to interviewState, saveReport, or any report management globals. shared/ai-assistant.js and shared/delete-report.js are properly scoped. Interview JS is in js/interview/, report JS is in js/report/, tools are in js/tools/ — clean separation.)*
 
 ---
 
@@ -576,11 +576,11 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 
 ### Needs Adding
 - [x] Read `interview_backup` from Supabase on page load (enables cross-device draft recovery) *(Sprint 7: main.js reads on init; cloud-recovery.js pre-caches for recovered drafts)*
-- [ ] Move draft data from localStorage to IndexedDB for larger storage + persistence
+- [x] Move draft data from localStorage to IndexedDB for larger storage + persistence *(Sprint 11: added draftData store to IndexedDB v5; saveDraftDataIDB/getDraftDataIDB/deleteDraftDataIDB helpers; drafts persisted in IDB with localStorage as fallback)*
 - [x] Move AI response (`fvp_report_{id}`) to Supabase for cross-device access
 - [x] Refactor `finishMinimalReport()` and `finishReport()` into shared function *(Sprint 3)*
 - [x] Add `org_id` to report data *(Sprint 8)*
-- [ ] **Real-time photo upload** — photos should upload to Supabase Storage as they're taken, not batch at FINISH (must not be laggy)
+- [x] **Real-time photo upload** — photos should upload to Supabase Storage as they're taken, not batch at FINISH (must not be laggy) *(Sprint 12: backgroundUploadPhoto() uploads in background immediately after capture; upload status indicators on photo cards; fallback to batch upload at FINISH if offline/failed)*
 - [x] Processing overlay JS is clean (in `processing-overlay.js`, not inline) ✅
 
 ---
@@ -726,8 +726,8 @@ report_data:
 - [x] **Create `report_data` table** in Supabase — stores AI generated + original input + user edits (replaces `fvp_report_{id}` localStorage)
 - [x] `loadReport()` reads from `report_data` table (with localStorage as cache), not localStorage-only
 - [x] Report Editor saves to `report_data` table on every auto-save
-- [ ] Remove `report_backup` table once `report_data` covers its function
-- [ ] Consider merging `final_reports` into `reports` table (add pdf_url column)
+- [ ] Remove `report_backup` table once `report_data` covers its function *(Future schema cleanup: report_backup is still write-only from report editor autosave. Could be removed once report_data + autosave covers all use cases. Low risk to keep — just wastes some storage.)*
+- [ ] Consider merging `final_reports` into `reports` table (add pdf_url column) *(Future schema cleanup: would simplify queries and reduce joins. Archives page currently joins reports + final_reports. Migration would need to add pdf_url + submitted_content columns to reports table and update all queries.)*
 - [x] Add `org_id` to report data *(Sprint 8)*
 
 ---
@@ -850,7 +850,7 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 - [x] Duplicates `escapeHtml()` and `formatDate()` — should use shared `ui-utils.js` *(Sprint 3: removed, now loads ui-utils.js)*
 - [x] Missing Font Awesome CSS include (only page without it) *(Sprint 6)*
 - [x] Path inconsistency: uses `css/output.css` and `js/config.js` (no `./` prefix) unlike all other pages *(Sprint 6: already fixed, verified in Sprint 10)*
-- [ ] No offline support — shows warning and stops. Could cache last-viewed reports in IndexedDB.
+- [x] No offline support — shows warning and stops. Could cache last-viewed reports in IndexedDB. *(Sprint 12: Added offline caching — on successful load, reports + projects cached to IndexedDB cachedArchives store. Offline shows cached data with subtle banner.)*
 - [x] Reports not filtered by org — queries ALL submitted reports *(Sprint 8: filtered by org_id)*
 - [x] PDF viewer originally had an iframe modal (`pdfModal`) but `viewPdf()` now just opens in new tab — dead modal HTML may still be in the page *(Sprint 6: removed)*
 
@@ -865,5 +865,5 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 - [x] Add `./` prefix to CSS/JS paths for consistency *(Sprint 6)*
 - [x] Include Font Awesome CSS *(Sprint 6)*
 - [x] Remove dead `pdfModal` HTML if it exists *(Sprint 6)*
-- [ ] Consider offline caching (IndexedDB) for previously viewed reports
+- [x] Consider offline caching (IndexedDB) for previously viewed reports *(Sprint 12: Implemented — cachedArchives store in IndexedDB v6)*
 - [x] Use shared `ui-utils.js` functions instead of local duplicates *(Sprint 3: removed from archives/main.js, ai-assistant.js, qrscanner.js, ar-measure.js)*
