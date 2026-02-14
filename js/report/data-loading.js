@@ -104,6 +104,15 @@ async function loadReport() {
     // cloud source for report content. report_backup table is deprecated.
 
     if (!reportData) {
+        // Check if the report exists but is pending_refine (interrupted AI processing)
+        var currentReports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
+        var reportMeta = currentReports[reportIdParam];
+        if (reportMeta && (reportMeta.status === 'pending_refine' || reportMeta.status === 'draft')) {
+            console.warn('[LOAD] Report is in', reportMeta.status, 'status — redirecting to interview for re-processing');
+            showToast('Report needs processing. Redirecting to interview...', 'warning');
+            setTimeout(function() { window.location.href = 'quick-interview.html?reportId=' + reportIdParam; }, 1500);
+            return createFreshReport();
+        }
         console.error('[LOAD] No report data found for:', reportIdParam);
         showToast('Report data not found. It may have been cleared.', 'error');
         setTimeout(function() { window.location.href = 'index.html'; }, 2000);

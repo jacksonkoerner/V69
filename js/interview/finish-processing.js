@@ -389,7 +389,8 @@ async function finishReportFlow(options) {
 
 
         // v6.9: Use saveCurrentReport helper (sets updated_at, validates)
-        saveCurrentReport({
+        // Must await — saveCurrentReport is async (queued saves, Sprint 15 SEC-08)
+        await saveCurrentReport({
             id: IS.currentReportId,
             project_id: IS.activeProject?.id,
             project_name: IS.activeProject?.projectName || '',
@@ -399,6 +400,13 @@ async function finishReportFlow(options) {
             created_at: IS.report.meta?.createdAt ? new Date(IS.report.meta.createdAt).getTime() : Date.now()
         });
         console.log('[LOCAL] Updated fvp_current_reports with refined status:', IS.currentReportId);
+
+        // Verify report data was saved before redirecting
+        const verifyData = getReportData(IS.currentReportId);
+        if (!verifyData) {
+            console.error('[FINISH] Report data verification failed — re-saving...');
+            saveReportData(IS.currentReportId, reportDataPackage);
+        }
 
         // === Show success and redirect ===
         setProcessingStep(4, 'complete');

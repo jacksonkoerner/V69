@@ -271,3 +271,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         syncWeather();
     }
 });
+
+// ============ BACK-NAVIGATION / BFCACHE FIX ============
+// On mobile PWA, navigating back (or returning from backgrounded app) may serve
+// the page from bfcache without firing DOMContentLoaded. This listener detects
+// that scenario and refreshes the dashboard UI.
+window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+        // Page was restored from bfcache — re-render the dynamic sections
+        console.log('[INDEX] Page restored from bfcache, refreshing UI...');
+        try {
+            renderReportCards();
+            updateReportStatus();
+            recoverCloudDrafts();
+            syncWeather();
+        } catch (e) {
+            console.error('[INDEX] bfcache refresh error:', e);
+        }
+    }
+});
+
+// Also handle visibilitychange — covers iOS "swipe out and back" where
+// pageshow.persisted may not be set but the page was frozen.
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible' && window.location.pathname.endsWith('index.html')) {
+        console.log('[INDEX] Page became visible, refreshing report cards...');
+        try {
+            renderReportCards();
+            updateReportStatus();
+        } catch (e) {
+            console.error('[INDEX] visibility refresh error:', e);
+        }
+    }
+});
