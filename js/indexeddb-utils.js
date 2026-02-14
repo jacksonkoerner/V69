@@ -10,29 +10,83 @@
     const DB_VERSION = 6; // v6: add cachedArchives store
 
     let db = null;
+    const IDB_OPEN_TIMEOUT_MS = 3000; // 3s timeout for indexedDB.open()
 
     /**
-     * Opens/creates the IndexedDB database
+     * Opens/creates the IndexedDB database.
+     * Includes a timeout to prevent indefinite hangs on iOS PWA (known Safari bug
+     * where indexedDB.open() never fires onsuccess/onerror after bfcache restore
+     * or app switch).
      * @returns {Promise<IDBDatabase>} The database instance
      */
     function initDB() {
         return new Promise((resolve, reject) => {
             if (db) {
-                resolve(db);
+                // Validate existing connection — iOS may close it during bfcache
+                try {
+                    // Quick health check: try to read objectStoreNames
+                    // A closed connection throws InvalidStateError
+                    var _names = db.objectStoreNames;
+                    if (_names !== undefined) {
+                        resolve(db);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('[IDB] Stale connection detected, reopening...', e.message);
+                    db = null;
+                    // Fall through to reopen
+                }
+            }
+
+            var settled = false;
+
+            // Timeout: reject if IndexedDB doesn't respond
+            var timer = setTimeout(function() {
+                if (!settled) {
+                    settled = true;
+                    console.error('[IDB] indexedDB.open() timed out after ' + IDB_OPEN_TIMEOUT_MS + 'ms');
+                    reject(new Error('IndexedDB open timed out'));
+                }
+            }, IDB_OPEN_TIMEOUT_MS);
+
+            var request;
+            try {
+                request = indexedDB.open(DB_NAME, DB_VERSION);
+            } catch (e) {
+                clearTimeout(timer);
+                console.error('[IDB] indexedDB.open() threw:', e);
+                reject(e);
                 return;
             }
 
-            const request = indexedDB.open(DB_NAME, DB_VERSION);
-
             request.onerror = (event) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
                 console.error('IndexedDB error:', event.target.error);
                 reject(event.target.error);
             };
 
             request.onsuccess = (event) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
                 db = event.target.result;
+
+                // Listen for unexpected close (iOS can close IDB connections)
+                db.onclose = function() {
+                    console.warn('[IDB] Database connection closed unexpectedly');
+                    db = null;
+                };
+
                 console.log('IndexedDB initialized successfully');
                 resolve(db);
+            };
+
+            // Handle blocked event (another connection prevents upgrade)
+            request.onblocked = function() {
+                console.warn('[IDB] Database open blocked by another connection');
+                // Don't settle here — wait for timeout or eventual success
             };
 
             request.onupgradeneeded = (event) => {
@@ -694,10 +748,25 @@
         });
     }
 
+    /**
+     * Reset the cached database connection.
+     * Call on bfcache restore (pageshow with persisted=true) or when
+     * IDB operations fail with InvalidStateError. Forces the next
+     * ensureDB() call to open a fresh connection.
+     */
+    function resetDB() {
+        if (db) {
+            try { db.close(); } catch (e) { /* already closed */ }
+            db = null;
+            console.log('[IDB] Database connection reset');
+        }
+    }
+
     // Export to window.idb
     window.idb = {
         // Setup
         initDB,
+        resetDB,
 
         // Projects store
         saveProject,
