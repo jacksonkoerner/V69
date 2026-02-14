@@ -373,11 +373,17 @@ maxlength="500"
 rows="2"
 oninput="updateMinimalPhotoCaption(${idx}, this.value)"
 onblur="updateMinimalPhotoCaption(${idx}, this.value)"
->${p.caption || ''}</textarea>
+></textarea>
 </div>
 </div>
 `;
 }).join('');
+
+// Set caption values via DOM to prevent XSS
+photos.forEach((p, idx) => {
+    const ta = grid.querySelector(`textarea[oninput*="updateMinimalPhotoCaption(${idx}"]`);
+    if (ta) ta.value = p.caption || '';
+});
 }
 
 /**

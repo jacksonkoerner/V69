@@ -88,7 +88,7 @@ case 'inspections':
 document.getElementById('inspections-list').innerHTML = IS.report.qaqcNotes.map((note, i) => `
 <div class="bg-violet-50 border border-violet-200 p-3 flex items-start gap-3">
 <i class="fas fa-check-circle text-violet-500 mt-0.5"></i>
-<p class="flex-1 text-sm text-slate-700">${note}</p>
+<p class="flex-1 text-sm text-slate-700">${escapeHtml(note)}</p>
 <button onclick="removeInspection(${i})" class="text-red-400 hover:text-red-600"><i class="fas fa-trash text-xs"></i></button>
 </div>
 `).join('') || '';
@@ -353,12 +353,17 @@ placeholder="Add caption..."
 maxlength="500"
 oninput="updatePhotoCaption(${i}, this.value); autoExpandCaption(this);"
 onblur="updatePhotoCaption(${i}, this.value)"
->${p.caption || ''}</textarea>
+></textarea>
 <div id="caption-counter-${i}" class="caption-counter hidden mt-1"></div>
 </div>
 </div>
 `;
 }).join('') || '<p class="col-span-2 text-center text-slate-400 text-sm py-4">No photos yet</p>';
+// Set caption values via DOM to prevent XSS
+IS.report.photos.forEach((p, i) => {
+    const ta = document.getElementById('caption-input-' + i);
+    if (ta) ta.value = p.caption || '';
+});
 break;
 }
 }

@@ -62,7 +62,7 @@ function populateOriginalNotes() {
 
     var w = original?.weather || report.overview?.weather || {};
     var weatherHtml = (w.highTemp || w.lowTemp || w.generalCondition)
-        ? 'High: ' + (w.highTemp || 'N/A') + ' | Low: ' + (w.lowTemp || 'N/A') + '<br>' + (w.generalCondition || 'N/A') + ' | Site: ' + (w.jobSiteCondition || 'N/A')
+        ? 'High: ' + escapeHtml(w.highTemp || 'N/A') + ' | Low: ' + escapeHtml(w.lowTemp || 'N/A') + '<br>' + escapeHtml(w.generalCondition || 'N/A') + ' | Site: ' + escapeHtml(w.jobSiteCondition || 'N/A')
         : '<span class="text-slate-400 italic">None</span>';
     document.getElementById('originalWeather').innerHTML = weatherHtml;
 

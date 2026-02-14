@@ -229,7 +229,7 @@ function renderWorkSummary() {
                 '<p class="text-xs font-bold text-slate-500 uppercase mb-2">Work Summary</p>' +
                 '<textarea id="generalWorkSummary" class="editable-field auto-expand w-full px-3 py-2 text-sm"' +
                     ' placeholder="Describe all work performed today..."' +
-                    ' data-path="guidedNotes.workSummary">' + getValue('guidedNotes.workSummary', '') + '</textarea>' +
+                    ' data-path="guidedNotes.workSummary">' + escapeHtml(getValue('guidedNotes.workSummary', '')) + '</textarea>' +
                 '<p class="text-xs text-slate-400 mt-1">No project contractors defined. Add contractors in Project Settings.</p>' +
             '</div>';
         initAllAutoExpandTextareas();
