@@ -123,8 +123,8 @@ These need to be migrated to `setStorageItem(STORAGE_KEYS.*)`. Note: `STORAGE_KE
 - [x] Migrate `auth.js` hardcoded `fvp_auth_role` to use `STORAGE_KEYS.AUTH_ROLE`
 - [ ] Capture device metadata on login (device type, OS, browser) alongside `device_id`
 - [ ] Support multiple active sessions per user (don't overwrite device_id — store per-device instead)
-- [ ] Add `org_id` field to Sign Up flow — user pastes org ID, system validates it exists before creating account
-- [ ] Associate user with org in `user_profiles` table
+- [x] Add `org_id` field to Sign Up flow — user pastes org ID, system validates it exists before creating account *(Sprint 8)*
+- [x] Associate user with org in `user_profiles` table *(Sprint 8)*
 
 ---
 
@@ -194,7 +194,7 @@ The `data-layer.js` normalizer converts snake_case → camelCase, so if all data
 - [x] `projects/main.js` has its own `fetchProjectsFromSupabase()` + `saveProjectsToIndexedDB()` that **bypass** `data-layer.js` — duplicate logic, no normalization
 - [x] `refreshFromCloud` name collision — also exported by `settings/main.js` (both on `window`)
 - [x] `ACTIVE_PROJECT_ID` concept needs removal — project is selected per-report, not globally *(Sprint 5: removed from interview/report pages; kept only for dashboard picker UI)*
-- [ ] Projects not filtered by org — `SELECT *` loads ALL projects from Supabase
+- [x] Projects not filtered by org — `SELECT *` loads ALL projects from Supabase *(Sprint 8: filtered by org_id)*
 - [ ] Active project stored only in localStorage — breaks cross-platform
 - [ ] Dual field name checks (`projectName || project_name`) throughout render code — fragile
 
@@ -206,7 +206,7 @@ The `data-layer.js` normalizer converts snake_case → camelCase, so if all data
 ### Needs Adding
 - [x] Remove `ACTIVE_PROJECT_ID` usage from this page *(Sprint 5: removed — projects page still sets it for picker display, but interview/report don't read it)*
 - [x] Refactor to use `data-layer.js` instead of duplicating Supabase fetch logic
-- [ ] Filter projects by `org_id` once organizations are implemented
+- [x] Filter projects by `org_id` once organizations are implemented *(Sprint 8)*
 - [ ] Decide what tapping a project does (go to Dashboard? show project detail view?)
 - [x] Remove duplicate field name checks after normalization is guaranteed
 
@@ -277,7 +277,7 @@ The normalizer in `data-layer.js` handles both formats, but this is tech debt:
 
 ### Needs Adding
 - [ ] Remove "Set as Active Project" button and related code (`getActiveProjectId`, `setActiveProjectId`, `updateActiveProjectBadge`)
-- [ ] Add `org_id` field to project data model (Supabase column + JS normalizer)
+- [x] Add `org_id` field to project data model (Supabase column + JS normalizer) *(Sprint 8)*
 - [ ] Verify `reportDate` and `contractDayNo` — in form but not in `toSupabaseProject()` converter (may not be saving to Supabase)
 
 ---
@@ -446,8 +446,8 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 - [ ] Move report tracking from localStorage (`fvp_current_reports`) to IndexedDB + Supabase sync
 - [x] Cloud recovery should pull full report data, not just metadata (via report_data table + loadReport() fallback)
 - [x] Standardize report date field to one name across all code *(Sprint 6: `reportDate` is canonical JS name)*
-- [ ] Add `org_id` filtering to project loading
-- [ ] Report creation should include `org_id` on the Supabase draft row
+- [x] Add `org_id` filtering to project loading *(Sprint 8)*
+- [x] Report creation should include `org_id` on the Supabase draft row *(Sprint 8)*
 - [ ] Remove Active Project card/banner — add "no projects" empty state
 - [x] Move inline `initPWA()` script into main.js *(Sprint 6)*
 - [ ] Ensure all feature JS stays isolated from report management JS
@@ -580,7 +580,7 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - [ ] Move draft data from localStorage to IndexedDB for larger storage + persistence
 - [x] Move AI response (`fvp_report_{id}`) to Supabase for cross-device access
 - [x] Refactor `finishMinimalReport()` and `finishReport()` into shared function *(Sprint 3)*
-- [ ] Add `org_id` to report data
+- [x] Add `org_id` to report data *(Sprint 8)*
 - [ ] **Real-time photo upload** — photos should upload to Supabase Storage as they're taken, not batch at FINISH (must not be laggy)
 - [ ] Processing overlay JS is clean (in `processing-overlay.js`, not inline) ✅
 
@@ -729,7 +729,7 @@ report_data:
 - [x] Report Editor saves to `report_data` table on every auto-save
 - [ ] Remove `report_backup` table once `report_data` covers its function
 - [ ] Consider merging `final_reports` into `reports` table (add pdf_url column)
-- [ ] Add `org_id` to report data
+- [x] Add `org_id` to report data *(Sprint 8)*
 
 ---
 
@@ -802,7 +802,7 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 
 ### Needs Adding
 - [x] Migrate hardcoded localStorage writes to `STORAGE_KEYS` constants
-- [ ] Add `org_id` to user profile
+- [x] Add `org_id` to user profile *(Sprint 8)*
 - [ ] Add device metadata (device type, OS, browser) — per Login decisions
 
 ---
@@ -852,7 +852,7 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 - [x] Missing Font Awesome CSS include (only page without it) *(Sprint 6)*
 - [ ] Path inconsistency: uses `css/output.css` and `js/config.js` (no `./` prefix) unlike all other pages
 - [ ] No offline support — shows warning and stops. Could cache last-viewed reports in IndexedDB.
-- [ ] Reports not filtered by org — queries ALL submitted reports
+- [x] Reports not filtered by org — queries ALL submitted reports *(Sprint 8: filtered by org_id)*
 - [x] PDF viewer originally had an iframe modal (`pdfModal`) but `viewPdf()` now just opens in new tab — dead modal HTML may still be in the page *(Sprint 6: removed)*
 
 ### Confirmed Decisions
@@ -862,7 +862,7 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 - This is the model for how other pages should work (Supabase-first, no localStorage)
 
 ### Needs Adding
-- [ ] Filter reports by `org_id` once organizations are implemented
+- [x] Filter reports by `org_id` once organizations are implemented *(Sprint 8)*
 - [x] Add `./` prefix to CSS/JS paths for consistency *(Sprint 6)*
 - [x] Include Font Awesome CSS *(Sprint 6)*
 - [x] Remove dead `pdfModal` HTML if it exists *(Sprint 6)*
