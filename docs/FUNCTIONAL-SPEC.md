@@ -122,7 +122,7 @@ These need to be migrated to `setStorageItem(STORAGE_KEYS.*)`. Note: `STORAGE_KE
 - [x] Migrate `login/main.js` hardcoded localStorage calls to use `STORAGE_KEYS` constants
 - [x] Migrate `auth.js` hardcoded `fvp_auth_role` to use `STORAGE_KEYS.AUTH_ROLE`
 - [x] Capture device metadata on login (device type, OS, browser) alongside `device_id` *(Sprint 10: device_info JSONB column added to user_profiles, captured on sign-in and sign-up)*
-- [ ] Support multiple active sessions per user (don't overwrite device_id — store per-device instead) *(Future work: needs session management design — store array of device records per user, handle concurrent edits. Low priority since current single-device flow works and data is synced to Supabase.)*
+- [x] Support multiple active sessions per user (don't overwrite device_id — store per-device instead) *(Sprint 13: Created `user_devices` table for multi-device tracking. Login upserts to user_devices. Added Supabase Realtime subscriptions on reports, report_data, projects for live cross-device sync. Subscriptions managed with proper cleanup on page unload/offline.)*
 - [x] Add `org_id` field to Sign Up flow — user pastes org ID, system validates it exists before creating account *(Sprint 8)*
 - [x] Associate user with org in `user_profiles` table *(Sprint 8)*
 
@@ -726,8 +726,8 @@ report_data:
 - [x] **Create `report_data` table** in Supabase — stores AI generated + original input + user edits (replaces `fvp_report_{id}` localStorage)
 - [x] `loadReport()` reads from `report_data` table (with localStorage as cache), not localStorage-only
 - [x] Report Editor saves to `report_data` table on every auto-save
-- [ ] Remove `report_backup` table once `report_data` covers its function *(Future schema cleanup: report_backup is still write-only from report editor autosave. Could be removed once report_data + autosave covers all use cases. Low risk to keep — just wastes some storage.)*
-- [ ] Consider merging `final_reports` into `reports` table (add pdf_url column) *(Future schema cleanup: would simplify queries and reduce joins. Archives page currently joins reports + final_reports. Migration would need to add pdf_url + submitted_content columns to reports table and update all queries.)*
+- [x] Remove `report_backup` table once `report_data` covers its function *(Sprint 13: Removed all report_backup writes from report/autosave.js and reads from report/data-loading.js. report_data is now the authoritative cloud store. Table retained in Supabase — DROP is a future migration.)*
+- [x] Consider merging `final_reports` into `reports` table (add pdf_url column) *(Sprint 13: Added pdf_url, inspector_name, submitted_at columns to reports table. Migrated existing data. submit.js writes to reports directly. archives/main.js reads pdf_url from reports. final_reports table retained — DROP is a future migration.)*
 - [x] Add `org_id` to report data *(Sprint 8)*
 
 ---

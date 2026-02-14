@@ -65,19 +65,20 @@ A Progressive Web App (PWA) for DOT construction inspectors to capture daily fie
 |-------|---------|-------------|
 | `organizations` | Org definitions for multi-tenant isolation | `id`, `name`, `created_at` |
 | `projects` | Project definitions with contractors as JSONB | `id`, `org_id`, `project_name`, `report_date`, `contract_day_no` |
-| `reports` | Report metadata, status tracking, lifecycle | `id`, `org_id`, `project_id`, `report_date`, `device_info` |
+| `reports` | Report metadata, status, lifecycle, PDF URL | `id`, `org_id`, `project_id`, `report_date`, `pdf_url`, `inspector_name`, `submitted_at` |
 | `report_data` | AI-generated + user-edited report content | `report_id`, `ai_generated`, `original_input`, `user_edits`, `capture_mode` |
-| `final_reports` | Submitted report content + PDF URL | `report_id`, `pdf_url`, `submitted_content` |
 | `photos` | Photo metadata + storage references | `id`, `report_id`, `storage_path`, `photo_url`, `location_lat/lng` |
 | `user_profiles` | User info linked to Supabase Auth | `id`, `org_id`, `full_name`, `device_id`, `device_info` |
+| `user_devices` | Multi-device tracking per user | `id`, `user_id`, `device_id`, `device_info`, `last_active` |
 | `ai_submissions` | AI processing history (input + output) | `report_id`, `original_input`, `ai_response`, `processing_time_ms` |
 
-### Backup Tables
+### Backup / Deprecated Tables
 
-| Table | Purpose |
-|-------|---------|
-| `interview_backup` | Autosaved interview state (every 5s, used for cross-device draft recovery) |
-| `report_backup` | Autosaved report edit state (every 5s, write-only) |
+| Table | Purpose | Status |
+|-------|---------|--------|
+| `interview_backup` | Autosaved interview state (every 5s, used for cross-device draft recovery) | Active |
+| `report_backup` | Was: autosaved report edit state | **Deprecated** (Sprint 13: report_data is authoritative) |
+| `final_reports` | Was: submitted report PDF URL + metadata | **Deprecated** (Sprint 13: merged into reports table) |
 
 ### Storage Buckets
 
@@ -175,7 +176,7 @@ draft -> pending_refine -> refined -> submitted
 │   │   └── document-import.js
 │   │
 │   ├── tools/                  # Field tools (12 standalone modules)
-│   ├── shared/                 # Multi-page shared (ai-assistant, delete-report)
+│   ├── shared/                 # Multi-page shared (ai-assistant, delete-report, realtime-sync)
 │   │
 │   ├── archives/main.js        # Archives page + offline caching
 │   ├── projects/main.js        # Projects list handler
@@ -259,6 +260,12 @@ See `js/README.md` for the complete developer storage reference.
 ### Archives Offline (Sprint 12)
 - Successful archive loads cached to IndexedDB `cachedArchives` store
 - Offline access shows cached reports with a subtle banner
+
+### Multi-Device Sync (Sprint 13)
+- **Supabase Realtime**: `reports`, `report_data`, `projects` tables publish changes via postgres_changes
+- **realtime-sync.js**: Shared subscription manager loaded on Dashboard, Report Editor, Field Capture, Archives
+- **user_devices table**: Tracks multiple devices per user (replaces single device_id on user_profiles)
+- **Schema cleanup**: `report_backup` deprecated (report_data is authoritative); `final_reports` merged into `reports` (pdf_url, inspector_name, submitted_at columns added)
 
 ## Development
 
