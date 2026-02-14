@@ -78,8 +78,8 @@ async function showProjectPickerModal() {
         }
     }
     projectsCache = projects;
-    // Use picker selection from localStorage to highlight active project in the list
-    const activeId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
+    // No "active project" concept — all projects shown equally
+    const activeId = null;
 
     if (projects.length === 0) {
         // No projects configured
@@ -174,16 +174,6 @@ function closeProjectPickerModal() {
 }
 
 async function selectProjectAndProceed(projectId) {
-    // Set as active project in localStorage (picker selection only — interview/report
-    // pages load project from the report's own project_id, not this value)
-    setStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID, projectId);
-
-    // Update cache using loadProjectById (explicit ID, not ACTIVE_PROJECT_ID)
-    activeProjectCache = await window.dataLayer.loadProjectById(projectId);
-
-    // Update the active project card on dashboard (visible when they return)
-    updateActiveProjectCard();
-
     // Close project picker modal
     closeProjectPickerModal();
 

@@ -269,16 +269,23 @@ async function generateVectorPDF() {
         if (!trades) return '-';
         var abbrevMap = {
             'construction management': 'CM', 'project management': 'PM',
-            'pile driving': 'PLE', 'concrete': 'CONC', 'asphalt': 'ASP',
-            'utilities': 'UTL', 'earthwork': 'ERTHWRK', 'electrical': 'ELEC',
-            'communications': 'COMM', 'fence': 'FENCE', 'pavement markings': 'PVMNT MRK',
-            'hauling': 'HAUL', 'pavement subgrade': 'PVMT SUB', 'demo': 'DEMO',
-            'demolition': 'DEMO', 'general': 'GEN'
+            'pile driving': 'PILE', 'concrete': 'CONC', 'asphalt': 'ASP',
+            'concrete pavement': 'CONC PV', 'asphalt pavement': 'ASP PV',
+            'concrete pvmt': 'CONC PV', 'asp pvmt': 'ASP PV',
+            'utilities': 'UTL', 'earthwork': 'ERTH', 'electrical': 'ELEC',
+            'communications': 'COMM', 'fence': 'FENCE', 'fencing': 'FENCE',
+            'pavement markings': 'PV MRK', 'hauling': 'HAUL', 'haul': 'HAUL',
+            'pavement subgrade': 'PV SUB', 'pavmt subgrd': 'PV SUB', 'pavmt subgrade': 'PV SUB',
+            'demo': 'DEMO', 'demolition': 'DEMO', 'general': 'GEN',
+            'drainage': 'DRAIN', 'elec': 'ELEC', 'comm': 'COMM'
         };
-        return trades.split(/[;,]/).map(function(t) {
+        var result = trades.split(/[;,]/).map(function(t) {
             var lower = t.trim().toLowerCase();
-            return abbrevMap[lower] || lower.substring(0, 6).toUpperCase();
+            return abbrevMap[lower] || lower.substring(0, 5).toUpperCase();
         }).join('; ');
+        // Truncate if still too long for 120pt column (~20 chars at 8pt)
+        if (result.length > 28) result = result.substring(0, 26) + '…';
+        return result;
     }
 
     function pdfGetContractorName(contractorId, fallbackName) {
@@ -514,8 +521,8 @@ async function generateVectorPDF() {
 
     // ═══ DAILY OPERATIONS TABLE ═══
     drawSectionHeader('DAILY OPERATIONS');
-    var opsColWidths = [60, 70, 55, 55, 60, 85, 65, 90];
-    var opsHeaders = ['CONTRACTOR', 'TRADE', 'SUPER(S)', 'FOREMAN', 'OPERATOR(S)', 'LABORER(S) /\nELECTRICIAN(S)', 'SURVEYOR(S)', 'OTHER(S)'];
+    var opsColWidths = [65, 120, 48, 48, 52, 60, 52, 95];
+    var opsHeaders = ['CONTRACTOR', 'TRADE', 'SUPER(S)', 'FOREMAN', 'OPR(S)', 'LBR(S) /\nELEC(S)', 'SRVYR(S)', 'OTHER(S)'];
     var opsHeaderH = 22;
     var ox = ML;
     opsHeaders.forEach(function(hdr, i) {
@@ -529,8 +536,10 @@ async function generateVectorPDF() {
         var ops = getContractorOperations(contractor.id);
         var abbrev = contractor.abbreviation || contractor.name.substring(0, 10).toUpperCase();
         var trades = pdfFormatTradesAbbrev(contractor.trades);
+        // Show 0 instead of N/A when no personnel data (means no work, not missing data)
+        var pVal = function(v) { return (v === null || v === undefined) ? '0' : String(v); };
         var opsRowH = 16;
-        var rowData = [abbrev, trades, ops?.superintendents || 'N/A', ops?.foremen || 'N/A', ops?.operators || 'N/A', ops?.laborers || 'N/A', ops?.surveyors || 'N/A', ops?.others || 'N/A'];
+        var rowData = [abbrev, trades, pVal(ops?.superintendents), pVal(ops?.foremen), pVal(ops?.operators), pVal(ops?.laborers), pVal(ops?.surveyors), pVal(ops?.others)];
         var rx = ML;
         rowData.forEach(function(val, i) {
             drawCell(rx, curY, opsColWidths[i], opsRowH, val, { fontSize: TABLE_CELL_SIZE, align: i < 2 ? 'left' : 'center' });
@@ -552,11 +561,15 @@ async function generateVectorPDF() {
     curY += eqHeaderH;
 
     var equipmentData = getEquipmentData();
-    if (equipmentData.length === 0) {
+    // Filter out empty/placeholder equipment rows (no type and no contractor = unfilled default row)
+    var filledEquipment = equipmentData.filter(function(item) {
+        return (item.type && item.type.trim() !== '') || (item.contractorId && item.contractorId.trim() !== '') || (item.contractorName && item.contractorName.trim() !== '');
+    });
+    if (filledEquipment.length === 0) {
         drawCell(ML, curY, CW, 16, 'No equipment mobilized', { fontSize: TABLE_CELL_SIZE, align: 'center' });
         curY += 16;
     } else {
-        equipmentData.forEach(function(item, idx) {
+        filledEquipment.forEach(function(item, idx) {
             checkPageBreak(16);
             var cName = pdfGetContractorName(item.contractorId, item.contractorName);
             var eqNotes = pdfFormatEquipNotes(item.status, item.hoursUsed);
