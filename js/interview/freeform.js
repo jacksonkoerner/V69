@@ -329,10 +329,22 @@ grid.innerHTML = '';
 return;
 }
 
-grid.innerHTML = photos.map((p, idx) => `
+grid.innerHTML = photos.map((p, idx) => {
+    // Upload indicator
+    const uploadStatus = p.uploadStatus || (p.storagePath ? 'uploaded' : 'pending');
+    let uploadHtml = '';
+    if (uploadStatus === 'uploading') {
+        uploadHtml = `<div id="upload-status-${p.id}" class="absolute top-2 left-2 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-lg"><i class="fas fa-spinner fa-spin text-white text-xs"></i></div>`;
+    } else if (uploadStatus === 'uploaded') {
+        uploadHtml = `<div id="upload-status-${p.id}" class="absolute top-2 left-2 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center shadow-lg"><i class="fas fa-check text-white text-xs"></i></div>`;
+    } else {
+        uploadHtml = `<div id="upload-status-${p.id}" class="absolute top-2 left-2 w-6 h-6 rounded-full bg-yellow-500 flex items-center justify-center shadow-lg" title="Will upload on submit"><i class="fas fa-cloud-arrow-up text-white text-xs"></i></div>`;
+    }
+    return `
 <div class="border-2 border-slate-300 overflow-hidden bg-slate-100">
 <div class="relative">
 <img src="${p.url}" class="w-full aspect-square object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23cbd5e1%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2364748b%22 font-size=%2212%22>Error</text></svg>';">
+${uploadHtml}
 <button onclick="deleteMinimalPhoto(${idx})" class="absolute top-2 right-2 w-7 h-7 bg-red-600 text-white text-xs flex items-center justify-center shadow-lg"><i class="fas fa-times"></i></button>
 <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-2 pt-6">
 <div class="flex items-center gap-1 text-white/90 mb-1">
@@ -364,7 +376,8 @@ onblur="updateMinimalPhotoCaption(${idx}, this.value)"
 >${p.caption || ''}</textarea>
 </div>
 </div>
-`).join('');
+`;
+}).join('');
 }
 
 /**
@@ -411,28 +424,13 @@ continue;
 finalDataUrl = markedUp;
 }
 
-// Try to upload to Supabase if online, otherwise store base64 for later
-let storagePath = null;
-let publicUrl = finalDataUrl; // Use base64 as fallback URL for display
-
-if (navigator.onLine) {
-try {
-showToast('Uploading photo...', 'info');
-const compressedBlob = await dataURLtoBlob(finalDataUrl);
-const result = await uploadPhotoToSupabase(compressedBlob, photoId);
-storagePath = result.storagePath;
-publicUrl = result.publicUrl;
-} catch (uploadErr) {
-console.warn('[PHOTO] Upload failed, saving locally:', uploadErr);
-// Keep base64 for later upload
-}
-}
-
+// Create photo object immediately with local data (upload happens in background)
 const photoObj = {
 id: photoId,
-url: publicUrl,
-base64: storagePath ? null : finalDataUrl, // Only store base64 if not uploaded
-storagePath: storagePath,
+url: finalDataUrl,
+base64: finalDataUrl,
+storagePath: null,
+uploadStatus: 'pending',
 caption: '',
 timestamp: now.toISOString(),
 date: now.toLocaleDateString(),
@@ -448,9 +446,13 @@ IS.report.photos.push(photoObj);
 // Save photo to IndexedDB (local-first)
 await savePhotoToIndexedDB(photoObj);
 
+// Update UI immediately (photo visible with upload spinner)
 renderMinimalPhotos();
 saveReport();
-showToast(storagePath ? 'Photo saved' : 'Photo saved locally', 'success');
+
+// Background upload — non-blocking
+backgroundUploadPhoto(photoObj, finalDataUrl);
+showToast('Photo saved', 'success');
 } catch (err) {
 console.error('Error adding photo:', err);
 showToast('Failed to add photo', 'error');

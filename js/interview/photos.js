@@ -6,7 +6,8 @@ var IS = window.interviewState;
 // ============ PHOTOS ============
 /**
  * Handle photo input (full mode)
- * Saves to IndexedDB locally, uploads to Supabase on Submit
+ * Photos are added immediately to the UI, then uploaded to Supabase in the background.
+ * If offline or upload fails, the local blob is kept for retry at FINISH.
  */
 async function handlePhotoInput(e) {
     console.log('[PHOTO] handlePhotoInput triggered');
@@ -86,34 +87,13 @@ async function handlePhotoInput(e) {
                 finalDataUrl = markedUp;
             }
 
-            // Try to upload to Supabase if online, otherwise store base64 for later
-            let storagePath = null;
-            let publicUrl = finalDataUrl; // Use base64 as fallback URL for display
-
-            if (navigator.onLine) {
-                try {
-                    const compressedBlob = await dataURLtoBlob(finalDataUrl);
-                    console.log(`[PHOTO] Compressed: ${Math.round(file.size/1024)}KB -> ${Math.round(compressedBlob.size/1024)}KB`);
-
-                    showToast('Uploading photo...', 'info');
-                    console.log('[PHOTO] Uploading to Supabase Storage...');
-                    const result = await uploadPhotoToSupabase(compressedBlob, photoId);
-                    storagePath = result.storagePath;
-                    publicUrl = result.publicUrl;
-                } catch (uploadErr) {
-                    console.warn('[PHOTO] Upload failed, saving locally:', uploadErr);
-                    // Keep base64 for later upload
-                }
-            } else {
-                console.log('[PHOTO] Offline - saving locally for later upload');
-            }
-
-            // Create photo object
+            // Create photo object immediately with local data (upload happens in background)
             const photoObj = {
                 id: photoId,
-                url: publicUrl,
-                base64: storagePath ? null : finalDataUrl, // Only store base64 if not uploaded
-                storagePath: storagePath,
+                url: finalDataUrl, // Show local data immediately
+                base64: finalDataUrl,
+                storagePath: null,
+                uploadStatus: 'pending', // pending | uploading | uploaded | failed
                 caption: '',
                 timestamp: timestamp,
                 date: date,
@@ -127,21 +107,21 @@ async function handlePhotoInput(e) {
             console.log('[PHOTO] Adding photo to report:', {
                 id: photoObj.id,
                 timestamp: photoObj.timestamp,
-                gps: photoObj.gps,
-                storagePath: storagePath,
-                hasBase64: !!photoObj.base64
+                gps: photoObj.gps
             });
 
-            // Add to local report
+            // Add to local report immediately — UI updates right away
             IS.report.photos.push(photoObj);
 
             // Save photo to IndexedDB (local-first)
             await savePhotoToIndexedDB(photoObj);
 
-            // Update UI
+            // Update UI immediately (photo visible with upload spinner)
             renderSection('photos');
             saveReport();
-            showToast(storagePath ? 'Photo saved' : 'Photo saved locally', 'success');
+
+            // Background upload — non-blocking
+            backgroundUploadPhoto(photoObj, finalDataUrl);
 
             console.log(`[PHOTO] Success! Total photos: ${IS.report.photos.length}`);
 
@@ -153,6 +133,75 @@ async function handlePhotoInput(e) {
 
     // Reset the input so the same file can be selected again
     e.target.value = '';
+}
+
+/**
+ * Upload a photo to Supabase Storage in the background.
+ * Updates the photo object + UI with upload status (spinner → checkmark).
+ * Non-blocking — does not freeze the UI.
+ */
+async function backgroundUploadPhoto(photoObj, dataUrl) {
+    if (!navigator.onLine) {
+        console.log('[PHOTO] Offline — will upload at FINISH');
+        photoObj.uploadStatus = 'failed';
+        updatePhotoUploadIndicator(photoObj.id, 'failed');
+        return;
+    }
+
+    try {
+        photoObj.uploadStatus = 'uploading';
+        updatePhotoUploadIndicator(photoObj.id, 'uploading');
+
+        const compressedBlob = await dataURLtoBlob(dataUrl);
+        console.log(`[PHOTO] Background uploading ${photoObj.id}...`);
+        const result = await uploadPhotoToSupabase(compressedBlob, photoObj.id);
+
+        // Update the photo object in IS.report.photos
+        photoObj.storagePath = result.storagePath;
+        photoObj.url = result.publicUrl;
+        photoObj.base64 = null; // Free memory — uploaded successfully
+        photoObj.uploadStatus = 'uploaded';
+
+        // Update IndexedDB
+        const idbPhoto = await window.idb.getPhoto(photoObj.id);
+        if (idbPhoto) {
+            idbPhoto.storagePath = result.storagePath;
+            idbPhoto.url = result.publicUrl;
+            idbPhoto.base64 = null;
+            await window.idb.savePhoto(idbPhoto);
+        }
+
+        updatePhotoUploadIndicator(photoObj.id, 'uploaded');
+        saveReport();
+        console.log('[PHOTO] Background upload complete:', photoObj.id);
+    } catch (err) {
+        console.warn('[PHOTO] Background upload failed:', err);
+        photoObj.uploadStatus = 'failed';
+        updatePhotoUploadIndicator(photoObj.id, 'failed');
+        // base64 is preserved — will retry at FINISH via uploadPendingPhotos()
+    }
+}
+
+/**
+ * Update the upload status indicator on a photo card.
+ * @param {string} photoId - The photo UUID
+ * @param {string} status - 'uploading' | 'uploaded' | 'failed'
+ */
+function updatePhotoUploadIndicator(photoId, status) {
+    const indicator = document.getElementById(`upload-status-${photoId}`);
+    if (!indicator) return;
+
+    if (status === 'uploading') {
+        indicator.innerHTML = '<i class="fas fa-spinner fa-spin text-white text-xs"></i>';
+        indicator.className = 'absolute top-2 left-2 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-lg';
+    } else if (status === 'uploaded') {
+        indicator.innerHTML = '<i class="fas fa-check text-white text-xs"></i>';
+        indicator.className = 'absolute top-2 left-2 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center shadow-lg';
+    } else if (status === 'failed') {
+        indicator.innerHTML = '<i class="fas fa-cloud-arrow-up text-white text-xs"></i>';
+        indicator.className = 'absolute top-2 left-2 w-6 h-6 rounded-full bg-yellow-500 flex items-center justify-center shadow-lg';
+        indicator.title = 'Will upload on submit';
+    }
 }
 
 async function removePhoto(index) {

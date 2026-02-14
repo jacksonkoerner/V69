@@ -309,10 +309,22 @@ if (visitorsInputArea) visitorsInputArea.classList.remove('hidden');
 }
 break;
 case 'photos':
-document.getElementById('photos-grid').innerHTML = IS.report.photos.map((p, i) => `
+document.getElementById('photos-grid').innerHTML = IS.report.photos.map((p, i) => {
+    // Upload indicator: spinner (uploading), checkmark (uploaded), cloud (pending/failed)
+    let uploadIndicatorHtml = '';
+    const status = p.uploadStatus || (p.storagePath ? 'uploaded' : 'pending');
+    if (status === 'uploading') {
+        uploadIndicatorHtml = `<div id="upload-status-${p.id}" class="absolute top-2 left-2 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-lg"><i class="fas fa-spinner fa-spin text-white text-xs"></i></div>`;
+    } else if (status === 'uploaded') {
+        uploadIndicatorHtml = `<div id="upload-status-${p.id}" class="absolute top-2 left-2 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center shadow-lg"><i class="fas fa-check text-white text-xs"></i></div>`;
+    } else {
+        uploadIndicatorHtml = `<div id="upload-status-${p.id}" class="absolute top-2 left-2 w-6 h-6 rounded-full bg-yellow-500 flex items-center justify-center shadow-lg" title="Will upload on submit"><i class="fas fa-cloud-arrow-up text-white text-xs"></i></div>`;
+    }
+    return `
 <div class="border-2 border-slate-300 overflow-hidden bg-slate-100">
 <div class="relative">
 <img src="${p.url}" class="w-full aspect-square object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23cbd5e1%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2364748b%22 font-size=%2212%22>Error</text></svg>';">
+${uploadIndicatorHtml}
 <button onclick="removePhoto(${i})" class="absolute top-2 right-2 w-7 h-7 bg-red-600 text-white text-xs flex items-center justify-center shadow-lg"><i class="fas fa-times"></i></button>
 <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-2 pt-6">
 <div class="flex items-center gap-1 text-white/90 mb-1">
@@ -345,7 +357,8 @@ onblur="updatePhotoCaption(${i}, this.value)"
 <div id="caption-counter-${i}" class="caption-counter hidden mt-1"></div>
 </div>
 </div>
-`).join('') || '<p class="col-span-2 text-center text-slate-400 text-sm py-4">No photos yet</p>';
+`;
+}).join('') || '<p class="col-span-2 text-center text-slate-400 text-sm py-4">No photos yet</p>';
 break;
 }
 }
