@@ -15,6 +15,19 @@ CREATE TABLE IF NOT EXISTS user_devices (
 CREATE INDEX IF NOT EXISTS idx_user_devices_user ON user_devices(user_id);
 
 -- Enable Realtime on key tables for multi-device sync
-ALTER PUBLICATION supabase_realtime ADD TABLE reports;
-ALTER PUBLICATION supabase_realtime ADD TABLE report_data;
-ALTER PUBLICATION supabase_realtime ADD TABLE projects;
+-- Use DO block to handle tables that are already in the publication
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE reports;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE report_data;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE projects;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
