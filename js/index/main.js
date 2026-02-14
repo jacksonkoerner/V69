@@ -456,11 +456,18 @@ function _renderFromLocalStorage() {
 //    Resets IDB connection on bfcache restore to prevent stale connection errors.
 window.addEventListener('pageshow', function(event) {
     console.log('[INDEX] pageshow fired (persisted=' + event.persisted + ')');
-    // Reset IDB connection on bfcache restore — the old connection is likely dead.
-    // Also reset unconditionally because iOS PWA doesn't reliably set persisted=true.
-    if (window.idb && window.idb.resetDB) {
-        window.idb.resetDB();
+
+    // Reset IDB on bfcache restore — the old connection is likely dead.
+    // We detect bfcache by checking if this pageshow is well after the last
+    // DOMContentLoaded refresh (>2s gap means bfcache, not initial load).
+    // Also trust event.persisted when it's true (some browsers set it correctly).
+    var timeSinceLastRefresh = Date.now() - _lastRefreshTime;
+    if (event.persisted || timeSinceLastRefresh > _REFRESH_COOLDOWN) {
+        if (window.idb && window.idb.resetDB) {
+            window.idb.resetDB();
+        }
     }
+
     refreshDashboard('pageshow');
 });
 

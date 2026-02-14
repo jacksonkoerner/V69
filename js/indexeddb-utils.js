@@ -22,15 +22,15 @@
     function initDB() {
         return new Promise((resolve, reject) => {
             if (db) {
-                // Validate existing connection — iOS may close it during bfcache
+                // Validate existing connection — iOS may close it during bfcache.
+                // Reading objectStoreNames alone isn't sufficient — a closed
+                // connection may still have the property but fail on transaction().
+                // Try opening a readonly transaction on a known store as a health check.
                 try {
-                    // Quick health check: try to read objectStoreNames
-                    // A closed connection throws InvalidStateError
-                    var _names = db.objectStoreNames;
-                    if (_names !== undefined) {
-                        resolve(db);
-                        return;
-                    }
+                    var _tx = db.transaction(['projects'], 'readonly');
+                    _tx.abort(); // clean up — we only needed to verify it doesn't throw
+                    resolve(db);
+                    return;
                 } catch (e) {
                     console.warn('[IDB] Stale connection detected, reopening...', e.message);
                     db = null;
@@ -142,13 +142,12 @@
     }
 
     /**
-     * Ensures the database is initialized before operations
+     * Ensures the database is initialized and the connection is healthy.
+     * Always delegates to initDB() which validates existing connections
+     * and reopens if stale (iOS bfcache fix).
      * @returns {Promise<IDBDatabase>} The database instance
      */
     function ensureDB() {
-        if (db) {
-            return Promise.resolve(db);
-        }
         return initDB();
     }
 
