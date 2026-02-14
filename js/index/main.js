@@ -240,18 +240,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 // the dashboard was frozen/cached.
 
 var _dashboardRefreshing = false; // debounce flag
+var _lastRefreshTime = 0;         // cooldown timestamp (ms)
+var _REFRESH_COOLDOWN = 2000;     // minimum ms between refreshes
 
 /**
  * Full dashboard data refresh — reloads projects + reports, then re-renders.
- * Safe to call multiple times; concurrent calls are debounced.
+ * Safe to call multiple times; concurrent calls are debounced and a 2s cooldown
+ * prevents rapid-fire from multiple event sources (DOMContentLoaded + pageshow + visibilitychange).
  * @param {string} source - caller label for logging
  */
 async function refreshDashboard(source) {
+    // Skip if already running
     if (_dashboardRefreshing) {
         console.log('[INDEX] refreshDashboard already running, skipping (' + source + ')');
         return;
     }
+
+    // Cooldown: skip if we just refreshed < 2s ago (prevents double-fire from
+    // DOMContentLoaded + immediate pageshow or visibilitychange)
+    var now = Date.now();
+    if (source !== 'DOMContentLoaded' && (now - _lastRefreshTime) < _REFRESH_COOLDOWN) {
+        console.log('[INDEX] refreshDashboard cooldown, skipping (' + source + ', ' + (now - _lastRefreshTime) + 'ms since last)');
+        return;
+    }
+
     _dashboardRefreshing = true;
+    _lastRefreshTime = now;
     console.log('[INDEX] refreshDashboard triggered by:', source);
 
     try {
@@ -301,28 +315,34 @@ async function refreshDashboard(source) {
     }
 }
 
-// bfcache restore — page was literally frozen and restored
+// ---- EVENT LISTENERS: Three layers of coverage for iOS PWA ----
+//
+// iOS standalone PWA does NOT reliably fire pageshow with event.persisted on
+// back-navigation. We use three complementary listeners:
+//   1. pageshow — always (not gated on event.persisted), with cooldown
+//   2. visibilitychange — covers iOS app switch / tab switch
+//   3. focus — belt-and-suspenders for iOS PWA resume
+// The cooldown prevents all three from triggering separate refreshes.
+
+// 1. pageshow — fires on every navigation to this page (forward, back, bfcache)
+//    NOT gated on event.persisted because iOS PWA often doesn't set it.
 window.addEventListener('pageshow', function(event) {
-    if (event.persisted) {
-        console.log('[INDEX] Page restored from bfcache');
-        refreshDashboard('pageshow-bfcache');
+    console.log('[INDEX] pageshow fired (persisted=' + event.persisted + ')');
+    refreshDashboard('pageshow');
+});
+
+// 2. visibilitychange — covers iOS app switch, tab switch, and PWA resume
+//    from background where pageshow may not fire.
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+        console.log('[INDEX] visibilitychange → visible');
+        refreshDashboard('visibilitychange');
     }
 });
 
-// iOS app switch / tab switch — page was hidden and is now visible again.
-// Also covers normal back-navigation on iOS standalone PWA where pageshow.persisted
-// is not set but the page was frozen in the background.
-document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible') {
-        // Check we're on the dashboard (handles both /index.html and / or /V69/)
-        const path = window.location.pathname;
-        const isDashboard = path.endsWith('index.html')
-            || path.endsWith('/')
-            || path === ''
-            || path.endsWith('/V69/')
-            || path.endsWith('/V69');
-        if (isDashboard) {
-            refreshDashboard('visibilitychange');
-        }
-    }
+// 3. focus — final fallback for iOS standalone PWA which sometimes only fires
+//    a focus event on return without pageshow or visibilitychange.
+window.addEventListener('focus', function() {
+    console.log('[INDEX] window focus');
+    refreshDashboard('focus');
 });

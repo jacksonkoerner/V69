@@ -5,7 +5,7 @@
 // The canonical version lives in version.json at the project root.
 // Update version.json first, then mirror the value here.
 
-const CACHE_VERSION = 'v6.9.16';
+const CACHE_VERSION = 'v6.9.17';
 const CACHE_NAME = `fieldvoice-pro-${CACHE_VERSION}`;
 
 // Files to cache for offline use
@@ -207,7 +207,14 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Cache-first for static assets (non-navigation only)
+    // JavaScript files: network-first so code updates take effect immediately
+    // (cache-first was causing users to get stale JS after deployments)
+    if (url.pathname.endsWith('.js') && url.origin === self.location.origin) {
+        event.respondWith(handleNavigationRequest(event.request));
+        return;
+    }
+
+    // Cache-first for other static assets (CSS, images, fonts, icons)
     event.respondWith(handleStaticRequest(event.request));
 });
 
