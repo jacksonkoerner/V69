@@ -118,9 +118,9 @@ These need to be migrated to `setStorageItem(STORAGE_KEYS.*)`. Note: `STORAGE_KE
 - Both phone + computer sessions should stay active simultaneously (needs work)
 
 ### Needs Adding
-- [ ] Add missing keys to `STORAGE_KEYS`: `AUTH_ROLE`, `USER_NAME`, `USER_EMAIL`, `AUTH_USER_ID`
-- [ ] Migrate `login/main.js` hardcoded localStorage calls to use `STORAGE_KEYS` constants
-- [ ] Migrate `auth.js` hardcoded `fvp_auth_role` to use `STORAGE_KEYS.AUTH_ROLE`
+- [x] Add missing keys to `STORAGE_KEYS`: `AUTH_ROLE`, `USER_NAME`, `USER_EMAIL`, `AUTH_USER_ID`
+- [x] Migrate `login/main.js` hardcoded localStorage calls to use `STORAGE_KEYS` constants
+- [x] Migrate `auth.js` hardcoded `fvp_auth_role` to use `STORAGE_KEYS.AUTH_ROLE`
 - [ ] Capture device metadata on login (device type, OS, browser) alongside `device_id`
 - [ ] Support multiple active sessions per user (don't overwrite device_id — store per-device instead)
 - [ ] Add `org_id` field to Sign Up flow — user pastes org ID, system validates it exists before creating account
@@ -191,8 +191,8 @@ This page's `renderProjectRow()` checks BOTH naming conventions everywhere:
 The `data-layer.js` normalizer converts snake_case → camelCase, so if all data goes through the normalizer, only camelCase should be needed. But `projects/main.js` has its OWN `fetchProjectsFromSupabase()` that bypasses the data layer and only does a basic contractors JSON parse — **no normalization**.
 
 ### Known Issues
-- [ ] `projects/main.js` has its own `fetchProjectsFromSupabase()` + `saveProjectsToIndexedDB()` that **bypass** `data-layer.js` — duplicate logic, no normalization
-- [ ] `refreshFromCloud` name collision — also exported by `settings/main.js` (both on `window`)
+- [x] `projects/main.js` has its own `fetchProjectsFromSupabase()` + `saveProjectsToIndexedDB()` that **bypass** `data-layer.js` — duplicate logic, no normalization
+- [x] `refreshFromCloud` name collision — also exported by `settings/main.js` (both on `window`)
 - [ ] `ACTIVE_PROJECT_ID` concept needs removal — project is selected per-report, not globally
 - [ ] Projects not filtered by org — `SELECT *` loads ALL projects from Supabase
 - [ ] Active project stored only in localStorage — breaks cross-platform
@@ -205,10 +205,10 @@ The `data-layer.js` normalizer converts snake_case → camelCase, so if all data
 
 ### Needs Adding
 - [ ] Remove `ACTIVE_PROJECT_ID` usage from this page
-- [ ] Refactor to use `data-layer.js` instead of duplicating Supabase fetch logic
+- [x] Refactor to use `data-layer.js` instead of duplicating Supabase fetch logic
 - [ ] Filter projects by `org_id` once organizations are implemented
 - [ ] Decide what tapping a project does (go to Dashboard? show project detail view?)
-- [ ] Remove duplicate field name checks after normalization is guaranteed
+- [x] Remove duplicate field name checks after normalization is guaranteed
 
 ---
 
@@ -425,7 +425,7 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 - [ ] `ACTIVE_PROJECT_ID` still used here (project picker sets it) — should be removed
 - [ ] `report-rules.js` reads from `STORAGE_KEYS.PROJECTS` localStorage cache — if cache is stale, eligibility checks are wrong
 - [ ] `report-rules.js` reads from `STORAGE_KEYS.CURRENT_REPORTS` — all report state is localStorage
-- [ ] `projects/main.js` bypass: Dashboard uses `dataLayer` properly, but Project List doesn't — inconsistent caching
+- [x] `projects/main.js` bypass: Dashboard uses `dataLayer` properly, but Project List doesn't — inconsistent caching
 - [ ] Report date field uses 3 different names across the codebase (`report_date`, `reportDate`, `date`)
 - [ ] `pruneCurrentReports()` deletes submitted reports after 24h from localStorage — should rely on Supabase/Archives instead
 - [ ] Inline `<script>` for `initPWA()` in HTML — should be in main.js
@@ -812,8 +812,8 @@ Same issue as Login — bypasses `STORAGE_KEYS` constants for `user_name` and `u
 This page exports `window.refreshFromCloud` — **same name** as `projects/main.js`. If both scripts were ever loaded on the same page, one would overwrite the other. Currently safe because they're on different pages, but it's a landmine.
 
 ### Known Issues
-- [ ] Hardcoded localStorage writes for `fvp_user_name`, `fvp_user_email` — should use STORAGE_KEYS
-- [ ] `refreshFromCloud` name collision with `projects/main.js`
+- [x] Hardcoded localStorage writes for `fvp_user_name`, `fvp_user_email` — should use STORAGE_KEYS
+- [x] `refreshFromCloud` name collision with `projects/main.js`
 - [ ] `fvp_user_id` read with `localStorage.getItem()` (raw) but written with `localStorage.setItem()` (raw) — inconsistent with `getStorageItem`/`setStorageItem` pattern on other pages
 - [ ] No `org_id` on profile — will need it when organizations are added
 
@@ -824,7 +824,7 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 - Signature preview is nice UX
 
 ### Needs Adding
-- [ ] Migrate hardcoded localStorage writes to `STORAGE_KEYS` constants
+- [x] Migrate hardcoded localStorage writes to `STORAGE_KEYS` constants
 - [ ] Add `org_id` to user profile
 - [ ] Add device metadata (device type, OS, browser) — per Login decisions
 
