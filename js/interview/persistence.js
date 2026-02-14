@@ -674,11 +674,13 @@ _interviewBackupDirty = false;
 const pageState = buildInterviewPageState();
 
 // Fire and forget — do NOT await, do NOT block UI
+const orgId = localStorage.getItem('fvp_org_id');
 supabaseClient
 .from('interview_backup')
 .upsert({
 report_id: IS.currentReportId,
 page_state: pageState,
+org_id: orgId || null,
 updated_at: new Date().toISOString()
 }, { onConflict: 'report_id' })
 .then(({ error }) => {

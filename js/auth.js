@@ -89,7 +89,7 @@
         }
 
         // Clear ALL sensitive user data from localStorage
-        // Prevents identity leakage on shared devices
+        // Prevents identity leakage on shared devices (enterprise-grade cleanup)
         const keysToRemove = [
             STORAGE_KEYS.AUTH_ROLE,
             STORAGE_KEYS.ORG_ID,
@@ -101,9 +101,17 @@
             STORAGE_KEYS.ONBOARDED,
             STORAGE_KEYS.PERMISSIONS_DISMISSED,
             STORAGE_KEYS.BANNER_DISMISSED,
-            STORAGE_KEYS.BANNER_DISMISSED_DATE
+            STORAGE_KEYS.BANNER_DISMISSED_DATE,
+            STORAGE_KEYS.PROJECTS,
+            'fvp_projects_cache_ts',
+            STORAGE_KEYS.ACTIVE_PROJECT_ID
         ];
         keysToRemove.forEach(key => localStorage.removeItem(key));
+
+        // Clear all report drafts (fvp_report_*) to prevent data leakage
+        Object.keys(localStorage)
+            .filter(k => k.startsWith('fvp_report_') || k.startsWith('fvp_ai_conversation_'))
+            .forEach(k => localStorage.removeItem(k));
 
         // Clear IndexedDB stores with user data
         if (window.idb) {
@@ -111,7 +119,8 @@
                 await Promise.all([
                     window.idb.clearStore('currentReports'),
                     window.idb.clearStore('draftData'),
-                    window.idb.clearStore('userProfile')
+                    window.idb.clearStore('userProfile'),
+                    window.idb.clearStore('projects')
                 ]);
             } catch (e) {
                 console.warn('[AUTH] Could not clear IndexedDB on sign-out:', e);
