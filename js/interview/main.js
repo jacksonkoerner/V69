@@ -192,6 +192,45 @@ console.log('[INIT] Found localStorage draft, restoring...');
 restoreFromLocalStorage(localDraft);
 }
 
+// Sprint 7: SUPABASE FALLBACK — if no local draft, check interview_backup table
+// This enables cross-device recovery (start on phone → phone dies → open laptop)
+if (!localDraft && IS.currentReportId && navigator.onLine) {
+try {
+updateLoadingStatus('Checking cloud backup...');
+const { data: backup, error } = await supabaseClient
+    .from('interview_backup')
+    .select('page_state, updated_at')
+    .eq('report_id', IS.currentReportId)
+    .maybeSingle();
+
+if (!error && backup && backup.page_state) {
+    console.log('[INIT] Recovered interview data from Supabase interview_backup, saved at:', backup.updated_at);
+    const pageState = backup.page_state;
+
+    // Restore page_state fields into IS.report (same structure as buildInterviewPageState)
+    if (pageState.captureMode) IS.report.meta.captureMode = pageState.captureMode;
+    if (pageState.freeform_entries) IS.report.freeform_entries = pageState.freeform_entries;
+    if (pageState.fieldNotes) IS.report.fieldNotes = { ...IS.report.fieldNotes, ...pageState.fieldNotes };
+    if (pageState.guidedNotes) IS.report.guidedNotes = { ...IS.report.guidedNotes, ...pageState.guidedNotes };
+    if (pageState.activities) IS.report.activities = pageState.activities;
+    if (pageState.operations) IS.report.operations = pageState.operations;
+    if (pageState.equipment) IS.report.equipment = pageState.equipment;
+    if (pageState.equipmentRows) IS.report.equipmentRows = pageState.equipmentRows;
+    if (pageState.overview) IS.report.overview = { ...IS.report.overview, ...pageState.overview };
+    if (pageState.safety) IS.report.safety = { ...IS.report.safety, ...pageState.safety };
+    if (pageState.generalIssues) IS.report.generalIssues = pageState.generalIssues;
+    if (pageState.toggleStates) IS.report.toggleStates = pageState.toggleStates;
+    if (pageState.entries) IS.report.entries = pageState.entries;
+
+    // Cache to localStorage so subsequent loads are fast
+    saveToLocalStorage();
+    showToast('Draft recovered from cloud backup', 'success');
+}
+} catch (err) {
+console.warn('[INIT] interview_backup recovery failed:', err);
+}
+}
+
 // Sprint 1 fix: Load project from the REPORT's project_id, not ACTIVE_PROJECT_ID.
 // Sprint 5: Removed ACTIVE_PROJECT_ID fallback — project_id comes from URL or report data.
 updateLoadingStatus('Loading project data...');

@@ -388,11 +388,10 @@ The entire report tracking system (`fvp_current_reports`) is in **localStorage o
 - `fvp_current_reports` uses `project_id`, `project_name`, `capture_mode` (all snake_case)
 - But `fvp_report_{id}` data uses mixed formats depending on which page wrote it
 
-### 🐛 Confirmed Bug: project_id Swap
+### ✅ Fixed Bug: project_id Swap *(Sprint 1)*
 **Symptom:** Start a report for Project A → edit it → return to Dashboard → report now shows under Project B.
-**Root cause:** Unknown — likely something in Field Capture or Report Editor is overwriting `project_id` from the wrong source (possibly from `ACTIVE_PROJECT_ID` localStorage instead of from the report's own `project_id`).
-**Priority:** High — this is actively breaking user experience.
-**Action:** Trace `project_id` writes across Field Capture and Report Editor JS to find the overwrite.
+**Root cause:** Field Capture and Report Editor loaded project from `ACTIVE_PROJECT_ID` localStorage. When user browsed another project on Dashboard, `ACTIVE_PROJECT_ID` changed, and the next auto-save overwrote the report's `project_id`.
+**Fix:** `interview/main.js` and `report/main.js` now read `project_id` from the report's own data (in `fvp_current_reports` or `fvp_report_{id}`), then load the project via `loadProjectById()`. All downstream saves use the correctly-loaded `IS/RS.activeProject.id`.
 
 ### Report Card States (Confirmed)
 | State | Visual | Status Values | Click Goes To |
@@ -419,8 +418,8 @@ Any device opens Dashboard:
 Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStorage = tiny flags only.
 
 ### Known Issues
-- [ ] **🐛 project_id swap bug** — reports change project after editing (HIGH PRIORITY)
-- [ ] **Reports in localStorage only** — breaks cross-platform, vulnerable to iOS 7-day eviction
+- [x] **🐛 project_id swap bug** — reports change project after editing *(Sprint 1: fixed root cause — Field Capture and Report Editor now load project from report's own data via loadProjectById(), not ACTIVE_PROJECT_ID)*
+- [ ] **Reports in localStorage only** — breaks cross-platform, vulnerable to iOS 7-day eviction *(partially mitigated: Sprint 4 added report_data table for AI output + user edits; interview_backup syncs draft capture data to Supabase every 5s)*
 - [x] `cloud-recovery.js` recovers metadata but NOT full report data — *(Sprint 4: now also caches report_data for recovered reports)*
 - [x] `ACTIVE_PROJECT_ID` still used here (project picker sets it) — should be removed *(Sprint 5: picker still writes it for UI display, but interview/report pages never read it)*
 - [ ] `report-rules.js` reads from `STORAGE_KEYS.PROJECTS` localStorage cache — if cache is stale, eligibility checks are wrong
@@ -463,14 +462,14 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 **JS (processing):** `js/interview/ai-processing.js`, `js/interview/processing-overlay.js`
 **JS (shared):** `config.js`, `storage-keys.js`, `report-rules.js`, `supabase-utils.js`, `pwa-utils.js`, `ui-utils.js`, `indexeddb-utils.js`, `data-layer.js`, `auth.js`, `media-utils.js`, `tools/photo-markup.js`, `shared/delete-report.js`, `shared/ai-assistant.js`
 **Total: 34 script tags — heaviest page in the app**
-**Status:** ✅ Working but has the project_id swap bug + storage issues
+**Status:** ✅ Working *(project_id swap bug fixed in Sprint 1; storage partially improved in Sprint 4)*
 
 ### How It Works
 1. Arrives via `quick-interview.html?reportId=<uuid>` from Dashboard
 2. `auth.js` checks session
 3. Init sequence (`main.js`):
    a. Loads user settings via `dataLayer.loadUserSettings()`
-   b. Loads "active project" via `dataLayer.loadActiveProject()` → gets contractors from it
+   b. *(Sprint 1 fix)* Loads project via `loadProjectById()` from report's own `project_id` in `fvp_current_reports` → gets contractors from it
    c. Creates fresh report object via `getReport()` → `createFreshReport()`
    d. Reads `reportId` from URL params → sets `IS.currentReportId`
    e. Checks localStorage for existing draft → restores if found
@@ -500,23 +499,15 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 - Visitors
 - Photos
 
-### 🐛 ROOT CAUSE: project_id Swap Bug
+### ✅ FIXED: project_id Swap Bug *(Sprint 1)*
 
-**Found it.** `draft-storage.js` → `saveToLocalStorage()` (line 87):
-```js
-const activeProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
-// ...
-project_id: activeProjectId,
-```
+**Root cause was:** `draft-storage.js` → `saveToLocalStorage()` read `project_id` from `ACTIVE_PROJECT_ID` in localStorage. `supabase.js` → `saveReportToSupabase()` used `IS.activeProject.id` loaded from `dataLayer.loadActiveProject()` which also read `ACTIVE_PROJECT_ID`.
 
-The draft saves `project_id` from `ACTIVE_PROJECT_ID` in localStorage — NOT from the report's own project. So:
-1. Start report for Project A → `ACTIVE_PROJECT_ID` = A → saved correctly
-2. Go back to Dashboard, pick Project B in the picker → `ACTIVE_PROJECT_ID` = B
-3. Re-open the Project A report → auto-save fires → reads `ACTIVE_PROJECT_ID` (now B) → **overwrites project_id to B**
-
-`supabase.js` → `saveReportToSupabase()` also uses `IS.activeProject.id` which comes from `dataLayer.loadActiveProject()` → reads `ACTIVE_PROJECT_ID`. Same problem.
-
-**The fix:** Save `project_id` from the report's own data (set at creation time), never from `ACTIVE_PROJECT_ID`.
+**Fix applied in Sprint 1 (commit b36f90b):**
+- `interview/main.js` reads project_id from the report's own data in `fvp_current_reports`, then loads project via `loadProjectById()`
+- `draft-storage.js` now uses `IS.activeProject?.id` (correctly set at init) with ACTIVE_PROJECT_ID only as last-resort fallback for brand-new reports
+- `report/main.js` reads projectId from report data, then loads via `loadProjectById()`
+- All downstream saves (`IS/RS.activeProject.id`) are automatically correct
 
 ### Where Data Is Stored
 
@@ -550,13 +541,13 @@ FINISH button:
 All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - `IS.currentReportId` — UUID for this report
 - `IS.report` — the full report object (in-memory)
-- `IS.activeProject` — loaded from `dataLayer.loadProjectById()` using report's own project_id ✅ (Sprint 5)
+- `IS.activeProject` — loaded from `dataLayer.loadProjectById()` using report's own project_id ✅ (Sprint 1+5)
 - `IS.projectContractors` — from `IS.activeProject.contractors`
 - `IS.userSettings` — from `dataLayer.loadUserSettings()`
 - `IS.autoSaveState` — tracks which textareas have auto-saved entries
 
 ### Contractor Work Tracking
-- Contractors loaded from `IS.activeProject.contractors` (set at init from report's own project_id) ✅ (Sprint 5)
+- Contractors loaded from `IS.activeProject.contractors` (set at init from report's own project_id) ✅ (Sprint 1+5)
 - Each contractor gets a card with "No work performed" toggle
 - If contractor has crews → crew sub-cards appear
 - Work entries stored as `entries` with section = `work_{contractorId}` or `work_{contractorId}_crew_{crewId}`
@@ -567,7 +558,7 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - [x] **🐛 Contractor loading bug** — `IS.activeProject` loaded from `ACTIVE_PROJECT_ID`, so if you open a report for Project A but ACTIVE_PROJECT_ID is Project B, you get Project B's contractors *(Sprint 1+5: fixed — loadProjectById() from report data)*
 - [ ] **Draft data in localStorage only** — `_draft_data` blob not synced to Supabase (only `interview_backup` page_state is)
 - [ ] `getReport()` calls `createFreshReport()` every time — ignores existing report data. Relies on localStorage restore to recover drafts.
-- [ ] `interview_backup` exists in Supabase but is never read back — it's write-only backup, not used for cross-device recovery
+- [x] `interview_backup` exists in Supabase but is never read back — it's write-only backup, not used for cross-device recovery *(Sprint 7: interview/main.js now reads interview_backup as fallback when no localStorage draft exists; cloud-recovery.js pre-caches it for recovered drafts)*
 - [x] AI response saved to `fvp_report_{id}` in localStorage — *(Sprint 4: also synced to Supabase report_data table on finish)*
 - [x] `finishMinimalReport()` and `finishReport()` are near-duplicate functions (~200 lines each) — comment says "keep in sync" *(Sprint 3: refactored into shared `finishReportFlow(options)` with thin wrappers)*
 - [ ] 34 script tags on one page — largest in the app
@@ -585,7 +576,7 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - [x] **Fix `saveReportToSupabase()`**: Must use report's own project_id *(Sprint 1+5)*
 
 ### Needs Adding
-- [ ] Read `interview_backup` from Supabase on page load (enables cross-device draft recovery) — write-back capability needs development
+- [x] Read `interview_backup` from Supabase on page load (enables cross-device draft recovery) *(Sprint 7: main.js reads on init; cloud-recovery.js pre-caches for recovered drafts)*
 - [ ] Move draft data from localStorage to IndexedDB for larger storage + persistence
 - [x] Move AI response (`fvp_report_{id}`) to Supabase for cross-device access
 - [x] Refactor `finishMinimalReport()` and `finishReport()` into shared function *(Sprint 3)*
@@ -603,14 +594,14 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 **JS (other):** `js/report/delete-report.js`, `js/report/debug.js`
 **JS (shared):** `config.js`, `storage-keys.js`, `indexeddb-utils.js`, `data-layer.js`, `supabase-utils.js`, `auth.js`, `ui-utils.js`, `shared/delete-report.js`, `shared/ai-assistant.js`
 **CDN:** jsPDF (PDF generation)
-**Status:** ✅ Working but has same project_id bug + localStorage dependency
+**Status:** ✅ Working *(project_id bug fixed in Sprint 1; localStorage partially addressed in Sprint 4 via report_data table)*
 
 ### How It Works
 1. Arrives via `report.html?date=YYYY-MM-DD&reportId=<uuid>` (or `?tab=preview`)
 2. `auth.js` checks session
 3. Init sequence (`main.js`):
    a. Loads project from report's own project_id + user settings via `dataLayer` ✅ (Sprint 1+5)
-   b. Loads report from `fvp_report_{reportId}` in localStorage
+   b. Loads report from `fvp_report_{reportId}` in localStorage *(Sprint 4: falls back to Supabase report_data table)*
    c. If no data found → shows error, redirects to Dashboard
    d. Initializes userEdits tracking
    e. Populates form fields, original notes, debug panel
@@ -639,18 +630,8 @@ Priority order for each field:
 
 This means the AI fills everything first, then user can override any field.
 
-### 🐛 Same project_id Bug Here
-`report/autosave.js` → `saveReportToSupabase()` (line ~158):
-```js
-project_id: RS.activeProject.id,
-```
-`RS.activeProject` is loaded from `dataLayer.loadProjectById()` using the report's own project_id ✅ (Sprint 1+5).
-
-`report/submit.js` → `ensureReportExists()` and `saveToFinalReports()`:
-```js
-project_id: RS.activeProject?.id || null,
-```
-✅ This now uses the correct project because `RS.activeProject` is loaded from the report's own `project_id`, not from `ACTIVE_PROJECT_ID`.
+### ✅ project_id Bug Fixed Here *(Sprint 1+5)*
+`report/main.js` now reads `project_id` from the report's own data (via `fvp_report_{id}` or `fvp_current_reports`), then loads the project via `loadProjectById()`. `RS.activeProject` is correctly set before any saves fire. Downstream saves in `report/autosave.js` and `report/submit.js` use `RS.activeProject.id` which is now the correct project.
 
 ### Where Data Is Stored
 
@@ -702,10 +683,10 @@ Now uses `getStorageItem(STORAGE_KEYS.CURRENT_REPORTS)` and `setStorageItem()` h
 ### Supabase Backup Tables (Current State)
 | Table | Written By | Contains | Read Back? |
 |-------|-----------|----------|------------|
-| `interview_backup` | Field Capture (`interview/autosave.js`) | page_state JSONB (form data during capture) | ❌ Never |
+| `interview_backup` | Field Capture (`interview/autosave.js`) | page_state JSONB (form data during capture) | ✅ Sprint 7: read by `interview/main.js` on page load + `cloud-recovery.js` pre-caches |
 | `report_backup` | Report Editor (`report/autosave.js`) | page_state JSONB (form data during editing) | ❌ Never |
 
-Both are write-only safety nets. Neither enables cross-device recovery.
+`interview_backup` now enables cross-device draft recovery. `report_backup` is still write-only (less critical since `report_data` table covers refined reports).
 
 ### Target: New `report_data` Table
 Replace `fvp_report_{id}` localStorage with a Supabase table:
@@ -737,8 +718,8 @@ report_data:
 - PDF quality is good for now
 
 ### Needs Fixing (High Priority)
-- [ ] **Fix project_id source**: all Supabase writes must use the report's own project_id, not `RS.activeProject.id`
-- [ ] **Fix refined status not showing on Dashboard** — part of the project_id bug chain (status writes to wrong report entry in fvp_current_reports)
+- [x] **Fix project_id source**: all Supabase writes must use the report's own project_id, not `RS.activeProject.id` *(Sprint 1: RS.activeProject loaded correctly at init from report data)*
+- [x] **Fix refined status not showing on Dashboard** — part of the project_id bug chain (status writes to wrong report entry in fvp_current_reports) *(Sprint 1: with project_id fix, status updates go to correct report entry)*
 - [x] **Fix `cleanupLocalStorage()`**: use `STORAGE_KEYS` constants *(Sprint 6)*
 - [ ] **Fix submit redirect**: go to Dashboard with success banner, not archives.html
 
