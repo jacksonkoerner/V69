@@ -121,7 +121,7 @@ These need to be migrated to `setStorageItem(STORAGE_KEYS.*)`. Note: `STORAGE_KE
 - [x] Add missing keys to `STORAGE_KEYS`: `AUTH_ROLE`, `USER_NAME`, `USER_EMAIL`, `AUTH_USER_ID`
 - [x] Migrate `login/main.js` hardcoded localStorage calls to use `STORAGE_KEYS` constants
 - [x] Migrate `auth.js` hardcoded `fvp_auth_role` to use `STORAGE_KEYS.AUTH_ROLE`
-- [ ] Capture device metadata on login (device type, OS, browser) alongside `device_id`
+- [x] Capture device metadata on login (device type, OS, browser) alongside `device_id` *(Sprint 10: device_info JSONB column added to user_profiles, captured on sign-in and sign-up)*
 - [ ] Support multiple active sessions per user (don't overwrite device_id — store per-device instead)
 - [x] Add `org_id` field to Sign Up flow — user pastes org ID, system validates it exists before creating account *(Sprint 8)*
 - [x] Associate user with org in `user_profiles` table *(Sprint 8)*
@@ -278,7 +278,7 @@ The normalizer in `data-layer.js` handles both formats, but this is tech debt:
 ### Needs Adding
 - [x] Remove "Set as Active Project" button and related code (`getActiveProjectId`, `setActiveProjectId`, `updateActiveProjectBadge`) *(Sprint 9)*
 - [x] Add `org_id` field to project data model (Supabase column + JS normalizer) *(Sprint 8)*
-- [ ] Verify `reportDate` and `contractDayNo` — in form but not in `toSupabaseProject()` converter (may not be saving to Supabase)
+- [x] Verify `reportDate` and `contractDayNo` — in form but not in `toSupabaseProject()` converter (may not be saving to Supabase) *(Sprint 10: added report_date and contract_day_no columns to Supabase projects table; added to toSupabaseProject/fromSupabaseProject converters and normalizeProject)*
 
 ---
 
@@ -422,8 +422,8 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 - [ ] **Reports in localStorage only** — breaks cross-platform, vulnerable to iOS 7-day eviction *(partially mitigated: Sprint 4 added report_data table for AI output + user edits; interview_backup syncs draft capture data to Supabase every 5s)*
 - [x] `cloud-recovery.js` recovers metadata but NOT full report data — *(Sprint 4: now also caches report_data for recovered reports)*
 - [x] `ACTIVE_PROJECT_ID` still used here (project picker sets it) — should be removed *(Sprint 5: picker still writes it for UI display, but interview/report pages never read it)*
-- [ ] `report-rules.js` reads from `STORAGE_KEYS.PROJECTS` localStorage cache — if cache is stale, eligibility checks are wrong
-- [ ] `report-rules.js` reads from `STORAGE_KEYS.CURRENT_REPORTS` — all report state is localStorage
+- [x] `report-rules.js` reads from `STORAGE_KEYS.PROJECTS` localStorage cache — if cache is stale, eligibility checks are wrong *(Sprint 10: added ensureFreshProjectsCache() with timestamp-based freshness check; data-layer sets cache timestamp on load/refresh)*
+- [x] `report-rules.js` reads from `STORAGE_KEYS.CURRENT_REPORTS` — all report state is localStorage *(Sprint 10: fvp_current_reports now write-through to IndexedDB; hydrated from IDB on page load if localStorage empty; cloud recovery syncs active reports from Supabase)*
 - [x] `projects/main.js` bypass: Dashboard uses `dataLayer` properly, but Project List doesn't — inconsistent caching
 - [x] Report date field uses 3 different names across the codebase (`report_date`, `reportDate`, `date`) *(Sprint 6: standardized to `reportDate` in JS-side fvp_current_reports entries)*
 - [x] `pruneCurrentReports()` deletes submitted reports after 24h from localStorage — should rely on Supabase/Archives instead *(Sprint 6: relaxed to 7 days)*
@@ -443,7 +443,7 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 - [x] Remove `ACTIVE_PROJECT_ID` — project picker should work without setting a global active project *(Sprint 5: removed from interview/report. Picker still writes it for dashboard UI — rename to SELECTED_PICKER_PROJECT_ID in future cleanup)*
 - [x] Remove `UNFINISHED_PREVIOUS` blocking logic from `report-rules.js` *(Sprint 6)*
 - [ ] Add backend duplicate detection (flag when same project + same day has multiple submitted reports)
-- [ ] Move report tracking from localStorage (`fvp_current_reports`) to IndexedDB + Supabase sync
+- [x] Move report tracking from localStorage (`fvp_current_reports`) to IndexedDB + Supabase sync *(Sprint 10: IndexedDB currentReports store added as durable backup; write-through on save/delete; hydration on load; cloud recovery merges active reports from Supabase reports table)*
 - [x] Cloud recovery should pull full report data, not just metadata (via report_data table + loadReport() fallback)
 - [x] Standardize report date field to one name across all code *(Sprint 6: `reportDate` is canonical JS name)*
 - [x] Add `org_id` filtering to project loading *(Sprint 8)*
@@ -803,7 +803,7 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 ### Needs Adding
 - [x] Migrate hardcoded localStorage writes to `STORAGE_KEYS` constants
 - [x] Add `org_id` to user profile *(Sprint 8)*
-- [ ] Add device metadata (device type, OS, browser) — per Login decisions
+- [x] Add device metadata (device type, OS, browser) — per Login decisions *(Sprint 10: captured on login via device_info JSONB column)*
 
 ---
 
@@ -850,7 +850,7 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 ### Known Issues
 - [x] Duplicates `escapeHtml()` and `formatDate()` — should use shared `ui-utils.js` *(Sprint 3: removed, now loads ui-utils.js)*
 - [x] Missing Font Awesome CSS include (only page without it) *(Sprint 6)*
-- [ ] Path inconsistency: uses `css/output.css` and `js/config.js` (no `./` prefix) unlike all other pages
+- [x] Path inconsistency: uses `css/output.css` and `js/config.js` (no `./` prefix) unlike all other pages *(Sprint 6: already fixed, verified in Sprint 10)*
 - [ ] No offline support — shows warning and stops. Could cache last-viewed reports in IndexedDB.
 - [x] Reports not filtered by org — queries ALL submitted reports *(Sprint 8: filtered by org_id)*
 - [x] PDF viewer originally had an iframe modal (`pdfModal`) but `viewPdf()` now just opens in new tab — dead modal HTML may still be in the page *(Sprint 6: removed)*
