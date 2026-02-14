@@ -212,6 +212,89 @@
         }
     }
 
+    // ── Session monitoring ────────────────────────────────────────────
+    // Tracks whether we've already shown the expiry warning so we
+    // don't spam the user with repeated toasts.
+    let _sessionWarningShown = false;
+    let _sessionCheckInterval = null;
+
+    /**
+     * Show a non-blocking warning that the session has expired.
+     * Does NOT redirect — the user may have unsaved work.
+     */
+    function showSessionExpiredWarning() {
+        if (_sessionWarningShown) return;
+        _sessionWarningShown = true;
+
+        if (typeof showToast === 'function') {
+            showToast(
+                'Your session has expired. Please save your work and sign in again.',
+                'warning'
+            );
+        }
+        console.warn('[AUTH] Session expired — user warned (no redirect)');
+    }
+
+    /**
+     * Listen for Supabase auth state changes.
+     *   TOKEN_REFRESHED → log (Supabase handles it)
+     *   SIGNED_OUT       → clear data & redirect (same as signOut)
+     *   Session gone      → warn user, don't redirect
+     */
+    function startAuthStateListener() {
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            switch (event) {
+                case 'TOKEN_REFRESHED':
+                    console.log('[AUTH] Token refreshed successfully');
+                    // Reset the warning flag — session is healthy again
+                    _sessionWarningShown = false;
+                    break;
+
+                case 'SIGNED_OUT':
+                    console.log('[AUTH] User signed out via auth state change');
+                    signOut();   // handles cleanup + redirect
+                    break;
+
+                default:
+                    // Any other event where session is missing → warn
+                    if (!session) {
+                        showSessionExpiredWarning();
+                    }
+                    break;
+            }
+        });
+
+        console.log('[AUTH] Auth state listener started');
+    }
+
+    /**
+     * Periodic session health check (every 5 min).
+     * If the session is no longer valid, warn the user.
+     */
+    function startPeriodicSessionCheck() {
+        const INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+        _sessionCheckInterval = setInterval(async () => {
+            try {
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+
+                if (error || !session) {
+                    showSessionExpiredWarning();
+                } else {
+                    // Session still valid — clear any prior warning state
+                    _sessionWarningShown = false;
+                }
+            } catch (e) {
+                console.error('[AUTH] Periodic session check failed:', e);
+                showSessionExpiredWarning();
+            }
+        }, INTERVAL_MS);
+
+        console.log('[AUTH] Periodic session check started (every 5 min)');
+    }
+
+    // ── Page-load auth gate ────────────────────────────────────────────
+
     // Auto-run auth check on protected pages (not login.html)
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
     if (currentPage !== 'login.html' && currentPage !== 'landing.html') {
@@ -223,6 +306,10 @@
 
                 // Ensure org_id is cached (for org-scoped queries)
                 ensureOrgIdCached(session.user.id);
+
+                // Start session monitoring
+                startAuthStateListener();
+                startPeriodicSessionCheck();
 
                 // Request persistent storage — prevents browser from evicting localStorage/IDB
                 // Idempotent: safe to call every page load
