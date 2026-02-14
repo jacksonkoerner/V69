@@ -38,35 +38,11 @@ function populateForm() {
     }
 
     renderContractors();
-    updateActiveProjectBadge();
 }
 
 function showProjectForm() {
     // Scroll to top of form
     document.getElementById('projectFormContainer').scrollIntoView({ behavior: 'smooth' });
-}
-
-function updateActiveProjectBadge() {
-    var badge = document.getElementById('activeProjectBadge');
-    var setActiveBtn = document.getElementById('setActiveBtn');
-
-    if (!badge) return; // Guard if badge doesn't exist
-
-    if (currentProject && getActiveProjectId() === currentProject.id) {
-        badge.classList.remove('hidden');
-        if (setActiveBtn) {
-            setActiveBtn.innerHTML = '<i class="fas fa-check mr-2"></i>Currently Active';
-            setActiveBtn.disabled = true;
-            setActiveBtn.classList.add('opacity-50', 'cursor-not-allowed');
-        }
-    } else {
-        badge.classList.add('hidden');
-        if (setActiveBtn) {
-            setActiveBtn.innerHTML = '<i class="fas fa-star mr-2"></i>Set as Active Project';
-            setActiveBtn.disabled = false;
-            setActiveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        }
-    }
 }
 
 // ============ LOGO UPLOAD ============

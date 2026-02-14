@@ -62,10 +62,6 @@ function getActiveProjectId() {
     return getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
 }
 
-function setActiveProjectId(projectId) {
-    setStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID, projectId);
-}
-
 function cancelEdit() {
     currentProject = null;
     window.location.href = 'projects.html';
