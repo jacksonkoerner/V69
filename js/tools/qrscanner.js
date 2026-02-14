@@ -292,8 +292,4 @@ function stopQRCamera() {
     qrState.torchTrack = null;
 }
 
-function escapeHtml(str) {
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
+// escapeHtml() provided by ui-utils.js (loaded before tool scripts in index.html)

@@ -464,8 +464,4 @@ function updateARLogUI() {
     listEl.innerHTML = html;
 }
 
-function escapeHtml(text) {
-    var div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+// escapeHtml() provided by ui-utils.js (loaded before tool scripts in index.html)
