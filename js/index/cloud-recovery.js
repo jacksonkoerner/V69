@@ -9,10 +9,10 @@
 // ============================================================================
 
 /**
- * Non-blocking: after the initial localStorage render, query Supabase for
- * draft/active reports that belong to this user but are missing locally.
- * Handles iOS 7-day eviction, cleared cache, and device switching.
- * Merges recovered reports into fvp_current_reports and re-renders.
+ * Syncs active reports from Supabase `reports` table into local fvp_current_reports.
+ * Covers the cross-device scenario: user creates a report on phone → opens laptop → sees it.
+ * Queries reports WHERE status IN ('draft','pending_refine','refined','ready_to_submit').
+ * Also runs interview_backup pre-caching for recovered draft reports.
  */
 function recoverCloudDrafts() {
     if (typeof supabaseClient === 'undefined' || !supabaseClient) return;
@@ -25,7 +25,7 @@ function recoverCloudDrafts() {
         .from('reports')
         .select('id, project_id, report_date, status, created_at, updated_at')
         .eq('user_id', userId)
-        .neq('status', 'submitted')
+        .in('status', ['draft', 'pending_refine', 'refined', 'ready_to_submit'])
         .then(({ data, error }) => {
             if (error) {
                 console.error('[RECOVERY] Failed to query cloud drafts:', error);
