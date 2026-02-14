@@ -46,6 +46,11 @@
                 normalized.forEach(p => { projectsMap[p.id] = p; });
                 setStorageItem(STORAGE_KEYS.PROJECTS, projectsMap);
 
+                // Set cache timestamp if not already set
+                if (!getStorageItem('fvp_projects_cache_ts')) {
+                    setStorageItem('fvp_projects_cache_ts', Date.now());
+                }
+
                 return normalized;
             }
         } catch (e) {
@@ -101,6 +106,9 @@
             const projectsMap = {};
             projects.forEach(p => { projectsMap[p.id] = p; });
             setStorageItem(STORAGE_KEYS.PROJECTS, projectsMap);
+
+            // Update cache timestamp for report-rules.js freshness check
+            setStorageItem('fvp_projects_cache_ts', Date.now());
 
             console.log('[DATA] Refreshed projects from Supabase:', projects.length);
             return projects;

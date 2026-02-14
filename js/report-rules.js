@@ -197,6 +197,49 @@ function getProjectsEligibleForNewReport() {
 }
 
 /**
+ * Ensures the projects cache in localStorage is fresh before eligibility checks.
+ * If the cache is older than maxAgeMinutes (default 10), refreshes from
+ * dataLayer (IndexedDB → Supabase). Call this before rendering the project picker.
+ *
+ * @param {number} [maxAgeMinutes=10] - Max cache age before refresh
+ * @returns {Promise<boolean>} True if cache was refreshed, false if still fresh
+ */
+async function ensureFreshProjectsCache(maxAgeMinutes) {
+  if (typeof maxAgeMinutes !== 'number') maxAgeMinutes = 10;
+
+  var cacheTimestamp = getStorageItem('fvp_projects_cache_ts');
+  var now = Date.now();
+
+  if (cacheTimestamp && (now - cacheTimestamp) < maxAgeMinutes * 60 * 1000) {
+    return false; // Cache is still fresh
+  }
+
+  // Cache is stale or missing — refresh
+  try {
+    if (typeof window !== 'undefined' && window.dataLayer) {
+      var projects = await window.dataLayer.loadProjects();
+
+      // If online, also try cloud refresh for cross-device changes
+      if (navigator.onLine && window.dataLayer.refreshProjectsFromCloud) {
+        try {
+          projects = await window.dataLayer.refreshProjectsFromCloud();
+        } catch (e) {
+          console.warn('[RULES] Cloud refresh failed, using local:', e);
+        }
+      }
+
+      // Update timestamp
+      setStorageItem('fvp_projects_cache_ts', now);
+      console.log('[RULES] Projects cache refreshed, age reset');
+      return true;
+    }
+  } catch (e) {
+    console.warn('[RULES] ensureFreshProjectsCache failed:', e);
+  }
+  return false;
+}
+
+/**
  * Gets all reports categorized by urgency
  *
  * @returns {{late: Object[], todayDrafts: Object[], todayReady: Object[], todayReadyToSubmit: Object[], todaySubmitted: Object[]}}
@@ -599,4 +642,7 @@ if (typeof window !== 'undefined') {
   // Validation
   window.validateReportForAI = validateReportForAI;
   window.validateReportForSubmit = validateReportForSubmit;
+
+  // Cache freshness
+  window.ensureFreshProjectsCache = ensureFreshProjectsCache;
 }
