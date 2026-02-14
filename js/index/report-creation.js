@@ -22,18 +22,21 @@
 function createSupabaseReportRow(reportId, projectId) {
     if (typeof supabaseClient === 'undefined' || !supabaseClient) return Promise.resolve();
     const now = new Date().toISOString();
+    const orgId = getStorageItem(STORAGE_KEYS.ORG_ID) || null;
+    const row = {
+        id: reportId,
+        project_id: projectId,
+        user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
+        device_id: getDeviceId(),
+        report_date: getTodayDateString(),
+        status: 'draft',
+        created_at: now,
+        updated_at: now
+    };
+    if (orgId) row.org_id = orgId;
     return supabaseClient
         .from('reports')
-        .upsert({
-            id: reportId,
-            project_id: projectId,
-            user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
-            device_id: getDeviceId(),
-            report_date: getTodayDateString(),
-            status: 'draft',
-            created_at: now,
-            updated_at: now
-        }, { onConflict: 'id' })
+        .upsert(row, { onConflict: 'id' })
         .then(({ error }) => {
             if (error) console.error('[INDEX] Failed to create Supabase report row:', error);
             else console.log('[INDEX] Supabase report row created:', reportId);
