@@ -7,6 +7,7 @@
 
 var weatherDataCache = null;
 var sunriseSunsetCache = null;
+var _weatherRetryScheduled = false;
 
 async function syncWeather() {
 
@@ -18,16 +19,24 @@ async function syncWeather() {
             return;
         }
 
-        // Always get fresh GPS for weather so it reflects current position
-        const freshLoc = await getFreshLocation();
-        if (!freshLoc) {
+        // Try cached location first for speed (weather doesn't need exact GPS)
+        var loc = getLocationFromCache();
+        var usedCache = !!loc;
+
+        if (!loc) {
+            // No cache — try fresh GPS
+            loc = await getFreshLocation();
+        }
+
+        if (!loc) {
             console.log('[Weather] No location available, skipping weather sync');
-            document.getElementById('weatherCondition').textContent = 'Location needed';
-            document.getElementById('condBarWeatherIcon').className = 'fas fa-location-dot text-3xl text-slate-400';
+            document.getElementById('weatherCondition').textContent = 'Unavailable';
+            document.getElementById('condBarTemp').textContent = '--°';
+            document.getElementById('condBarWeatherIcon').className = 'fas fa-cloud text-3xl text-slate-400';
             return;
         }
-        const latitude = freshLoc.lat;
-        const longitude = freshLoc.lng;
+        var latitude = loc.lat;
+        var longitude = loc.lng;
 
         // Fetch weather data (extended with hourly wind/UV/humidity and daily sunrise/sunset)
         const response = await fetch(
@@ -87,10 +96,35 @@ async function syncWeather() {
         };
         console.log('[Weather] Extended data cached:', weatherDataCache);
         updateConditionsBar();
+
+        // If we used cached location, fire off a fresh GPS in background.
+        // If significantly different, re-fetch weather.
+        if (usedCache) {
+            getFreshLocation().then(function(freshLoc) {
+                if (!freshLoc) return;
+                var latDiff = Math.abs(freshLoc.lat - latitude);
+                var lngDiff = Math.abs(freshLoc.lng - longitude);
+                // Re-fetch if moved more than ~1km (~0.01 degrees)
+                if (latDiff > 0.01 || lngDiff > 0.01) {
+                    console.log('[Weather] Location changed significantly, re-fetching weather');
+                    syncWeather();
+                }
+            }).catch(function() { /* ignore */ });
+        }
     } catch (error) {
         console.error('Weather sync failed:', error);
-        document.getElementById('weatherCondition').textContent = 'Sync failed';
-        document.getElementById('condBarWeatherIcon').className = 'fas fa-exclamation-triangle text-3xl text-yellow-500';
+        document.getElementById('weatherCondition').textContent = 'Unavailable';
+        document.getElementById('condBarTemp').textContent = '--°';
+        document.getElementById('condBarWeatherIcon').className = 'fas fa-cloud text-3xl text-slate-400';
+
+        // Schedule one retry after 5 seconds
+        if (!_weatherRetryScheduled) {
+            _weatherRetryScheduled = true;
+            setTimeout(function() {
+                _weatherRetryScheduled = false;
+                syncWeather();
+            }, 5000);
+        }
     }
 
 }

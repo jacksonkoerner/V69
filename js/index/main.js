@@ -201,6 +201,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         year: 'numeric'
     });
 
+    // IMMEDIATE RENDER from localStorage (no async, no IDB, no network)
+    // This ensures the dashboard is never blank, even for a moment
+    _renderFromLocalStorage();
+    console.log('[INDEX] Immediate localStorage render complete');
+
     // ============ ONE-TIME MIGRATION: Clear stale IndexedDB projects (v1.13.0) ============
     // This fixes mobile PWA showing duplicate/stale projects from before user_id filtering
     const MIGRATION_KEY = 'fvp_migration_v113_idb_clear';
@@ -256,33 +261,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Failed to initialize post-refresh tasks:', err);
     }
 
-    // ============ SAFETY NET: Verify render completed ============
-    // If after 2 seconds the dashboard is still blank, force a render from
-    // whatever localStorage data we have. Covers edge cases where
-    // refreshDashboard hangs (IDB timeout, stuck Supabase call, etc.)
-    setTimeout(function() {
-        var container = document.getElementById('reportCardsSection');
-        var statusSection = document.getElementById('reportStatusSection');
-        var hasRenderedCards = container && container.innerHTML.trim().length > 0;
-        var hasRenderedStatus = statusSection && statusSection.innerHTML.trim().length > 0;
-
-        if (!hasRenderedCards || !hasRenderedStatus) {
-            console.warn('[INDEX] SAFETY NET: Dashboard appears blank/incomplete after 2s, forcing re-render');
-            try {
-                // Re-populate projectsCache from localStorage if empty
-                if (projectsCache.length === 0) {
-                    var projectsMap = getStorageItem(STORAGE_KEYS.PROJECTS) || {};
-                    projectsCache = Object.values(projectsMap);
-                    console.log('[INDEX] SAFETY NET: Recovered', projectsCache.length, 'projects from localStorage');
-                }
-                renderReportCards();
-                updateReportStatus();
-                console.log('[INDEX] SAFETY NET: Re-render complete');
-            } catch (e) {
-                console.error('[INDEX] SAFETY NET: Re-render failed:', e);
-            }
-        }
-    }, 2000);
 });
 
 // ============ BACK-NAVIGATION / BFCACHE FIX ============
@@ -345,6 +323,9 @@ async function refreshDashboard(source) {
     _lastRefreshTime = now;
     console.log('[INDEX] refreshDashboard triggered by:', source);
 
+    // Step 0: Render immediately from localStorage (instant, synchronous)
+    _renderFromLocalStorage();
+
     try {
         // 1. Hydrate current reports from IndexedDB → localStorage
         //    (picks up reports created on other pages that wrote to IDB)
@@ -357,6 +338,10 @@ async function refreshDashboard(source) {
         } catch (e) {
             console.warn('[INDEX] IDB hydration failed during refresh:', e);
         }
+
+        // Re-render after hydration (reports may have been updated from IDB)
+        renderReportCards();
+        updateReportStatus();
 
         // 2. Reload projects (IndexedDB first, then cloud if online)
         //    Timeout: 4s for IDB, 8s for cloud
@@ -411,8 +396,12 @@ async function refreshDashboard(source) {
         // 6. Recover any cloud drafts we don't have locally (fire-and-forget)
         try { recoverCloudDrafts(); } catch (e) { /* non-critical */ }
 
-        // 7. Sync weather (fire-and-forget)
-        try { syncWeather(); } catch (e) { /* non-critical */ }
+        // 7. Sync weather (with timeout, properly awaited)
+        try {
+            await withTimeout(syncWeather(), 15000, undefined, 'syncWeather');
+        } catch (e) {
+            console.warn('[INDEX] Weather sync failed:', e);
+        }
     } catch (err) {
         console.error('[INDEX] refreshDashboard error:', err);
         // Best-effort render with whatever data is available

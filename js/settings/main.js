@@ -509,9 +509,16 @@ async function resetAllData() {
 }
 
 // ============ INIT ============
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Initialize PWA features (moved from inline script)
     if (typeof initPWA === 'function') initPWA();
+
+    // Pre-populate from localStorage immediately (instant UX)
+    const userName = localStorage.getItem(STORAGE_KEYS.USER_NAME);
+    const userEmail = localStorage.getItem(STORAGE_KEYS.USER_EMAIL);
+    if (userName) document.getElementById('inspectorName').value = userName;
+    if (userEmail) document.getElementById('email').value = userEmail;
+    updateSignaturePreview();
 
     // Get all form input fields
     const inputFields = [
@@ -547,10 +554,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Load settings from IndexedDB (or scratch pad if unsaved changes exist)
-    loadSettings();
+    // Wait for auth before loading full profile
+    try {
+        await window.auth.ready;
+    } catch (e) {
+        console.warn('[SETTINGS] Auth ready failed:', e);
+    }
 
-    // Display authenticated email
+    // Now load full settings from IDB/Supabase
+    await loadSettings();
+
+    // Display authenticated email (after auth is ready)
     if (window.auth && window.auth.getCurrentUser) {
         window.auth.getCurrentUser().then(user => {
             const emailEl = document.getElementById('accountEmail');
