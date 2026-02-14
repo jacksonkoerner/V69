@@ -64,6 +64,36 @@ function recoverCloudDrafts() {
                 setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, localReports);
                 console.log(`[RECOVERY] Recovered ${recovered} draft(s) from cloud`);
                 renderReportCards();
+
+                // Sprint 4: Also cache report_data for recovered reports
+                // so clicking the card loads data without another Supabase round-trip
+                const recoveredIds = Object.keys(localReports).filter(id => !getReportData(id));
+                if (recoveredIds.length > 0) {
+                    supabaseClient
+                        .from('report_data')
+                        .select('*')
+                        .in('report_id', recoveredIds)
+                        .then(function(rdResult) {
+                            if (rdResult.error || !rdResult.data) return;
+                            for (const rd of rdResult.data) {
+                                var localData = {
+                                    aiGenerated: rd.ai_generated,
+                                    originalInput: rd.original_input,
+                                    userEdits: rd.user_edits || {},
+                                    captureMode: rd.capture_mode,
+                                    status: rd.status,
+                                    createdAt: rd.created_at,
+                                    lastSaved: rd.updated_at,
+                                    reportDate: localReports[rd.report_id]?.date || null
+                                };
+                                saveReportData(rd.report_id, localData);
+                                console.log('[RECOVERY] Cached report_data for:', rd.report_id);
+                            }
+                        })
+                        .catch(function(err) {
+                            console.warn('[RECOVERY] report_data cache failed:', err);
+                        });
+                }
             } else {
                 console.log('[RECOVERY] All cloud drafts already in localStorage');
             }

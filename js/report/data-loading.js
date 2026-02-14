@@ -35,8 +35,9 @@ function getReportDateStr() {
 }
 
 /**
- * v6.6.2: Load report from localStorage ONLY
- * Source of truth is now fvp_report_{reportId} key
+ * v6.6.2+: Load report from localStorage, with Supabase fallback
+ * Primary source: fvp_report_{reportId} key in localStorage
+ * Fallback: report_data table in Supabase (Sprint 4)
  */
 async function loadReport() {
     RS.currentReportId = null;
@@ -54,14 +55,59 @@ async function loadReport() {
 
     var reportData = getReportData(reportIdParam);
 
+    // Sprint 4: If not in localStorage, try Supabase report_data table
+    if (!reportData && navigator.onLine) {
+        try {
+            console.log('[LOAD] localStorage miss — trying Supabase report_data...');
+            var rdResult = await supabaseClient
+                .from('report_data')
+                .select('*')
+                .eq('report_id', reportIdParam)
+                .maybeSingle();
+
+            if (rdResult.data && !rdResult.error) {
+                console.log('[LOAD] Recovered report data from Supabase');
+                var d = rdResult.data;
+                reportData = {
+                    aiGenerated: d.ai_generated,
+                    originalInput: d.original_input,
+                    userEdits: d.user_edits || {},
+                    captureMode: d.capture_mode,
+                    status: d.status,
+                    createdAt: d.created_at,
+                    lastSaved: d.updated_at,
+                    reportDate: null
+                };
+
+                // Get reportDate from reports table
+                try {
+                    var metaResult = await supabaseClient
+                        .from('reports')
+                        .select('report_date')
+                        .eq('id', reportIdParam)
+                        .maybeSingle();
+                    if (metaResult.data) reportData.reportDate = metaResult.data.report_date;
+                } catch (metaErr) {
+                    console.warn('[LOAD] Could not fetch report_date:', metaErr);
+                }
+
+                // Cache back to localStorage for speed
+                saveReportData(reportIdParam, reportData);
+                showToast('Report recovered from cloud', 'success');
+            }
+        } catch (err) {
+            console.error('[LOAD] Supabase recovery failed:', err);
+        }
+    }
+
     if (!reportData) {
-        console.error('[LOAD] No report data found in localStorage for:', reportIdParam);
+        console.error('[LOAD] No report data found for:', reportIdParam);
         showToast('Report data not found. It may have been cleared.', 'error');
         setTimeout(function() { window.location.href = 'index.html'; }, 2000);
         return createFreshReport();
     }
 
-    console.log('[LOAD] Loaded report from localStorage:', reportIdParam);
+    console.log('[LOAD] Report loaded for:', reportIdParam);
 
     RS.currentReportId = reportIdParam;
 
