@@ -421,7 +421,7 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 ### Known Issues
 - [ ] **🐛 project_id swap bug** — reports change project after editing (HIGH PRIORITY)
 - [ ] **Reports in localStorage only** — breaks cross-platform, vulnerable to iOS 7-day eviction
-- [ ] `cloud-recovery.js` recovers metadata but NOT full report data — useless for actual cross-device work
+- [x] `cloud-recovery.js` recovers metadata but NOT full report data — *(Sprint 4: now also caches report_data for recovered reports)*
 - [ ] `ACTIVE_PROJECT_ID` still used here (project picker sets it) — should be removed
 - [ ] `report-rules.js` reads from `STORAGE_KEYS.PROJECTS` localStorage cache — if cache is stale, eligibility checks are wrong
 - [ ] `report-rules.js` reads from `STORAGE_KEYS.CURRENT_REPORTS` — all report state is localStorage
@@ -445,7 +445,7 @@ Same pattern as projects: Supabase = truth, IndexedDB = offline cache, localStor
 - [ ] Remove `UNFINISHED_PREVIOUS` blocking logic from `report-rules.js`
 - [ ] Add backend duplicate detection (flag when same project + same day has multiple submitted reports)
 - [ ] Move report tracking from localStorage (`fvp_current_reports`) to IndexedDB + Supabase sync
-- [ ] Cloud recovery should pull full report data, not just metadata
+- [x] Cloud recovery should pull full report data, not just metadata (via report_data table + loadReport() fallback)
 - [ ] Standardize report date field to one name across all code
 - [ ] Add `org_id` filtering to project loading
 - [ ] Report creation should include `org_id` on the Supabase draft row
@@ -568,7 +568,7 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - [ ] **Draft data in localStorage only** — `_draft_data` blob not synced to Supabase (only `interview_backup` page_state is)
 - [ ] `getReport()` calls `createFreshReport()` every time — ignores existing report data. Relies on localStorage restore to recover drafts.
 - [ ] `interview_backup` exists in Supabase but is never read back — it's write-only backup, not used for cross-device recovery
-- [ ] AI response saved to `fvp_report_{id}` in localStorage — not accessible from other devices
+- [x] AI response saved to `fvp_report_{id}` in localStorage — *(Sprint 4: also synced to Supabase report_data table on finish)*
 - [ ] `finishMinimalReport()` and `finishReport()` are near-duplicate functions (~200 lines each) — comment says "keep in sync"
 - [ ] 34 script tags on one page — largest in the app
 
@@ -587,7 +587,7 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 ### Needs Adding
 - [ ] Read `interview_backup` from Supabase on page load (enables cross-device draft recovery) — write-back capability needs development
 - [ ] Move draft data from localStorage to IndexedDB for larger storage + persistence
-- [ ] Move AI response (`fvp_report_{id}`) to Supabase for cross-device access
+- [x] Move AI response (`fvp_report_{id}`) to Supabase for cross-device access
 - [ ] Refactor `finishMinimalReport()` and `finishReport()` into shared function
 - [ ] Add `org_id` to report data
 - [ ] **Real-time photo upload** — photos should upload to Supabase Storage as they're taken, not batch at FINISH (must not be laggy)
@@ -656,7 +656,7 @@ Same problem — if ACTIVE_PROJECT_ID changed since the report was created, all 
 
 | Data | localStorage | IndexedDB | Supabase |
 |------|-------------|-----------|----------|
-| Report package (AI + edits) | `fvp_report_{reportId}` | ❌ | ❌ (localStorage only!) |
+| Report package (AI + edits) | `fvp_report_{reportId}` | ❌ | `report_data` table *(Sprint 4)* |
 | Report metadata | `fvp_current_reports[id]` | ❌ | `reports` table |
 | Report backup (autosave) | ❌ | ❌ | `report_backup` table (page_state JSONB) |
 | User edits | Inside `fvp_report_{reportId}.userEdits` | ❌ | ❌ |
@@ -697,11 +697,11 @@ Bypasses `STORAGE_KEYS` and `getStorageItem/setStorageItem` helpers — direct l
 
 ### Known Issues
 - [ ] **🐛 project_id bug** — `saveReportToSupabase()`, `ensureReportExists()`, `saveToFinalReports()` all use `RS.activeProject.id` from ACTIVE_PROJECT_ID
-- [ ] **Report data in localStorage only** — `fvp_report_{id}` (AI output + user edits) not synced to Supabase
+- [x] **Report data in localStorage only** — *(Sprint 4: report_data table syncs AI output + user edits to Supabase)*
 - [ ] `report_backup` table written to but never read back (write-only, like `interview_backup`)
 - [ ] `cleanupLocalStorage()` uses hardcoded `fvp_current_reports` string instead of `STORAGE_KEYS`
-- [ ] `loadReport()` only reads localStorage — no Supabase fallback (breaks cross-device)
-- [ ] If report data missing from localStorage, page shows error and redirects — no recovery attempt from Supabase
+- [x] `loadReport()` only reads localStorage — *(Sprint 4: falls back to Supabase report_data table when localStorage misses)*
+- [x] If report data missing from localStorage — *(Sprint 4: tries Supabase report_data before showing error)*
 
 ### Supabase Backup Tables (Current State)
 | Table | Written By | Contains | Read Back? |
@@ -747,9 +747,9 @@ report_data:
 - [ ] **Fix submit redirect**: go to Dashboard with success banner, not archives.html
 
 ### Needs Adding
-- [ ] **Create `report_data` table** in Supabase — stores AI generated + original input + user edits (replaces `fvp_report_{id}` localStorage)
-- [ ] `loadReport()` reads from `report_data` table (with localStorage as cache), not localStorage-only
-- [ ] Report Editor saves to `report_data` table on every auto-save
+- [x] **Create `report_data` table** in Supabase — stores AI generated + original input + user edits (replaces `fvp_report_{id}` localStorage)
+- [x] `loadReport()` reads from `report_data` table (with localStorage as cache), not localStorage-only
+- [x] Report Editor saves to `report_data` table on every auto-save
 - [ ] Remove `report_backup` table once `report_data` covers its function
 - [ ] Consider merging `final_reports` into `reports` table (add pdf_url column)
 - [ ] Add `org_id` to report data
