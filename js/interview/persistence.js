@@ -973,6 +973,7 @@ async function uploadPendingPhotos() {
                 const photoData = {
                     id: photo.id,
                     report_id: IS.currentReportId,
+                    org_id: localStorage.getItem('fvp_org_id') || null,
                     storage_path: photo.storagePath,
                     photo_url: photo.url || null,
                     caption: photo.caption || '',

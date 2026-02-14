@@ -149,6 +149,7 @@ async function saveAIResponse(originalPayload, response, processingTimeMs) {
     try {
         const submissionData = {
             report_id: IS.currentReportId,
+            org_id: localStorage.getItem('fvp_org_id') || null,
             original_input: originalPayload || null,
             ai_response: response || null,
             model_used: 'n8n-fieldvoice-refine',
@@ -401,6 +402,7 @@ async function finishReportFlow(options) {
                 .from('report_data')
                 .upsert({
                     report_id: IS.currentReportId,
+                    org_id: localStorage.getItem('fvp_org_id') || null,
                     ai_generated: reportDataPackage.aiGenerated || {},
                     original_input: reportDataPackage.originalInput || {},
                     user_edits: {},

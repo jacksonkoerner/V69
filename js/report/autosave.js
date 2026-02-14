@@ -157,6 +157,7 @@ function flushReportBackup() {
             .from('report_data')
             .upsert({
                 report_id: RS.currentReportId,
+                org_id: localStorage.getItem('fvp_org_id') || null,
                 user_edits: RS.userEdits || {},
                 status: RS.report?.meta?.status || 'refined',
                 updated_at: new Date().toISOString()
