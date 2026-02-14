@@ -5,100 +5,38 @@
 let isRefreshing = false;
 let activeProjectId = null;
 
-// ============ PROJECT LOADING (IndexedDB-first) ============
-async function loadProjectsFromIndexedDB() {
-    try {
-        const projects = await window.idb.getAllProjects();
-        if (projects && projects.length > 0) {
-            console.log('[IDB] Loaded projects:', projects.length);
-            // Sort by projectName
-            return projects.sort((a, b) => {
-                const nameA = (a.projectName || a.project_name || '').toLowerCase();
-                const nameB = (b.projectName || b.project_name || '').toLowerCase();
-                return nameA.localeCompare(nameB);
-            });
-        }
-    } catch (e) {
-        console.warn('[IDB] Failed to load projects:', e);
-    }
-    return [];
-}
+// ============ PROJECT LOADING (via data-layer.js) ============
 
-async function fetchProjectsFromSupabase() {
-    try {
-        // Fetch projects — contractors are stored as JSONB inside the projects table
-        const { data, error } = await supabaseClient
-            .from('projects')
-            .select('*')
-            .order('project_name', { ascending: true });
-
-        if (error) {
-            console.error('[SUPABASE] Error loading projects:', error);
-            throw new Error(error.message || 'Failed to load projects');
-        }
-
-        // Parse contractors JSONB if it's a string
-        const projects = (data || []).map(p => {
-            if (typeof p.contractors === 'string') {
-                try { p.contractors = JSON.parse(p.contractors); } catch(e) { p.contractors = []; }
-            }
-            p.contractors = p.contractors || [];
-            return p;
-        });
-
-        console.log('[SUPABASE] Fetched projects:', projects.length);
-        return projects;
-    } catch (e) {
-        console.error('[SUPABASE] Failed to load projects:', e);
-        throw e;
-    }
-}
-
-async function saveProjectsToIndexedDB(projects) {
-    for (const project of projects) {
-        try {
-            // Normalize project structure
-            const normalized = {
-                id: project.id,
-                projectName: project.projectName || project.project_name || '',
-                noab_project_no: project.noab_project_no || '',
-                location: project.location || '',
-                engineer: project.engineer || '',
-                prime_contractor: project.prime_contractor || '',
-                status: project.status || 'active',
-                contractors: project.contractors || [],
-                equipment: project.equipment || [],
-                created_at: project.created_at,
-                updated_at: project.updated_at
-            };
-            await window.idb.saveProject(normalized);
-        } catch (e) {
-            console.warn('[IDB] Failed to save project:', project.id, e);
-        }
-    }
-    console.log('[IDB] Saved projects to IndexedDB:', projects.length);
-}
-
-// ============ MAIN LOAD FUNCTION ============
+/**
+ * Load all projects — IndexedDB first, Supabase fallback if empty and online.
+ * Delegates to dataLayer for consistent normalization and caching.
+ * @returns {Promise<Array>} Array of normalized project objects
+ */
 async function getAllProjects() {
-    // 1. Try IndexedDB first
-    const localProjects = await loadProjectsFromIndexedDB();
+    // 1. Try IndexedDB first (via data layer — returns normalized projects)
+    const localProjects = await window.dataLayer.loadProjects();
     if (localProjects.length > 0) {
-        return localProjects;
+        // Sort by projectName for display
+        return localProjects.sort((a, b) => {
+            const nameA = (a.projectName || '').toLowerCase();
+            const nameB = (b.projectName || '').toLowerCase();
+            return nameA.localeCompare(nameB);
+        });
     }
 
     // 2. If offline and no local data, return empty
     if (!navigator.onLine) {
-        console.log('[OFFLINE] No cached projects');
+        console.log('[PROJECTS] Offline, no cached projects');
         return [];
     }
 
-    // 3. Fetch from Supabase and cache
-    const supabaseProjects = await fetchProjectsFromSupabase();
-    if (supabaseProjects.length > 0) {
-        await saveProjectsToIndexedDB(supabaseProjects);
-    }
-    return supabaseProjects;
+    // 3. Fetch from Supabase via data layer (handles caching + normalization)
+    const cloudProjects = await window.dataLayer.refreshProjectsFromCloud();
+    return cloudProjects.sort((a, b) => {
+        const nameA = (a.projectName || '').toLowerCase();
+        const nameB = (b.projectName || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+    });
 }
 
 // ============ REFRESH FROM CLOUD ============
@@ -120,27 +58,15 @@ async function refreshProjectsFromCloud() {
     try {
         showToast('Refreshing from cloud...', 'info');
 
-        // Fetch fresh data from Supabase (includes contractors via join)
-        const projects = await fetchProjectsFromSupabase();
-
-        // Only clear IndexedDB AFTER successful fetch to prevent data loss
-        // This prevents race condition where clearing happens but fetch fails
-        if (projects.length > 0) {
-            try {
-                await window.idb.clearStore('projects');
-            } catch (e) {
-                console.warn('[IDB] Could not clear projects store:', e);
-            }
-            await saveProjectsToIndexedDB(projects);
-        } else {
-            // If Supabase returns empty, only clear if we explicitly have no projects
-            // Don't clear on network errors (which would throw before reaching here)
-            try {
-                await window.idb.clearStore('projects');
-            } catch (e) {
-                console.warn('[IDB] Could not clear projects store:', e);
-            }
+        // Clear IndexedDB projects store before refresh to get clean state
+        try {
+            await window.idb.clearStore('projects');
+        } catch (e) {
+            console.warn('[IDB] Could not clear projects store:', e);
         }
+
+        // Fetch from Supabase via data layer (handles caching + normalization)
+        const projects = await window.dataLayer.refreshProjectsFromCloud();
 
         // Re-render the list
         await renderProjectList(projects);
@@ -150,7 +76,7 @@ async function refreshProjectsFromCloud() {
         console.error('[REFRESH] Failed:', err);
         showToast('Failed to refresh', 'error');
         // On error, re-render from IndexedDB (don't lose local data)
-        const localProjects = await loadProjectsFromIndexedDB();
+        const localProjects = await window.dataLayer.loadProjects();
         await renderProjectList(localProjects);
     } finally {
         isRefreshing = false;
@@ -168,9 +94,9 @@ async function selectProject(projectId) {
     activeProjectId = projectId;
 
     // Get project details for toast
-    const projects = await loadProjectsFromIndexedDB();
+    const projects = await window.dataLayer.loadProjects();
     const project = projects.find(p => p.id === projectId);
-    const projectName = project?.projectName || project?.project_name || 'Project';
+    const projectName = project?.projectName || 'Project';
 
     showToast(`${projectName} selected`, 'success');
 
