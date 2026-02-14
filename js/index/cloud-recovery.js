@@ -41,14 +41,33 @@ function recoverCloudDrafts() {
             let recovered = 0;
 
             for (const row of data) {
-                if (localReports[row.id]) continue; // already in localStorage
+                // SYN-01 (Sprint 15): Compare timestamps — cloud wins if newer
+                const existing = localReports[row.id];
+                if (existing) {
+                    // Compare updated_at: cloud row uses ISO string, local may be epoch ms or ISO
+                    const cloudTime = new Date(row.updated_at).getTime();
+                    const localTime = typeof existing.updated_at === 'number'
+                        ? existing.updated_at
+                        : new Date(existing.updated_at).getTime();
+
+                    if (!isNaN(cloudTime) && !isNaN(localTime) && cloudTime <= localTime) {
+                        continue; // local version is same age or newer — keep it
+                    }
+                    // Cloud is newer — fall through to update local copy
+                    console.log('[RECOVERY] Cloud version newer for report:', row.id,
+                        '(cloud:', row.updated_at, 'vs local:', existing.updated_at, ')');
+                }
 
                 // Look up project name from cache or localStorage
                 const project = projectsMap[row.project_id]
                     || getProjects().find(p => p.id === row.project_id);
                 const projectName = project?.projectName || '';
 
+                // Preserve local _draft_data if it exists (don't clobber unsaved edits)
+                const preservedDraftData = existing?._draft_data || undefined;
+
                 localReports[row.id] = {
+                    ...(existing || {}),  // preserve any extra local fields
                     id: row.id,
                     project_id: row.project_id,
                     project_name: projectName,
@@ -57,6 +76,12 @@ function recoverCloudDrafts() {
                     created_at: row.created_at,
                     updated_at: row.updated_at
                 };
+
+                // Restore _draft_data if we had local edits
+                if (preservedDraftData) {
+                    localReports[row.id]._draft_data = preservedDraftData;
+                }
+
                 recovered++;
             }
 

@@ -62,7 +62,7 @@ function buildProcessPayload() {
             gps: p.gps
         })),
 
-        reportDate: IS.report.overview?.date || new Date().toLocaleDateString(),
+        reportDate: IS.report.overview?.date || getLocalDateString(),
         inspectorName: IS.report.overview?.completedBy || '',
 
         // v6.6: Structured data for AI processing
@@ -362,26 +362,30 @@ async function finishReportFlow(options) {
             console.warn('[LOCAL] Failed to save report package to localStorage');
         }
 
-        // Sprint 4: Sync report data to Supabase report_data table (fire-and-forget)
-        try {
-            supabaseClient
+        // Sprint 4+15 (SUP-02): Sync report data to Supabase with retry
+        var _finishReportId = IS.currentReportId;
+        var _finishOrgId = localStorage.getItem('fvp_org_id') || null;
+        var _finishPayload = {
+            report_id: _finishReportId,
+            org_id: _finishOrgId,
+            ai_generated: reportDataPackage.aiGenerated || {},
+            original_input: reportDataPackage.originalInput || {},
+            user_edits: {},
+            capture_mode: reportDataPackage.captureMode || 'minimal',
+            status: 'refined'
+        };
+
+        supabaseRetry(function() {
+            return supabaseClient
                 .from('report_data')
-                .upsert({
-                    report_id: IS.currentReportId,
-                    org_id: localStorage.getItem('fvp_org_id') || null,
-                    ai_generated: reportDataPackage.aiGenerated || {},
-                    original_input: reportDataPackage.originalInput || {},
-                    user_edits: {},
-                    capture_mode: reportDataPackage.captureMode || 'minimal',
-                    status: 'refined'
-                }, { onConflict: 'report_id' })
-                .then(function(res) {
-                    if (res.error) console.warn('[FINISH] report_data sync failed:', res.error.message);
-                    else console.log('[FINISH] Report data synced to Supabase:', IS.currentReportId);
-                });
-        } catch (rdErr) {
-            console.warn('[FINISH] report_data sync error:', rdErr);
-        }
+                .upsert(_finishPayload, { onConflict: 'report_id' });
+        }, 3, 'FINISH:report_data')
+        .then(function() {
+            console.log('[FINISH] Report data synced to Supabase:', _finishReportId);
+        })
+        .catch(function(err) {
+            console.error('[FINISH] report_data sync failed after retries:', err.message);
+        });
 
 
         // v6.9: Use saveCurrentReport helper (sets updated_at, validates)

@@ -99,6 +99,20 @@ function cleanupRealtimeSync() {
 function _handleReportChange(payload) {
     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
         var report = payload.new;
+
+        // SYN-02 (Sprint 15): Skip realtime overwrites for the report currently being edited.
+        // If user is on quick-interview.html or report.html editing this specific report,
+        // a realtime event could reset local state (status, dates, etc.) mid-edit.
+        var path = window.location.pathname;
+        if (path.indexOf('quick-interview.html') !== -1 || path.indexOf('report.html') !== -1) {
+            var urlParams = new URLSearchParams(window.location.search);
+            var editingReportId = urlParams.get('reportId');
+            if (editingReportId && editingReportId === report.id) {
+                console.log('[REALTIME] Skipping update for actively-edited report:', report.id);
+                return;
+            }
+        }
+
         var reports = (typeof getStorageItem === 'function')
             ? getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {}
             : {};

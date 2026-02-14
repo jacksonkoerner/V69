@@ -17,7 +17,7 @@ const STORAGE_KEYS = {
   ACTIVE_PROJECT_ID: 'fvp_active_project_id',
   CURRENT_REPORTS: 'fvp_current_reports',
   REPORT_DATA: 'fvp_report_',  // Pattern: fvp_report_{reportId}
-  SYNC_QUEUE: 'fvp_sync_queue',
+  // SYNC_QUEUE removed (Sprint 15, OFF-02) — was never consumed
   DEVICE_ID: 'fvp_device_id',
   USER_ID: 'fvp_user_id',
   AUTH_ROLE: 'fvp_auth_role',
@@ -229,19 +229,48 @@ function getCurrentReport(reportId) {
 }
 
 /**
- * Saves a report to current reports
- * Updates the report's updated_at timestamp automatically
+ * Save queue to serialize concurrent saveCurrentReport() calls (SEC-08).
+ * Prevents read-modify-write race conditions where two concurrent saves
+ * could read the same state, modify independently, and the second write
+ * overwrites the first.
+ * @private
+ */
+let _saveQueue = Promise.resolve();
+
+/**
+ * Saves a report to current reports (queued to prevent race conditions).
+ * Updates the report's updated_at timestamp automatically.
  * Also writes through to IndexedDB as durable backup.
  *
+ * Calls are serialized via an async queue — if multiple saves fire
+ * concurrently, each waits for the previous to complete (SEC-08).
+ *
  * @param {Report} report - The report object to save (must have id property)
- * @returns {boolean} True on success, false on failure
+ * @returns {Promise<boolean>} True on success, false on failure
  */
 function saveCurrentReport(report) {
   if (!report || !report.id) {
     console.error('Cannot save report: missing id');
-    return false;
+    return Promise.resolve(false);
   }
 
+  _saveQueue = _saveQueue.then(function() {
+    return _doSaveCurrentReport(report);
+  }).catch(function(e) {
+    console.error('[STORAGE] Save queue error:', e);
+    return false;
+  });
+
+  return _saveQueue;
+}
+
+/**
+ * Internal save implementation — called only from the serialized queue.
+ * @private
+ * @param {Report} report
+ * @returns {boolean}
+ */
+function _doSaveCurrentReport(report) {
   const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
 
   report.updated_at = Date.now();
@@ -291,32 +320,9 @@ function deleteCurrentReport(reportId) {
   return ok;
 }
 
-/**
- * Adds an operation to the sync queue for later processing
- * TODO: SYNC_QUEUE is written to but never processed by a background worker — remove when offline sync is redesigned
- * Used for offline operations that need to be synced when online
- *
- * @param {SyncOperation} operation - The operation to queue
- * @param {('entry'|'report'|'photo')} operation.type - Type of operation
- * @param {('upsert'|'delete')} operation.action - Action to perform
- * @param {Object} operation.data - Operation data
- * @param {number} [operation.timestamp] - When operation was queued (defaults to now)
- * @returns {boolean} True on success, false on failure
- */
-function addToSyncQueue(operation) {
-  const queue = getStorageItem(STORAGE_KEYS.SYNC_QUEUE) || [];
-
-  // Ensure timestamp is set
-  if (!operation.timestamp) {
-    operation.timestamp = Date.now();
-  }
-
-  queue.push(operation);
-
-  console.log('Added to sync queue:', operation.type, operation.action);
-
-  return setStorageItem(STORAGE_KEYS.SYNC_QUEUE, queue);
-}
+// OFF-02: Sync queue removed (Sprint 15) — was written to but never consumed.
+// Reports saved offline are stored as drafts via saveCurrentReport().
+// Users must manually retry when back online.
 
 /**
  * Gets the localStorage key for a specific report
@@ -439,7 +445,7 @@ if (typeof window !== 'undefined') {
   window.getCurrentReport = getCurrentReport;
   window.saveCurrentReport = saveCurrentReport;
   window.deleteCurrentReport = deleteCurrentReport;
-  window.addToSyncQueue = addToSyncQueue;
+  // addToSyncQueue removed (Sprint 15, OFF-02)
   window.getReportDataKey = getReportDataKey;
   window.getReportData = getReportData;
   window.saveReportData = saveReportData;

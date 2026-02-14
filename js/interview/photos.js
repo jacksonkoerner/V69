@@ -87,11 +87,11 @@ async function handlePhotoInput(e) {
                 finalDataUrl = markedUp;
             }
 
-            // Create photo object immediately with local data (upload happens in background)
+            // Create metadata-only photo object for IS.report.photos[]
+            // base64 is stored ONLY in IndexedDB to avoid localStorage quota exhaustion (OFF-01, MEM-01)
             const photoObj = {
                 id: photoId,
-                url: finalDataUrl, // Show local data immediately
-                base64: finalDataUrl,
+                url: finalDataUrl, // Show local data immediately (will be replaced by Supabase URL after upload)
                 storagePath: null,
                 uploadStatus: 'pending', // pending | uploading | uploaded | failed
                 caption: '',
@@ -110,17 +110,17 @@ async function handlePhotoInput(e) {
                 gps: photoObj.gps
             });
 
-            // Add to local report immediately — UI updates right away
+            // Add metadata to local report — NO base64 in this object
             IS.report.photos.push(photoObj);
 
-            // Save photo to IndexedDB (local-first)
-            await savePhotoToIndexedDB(photoObj);
+            // Save photo WITH base64 to IndexedDB only (local-first, large storage quota)
+            await savePhotoToIndexedDB(photoObj, finalDataUrl);
 
             // Update UI immediately (photo visible with upload spinner)
             renderSection('photos');
             saveReport();
 
-            // Background upload — non-blocking
+            // Background upload — non-blocking, reads base64 from IndexedDB
             backgroundUploadPhoto(photoObj, finalDataUrl);
 
             console.log(`[PHOTO] Success! Total photos: ${IS.report.photos.length}`);
@@ -139,6 +139,7 @@ async function handlePhotoInput(e) {
  * Upload a photo to Supabase Storage in the background.
  * Updates the photo object + UI with upload status (spinner → checkmark).
  * Non-blocking — does not freeze the UI.
+ * base64 data is read from IndexedDB, NOT from IS.report.photos (OFF-01).
  */
 async function backgroundUploadPhoto(photoObj, dataUrl) {
     if (!navigator.onLine) {
@@ -152,22 +153,33 @@ async function backgroundUploadPhoto(photoObj, dataUrl) {
         photoObj.uploadStatus = 'uploading';
         updatePhotoUploadIndicator(photoObj.id, 'uploading');
 
-        const compressedBlob = await dataURLtoBlob(dataUrl);
+        // Use the dataUrl passed in (from capture), or fall back to IndexedDB
+        let uploadDataUrl = dataUrl;
+        if (!uploadDataUrl) {
+            const idbPhoto = await window.idb.getPhoto(photoObj.id);
+            uploadDataUrl = idbPhoto?.base64;
+        }
+        if (!uploadDataUrl) {
+            throw new Error('No base64 data available for upload');
+        }
+
+        const compressedBlob = await dataURLtoBlob(uploadDataUrl);
         console.log(`[PHOTO] Background uploading ${photoObj.id}...`);
         const result = await uploadPhotoToSupabase(compressedBlob, photoObj.id);
 
-        // Update the photo object in IS.report.photos
+        // Update the metadata-only photo object in IS.report.photos
         photoObj.storagePath = result.storagePath;
         photoObj.url = result.publicUrl;
-        photoObj.base64 = null; // Free memory — uploaded successfully
         photoObj.uploadStatus = 'uploaded';
+        // No photoObj.base64 to clear — it was never stored here (OFF-01)
 
-        // Update IndexedDB
+        // Update IndexedDB: set storagePath/url and clear base64 (uploaded successfully)
         const idbPhoto = await window.idb.getPhoto(photoObj.id);
         if (idbPhoto) {
             idbPhoto.storagePath = result.storagePath;
             idbPhoto.url = result.publicUrl;
-            idbPhoto.base64 = null;
+            idbPhoto.base64 = null; // Free IndexedDB space — uploaded successfully
+            idbPhoto.syncStatus = 'synced';
             await window.idb.savePhoto(idbPhoto);
         }
 
@@ -178,7 +190,7 @@ async function backgroundUploadPhoto(photoObj, dataUrl) {
         console.warn('[PHOTO] Background upload failed:', err);
         photoObj.uploadStatus = 'failed';
         updatePhotoUploadIndicator(photoObj.id, 'failed');
-        // base64 is preserved — will retry at FINISH via uploadPendingPhotos()
+        // base64 is preserved in IndexedDB — will retry at FINISH via uploadPendingPhotos()
     }
 }
 
@@ -285,14 +297,18 @@ function autoExpandCaption(textarea) {
 
 /**
  * Save photo to IndexedDB (local-first)
- * Photos are uploaded to Supabase only on explicit Submit
+ * Photos are uploaded to Supabase only on explicit Submit.
+ * base64 is stored ONLY in IndexedDB, never in IS.report.photos[] or localStorage (OFF-01).
+ *
+ * @param {Object} photo - Photo metadata object
+ * @param {string} [base64Data] - Optional base64 data URL to store in IndexedDB
  */
-async function savePhotoToIndexedDB(photo) {
+async function savePhotoToIndexedDB(photo, base64Data) {
     try {
         const photoRecord = {
             id: photo.id,
             reportId: IS.currentReportId || 'pending',
-            base64: photo.base64 || null, // For offline storage
+            base64: base64Data || null, // base64 stored ONLY in IndexedDB (OFF-01)
             url: photo.url || null,
             storagePath: photo.storagePath || null,
             caption: photo.caption || '',

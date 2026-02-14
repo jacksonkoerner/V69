@@ -150,25 +150,27 @@ function flushReportBackup() {
     if (!_reportBackupDirty || !RS.currentReportId) return;
     _reportBackupDirty = false;
 
-    // Sprint 13: report_backup table is deprecated — report_data is now authoritative.
-    // Sync user edits to report_data table (fire-and-forget)
-    try {
-        supabaseClient
+    // Sprint 13+15 (SUP-02): report_data is authoritative — retry with backoff
+    var _autosaveReportId = RS.currentReportId;
+    var _autosavePayload = {
+        report_id: _autosaveReportId,
+        org_id: localStorage.getItem('fvp_org_id') || null,
+        user_edits: RS.userEdits || {},
+        status: RS.report?.meta?.status || 'refined',
+        updated_at: new Date().toISOString()
+    };
+
+    supabaseRetry(function() {
+        return supabaseClient
             .from('report_data')
-            .upsert({
-                report_id: RS.currentReportId,
-                org_id: localStorage.getItem('fvp_org_id') || null,
-                user_edits: RS.userEdits || {},
-                status: RS.report?.meta?.status || 'refined',
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'report_id' })
-            .then(function(res) {
-                if (res.error) console.warn('[AUTOSAVE] report_data sync failed:', res.error.message);
-                else console.log('[AUTOSAVE] report_data synced');
-            });
-    } catch (e) {
-        console.warn('[AUTOSAVE] report_data sync error:', e);
-    }
+            .upsert(_autosavePayload, { onConflict: 'report_id' });
+    }, 3, 'AUTOSAVE:report_data')
+    .then(function() {
+        console.log('[AUTOSAVE] report_data synced');
+    })
+    .catch(function(err) {
+        console.warn('[AUTOSAVE] report_data sync failed after retries:', err.message);
+    });
 }
 
 /**
