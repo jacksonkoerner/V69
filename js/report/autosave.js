@@ -3,8 +3,9 @@
 // Extracted from report.js (lines ~2146-2427)
 //
 // Contains: setupAutoSave, scheduleSave, saveReport, markReportBackupDirty,
-//   buildReportPageState, flushReportBackup, saveReportToLocalStorage,
+//   flushReportBackup, saveReportToLocalStorage,
 //   saveReportToSupabase, showSaveIndicator
+// Sprint 13: Removed report_backup writes — report_data is now authoritative
 // ============================================================================
 
 var RS = window.reportState;
@@ -145,49 +146,12 @@ function markReportBackupDirty() {
     _reportBackupTimer = setTimeout(flushReportBackup, 5000); // 5s debounce
 }
 
-function buildReportPageState() {
-    return {
-        captureMode: RS.report.meta?.captureMode || 'guided',
-        fieldNotes: RS.report.fieldNotes || {},
-        guidedNotes: RS.report.guidedNotes || {},
-        activities: RS.report.activities || [],
-        operations: RS.report.operations || [],
-        equipment: RS.report.equipment || [],
-        equipmentRows: RS.report.equipmentRows || [],
-        overview: RS.report.overview || {},
-        safety: RS.report.safety || {},
-        issues: RS.report.issues || '',
-        qaqc: RS.report.qaqc || '',
-        communications: RS.report.communications || '',
-        visitors: RS.report.visitors || '',
-        generalIssues: RS.report.generalIssues || [],
-        toggleStates: RS.report.toggleStates || {},
-        userEdits: RS.report.userEdits || {},
-        aiGenerated: RS.report.aiGenerated || {},
-        savedAt: new Date().toISOString()
-    };
-}
-
 function flushReportBackup() {
     if (!_reportBackupDirty || !RS.currentReportId) return;
     _reportBackupDirty = false;
 
-    var pageState = buildReportPageState();
-
-    // Fire and forget — do NOT await, do NOT block UI
-    supabaseClient
-        .from('report_backup')
-        .upsert({
-            report_id: RS.currentReportId,
-            page_state: pageState,
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'report_id' })
-        .then(function(result) {
-            if (result.error) console.warn('[BACKUP] Report backup failed:', result.error.message);
-            else console.log('[BACKUP] Report backup saved');
-        });
-
-    // Sprint 4: Also sync user edits to report_data table (fire-and-forget)
+    // Sprint 13: report_backup table is deprecated — report_data is now authoritative.
+    // Sync user edits to report_data table (fire-and-forget)
     try {
         supabaseClient
             .from('report_data')
@@ -293,7 +257,7 @@ async function saveReportToSupabase() {
 
         RS.currentReportId = reportId;
 
-        // report_backup is now handled by debounced autosave (flushReportBackup)
+        // report_data sync is handled by debounced autosave (flushReportBackup)
         // Mark dirty so it flushes on next 5s quiet period
         markReportBackupDirty();
 
