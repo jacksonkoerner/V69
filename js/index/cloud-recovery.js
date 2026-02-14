@@ -94,9 +94,88 @@ function recoverCloudDrafts() {
                             console.warn('[RECOVERY] report_data cache failed:', err);
                         });
                 }
+                // Sprint 7: Also cache interview_backup for draft/pending_refine reports
+                // so when user taps a recovered draft card, the Field Capture page has data
+                var draftIds = data
+                    .filter(function(r) { return r.status === 'draft' || r.status === 'pending_refine'; })
+                    .map(function(r) { return r.id; });
+
+                if (draftIds.length > 0) {
+                    cacheInterviewBackups(draftIds, localReports);
+                }
             } else {
                 console.log('[RECOVERY] All cloud drafts already in localStorage');
             }
         })
         .catch(err => console.error('[RECOVERY] Cloud draft recovery error:', err));
+}
+
+/**
+ * Sprint 7: Pre-cache interview_backup data for draft reports.
+ * Queries Supabase interview_backup table and stores page_state as _draft_data
+ * in fvp_current_reports so the Field Capture page loads instantly.
+ * @param {string[]} reportIds - report IDs to check
+ * @param {Object} localReports - current fvp_current_reports map
+ */
+function cacheInterviewBackups(reportIds, localReports) {
+    // Only cache for reports that don't already have _draft_data
+    var needsCache = reportIds.filter(function(id) {
+        var report = localReports[id];
+        return report && !report._draft_data;
+    });
+
+    if (needsCache.length === 0) return;
+
+    supabaseClient
+        .from('interview_backup')
+        .select('report_id, page_state, updated_at')
+        .in('report_id', needsCache)
+        .then(function(result) {
+            if (result.error || !result.data || result.data.length === 0) return;
+
+            var currentReports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
+
+            for (var i = 0; i < result.data.length; i++) {
+                var backup = result.data[i];
+                if (!backup.page_state) continue;
+
+                var ps = backup.page_state;
+                var report = currentReports[backup.report_id];
+                if (!report) continue;
+
+                // Build _draft_data from page_state (matching saveToLocalStorage format)
+                report._draft_data = {
+                    captureMode: ps.captureMode || null,
+                    lastSaved: backup.updated_at || ps.savedAt,
+                    meta: { captureMode: ps.captureMode },
+                    weather: ps.overview?.weather || {},
+                    freeform_entries: ps.freeform_entries || [],
+                    freeformNotes: ps.fieldNotes?.freeformNotes || '',
+                    activities: ps.activities || [],
+                    operations: ps.operations || [],
+                    equipment: ps.equipment || [],
+                    equipmentRows: ps.equipmentRows || [],
+                    overview: ps.overview || {},
+                    safety: ps.safety || {},
+                    safetyNoIncidents: ps.safety?.noIncidents || false,
+                    safetyHasIncidents: ps.safety?.hasIncidents || false,
+                    safetyNotes: ps.safety?.notes || [],
+                    generalIssues: ps.generalIssues || [],
+                    issuesNotes: ps.generalIssues || [],
+                    toggleStates: ps.toggleStates || {},
+                    entries: ps.entries || [],
+                    guidedNotes: ps.guidedNotes || {},
+                    workSummary: ps.guidedNotes?.workSummary || '',
+                    photos: []
+                };
+
+                currentReports[backup.report_id] = report;
+                console.log('[RECOVERY] Cached interview_backup for:', backup.report_id);
+            }
+
+            setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, currentReports);
+        })
+        .catch(function(err) {
+            console.warn('[RECOVERY] interview_backup cache failed:', err);
+        });
 }

@@ -558,7 +558,7 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - [x] **🐛 Contractor loading bug** — `IS.activeProject` loaded from `ACTIVE_PROJECT_ID`, so if you open a report for Project A but ACTIVE_PROJECT_ID is Project B, you get Project B's contractors *(Sprint 1: same fix — project loaded from report data, contractors come from correct project)*
 - [ ] **Draft data in localStorage only** — `_draft_data` blob not synced to Supabase (only `interview_backup` page_state is)
 - [ ] `getReport()` calls `createFreshReport()` every time — ignores existing report data. Relies on localStorage restore to recover drafts.
-- [ ] `interview_backup` exists in Supabase but is never read back — it's write-only backup, not used for cross-device recovery
+- [x] `interview_backup` exists in Supabase but is never read back — it's write-only backup, not used for cross-device recovery *(Sprint 7: interview/main.js now reads interview_backup as fallback when no localStorage draft exists; cloud-recovery.js pre-caches it for recovered drafts)*
 - [x] AI response saved to `fvp_report_{id}` in localStorage — *(Sprint 4: also synced to Supabase report_data table on finish)*
 - [ ] `finishMinimalReport()` and `finishReport()` are near-duplicate functions (~200 lines each) — comment says "keep in sync"
 - [ ] 34 script tags on one page — largest in the app
@@ -576,7 +576,7 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - [x] **Fix `saveReportToSupabase()`**: Must use report's own project_id *(Sprint 1: IS.activeProject correctly set at init, downstream saves use it)*
 
 ### Needs Adding
-- [ ] Read `interview_backup` from Supabase on page load (enables cross-device draft recovery) — write-back capability needs development
+- [x] Read `interview_backup` from Supabase on page load (enables cross-device draft recovery) *(Sprint 7: main.js reads on init; cloud-recovery.js pre-caches for recovered drafts)*
 - [ ] Move draft data from localStorage to IndexedDB for larger storage + persistence
 - [x] Move AI response (`fvp_report_{id}`) to Supabase for cross-device access
 - [ ] Refactor `finishMinimalReport()` and `finishReport()` into shared function
@@ -687,10 +687,10 @@ Bypasses `STORAGE_KEYS` and `getStorageItem/setStorageItem` helpers — direct l
 ### Supabase Backup Tables (Current State)
 | Table | Written By | Contains | Read Back? |
 |-------|-----------|----------|------------|
-| `interview_backup` | Field Capture (`interview/autosave.js`) | page_state JSONB (form data during capture) | ❌ Never |
+| `interview_backup` | Field Capture (`interview/autosave.js`) | page_state JSONB (form data during capture) | ✅ Sprint 7: read by `interview/main.js` on page load + `cloud-recovery.js` pre-caches |
 | `report_backup` | Report Editor (`report/autosave.js`) | page_state JSONB (form data during editing) | ❌ Never |
 
-Both are write-only safety nets. Neither enables cross-device recovery.
+`interview_backup` now enables cross-device draft recovery. `report_backup` is still write-only (less critical since `report_data` table covers refined reports).
 
 ### Target: New `report_data` Table
 Replace `fvp_report_{id}` localStorage with a Supabase table:
