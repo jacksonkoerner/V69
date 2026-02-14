@@ -136,6 +136,8 @@ async function dismissSubmittedBanner() {
 
 // ============ INIT ============
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('[INDEX] DOMContentLoaded fired at', new Date().toISOString());
+
     // Initialize PWA features (moved from inline script in index.html)
     if (typeof initPWA === 'function') {
         initPWA({ onOnline: typeof updateDraftsSection === 'function' ? updateDraftsSection : function() {} });
@@ -215,6 +217,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // Wait for auth to be ready before loading data.
+    // auth.js registers its own DOMContentLoaded handler that calls requireAuth().
+    // That handler fires before this one (auth.js is in <head>, main.js is at end of <body>).
+    // But requireAuth() is async — we need to ensure auth session is active before
+    // making Supabase queries that depend on the auth token.
+    try {
+        var _authResult = await supabaseClient.auth.getSession();
+        if (!_authResult.data.session) {
+            console.warn('[INDEX] No auth session during DOMContentLoaded — auth.js will redirect');
+            return; // Don't try to load data without auth
+        }
+        console.log('[INDEX] Auth session confirmed, proceeding with dashboard init');
+    } catch (_authErr) {
+        console.warn('[INDEX] Auth check failed:', _authErr);
+        // Continue anyway — refreshDashboard will do best-effort with IDB
+    }
+
     // Use the shared refreshDashboard() for all data loading + rendering
     await refreshDashboard('DOMContentLoaded');
 
@@ -231,6 +250,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
         console.error('Failed to initialize post-refresh tasks:', err);
     }
+
+    // ============ SAFETY NET: Verify render completed ============
+    // If after 4 seconds the report cards section is still empty but we have
+    // projects in localStorage, something went wrong — force a re-render.
+    setTimeout(function() {
+        var container = document.getElementById('reportCardsSection');
+        var statusSection = document.getElementById('reportStatusSection');
+        var hasRenderedCards = container && container.innerHTML.trim().length > 0;
+        var hasRenderedStatus = statusSection && statusSection.innerHTML.trim().length > 0;
+
+        if (!hasRenderedCards && !hasRenderedStatus) {
+            console.warn('[INDEX] SAFETY NET: Dashboard appears blank after 4s, forcing re-render');
+            // Try rendering from whatever data we have
+            try {
+                // Re-populate projectsCache from localStorage if empty
+                if (projectsCache.length === 0) {
+                    var projectsMap = getStorageItem(STORAGE_KEYS.PROJECTS) || {};
+                    projectsCache = Object.values(projectsMap);
+                    console.log('[INDEX] SAFETY NET: Recovered', projectsCache.length, 'projects from localStorage');
+                }
+                renderReportCards();
+                updateReportStatus();
+                console.log('[INDEX] SAFETY NET: Re-render complete');
+            } catch (e) {
+                console.error('[INDEX] SAFETY NET: Re-render failed:', e);
+            }
+
+            // Also trigger a full refresh
+            _lastRefreshTime = 0; // Reset cooldown
+            refreshDashboard('safety-net');
+        }
+    }, 4000);
 });
 
 // ============ BACK-NAVIGATION / BFCACHE FIX ============
@@ -273,16 +324,24 @@ async function refreshDashboard(source) {
         //    (picks up reports created on other pages that wrote to IDB)
         try {
             await hydrateCurrentReportsFromIDB();
+            console.log('[INDEX] IDB hydration complete');
         } catch (e) {
             console.warn('[INDEX] IDB hydration failed during refresh:', e);
         }
 
         // 2. Reload projects (IndexedDB first, then cloud if online)
-        let projects = await window.dataLayer.loadProjects();
+        let projects = [];
+        try {
+            projects = await window.dataLayer.loadProjects();
+            console.log('[INDEX] Loaded', projects.length, 'projects from IDB');
+        } catch (e) {
+            console.warn('[INDEX] loadProjects failed:', e);
+        }
 
         if (navigator.onLine) {
             try {
                 projects = await window.dataLayer.refreshProjectsFromCloud();
+                console.log('[INDEX] Refreshed', projects.length, 'projects from cloud');
             } catch (e) {
                 console.warn('[INDEX] Cloud project refresh failed:', e);
             }
@@ -291,10 +350,22 @@ async function refreshDashboard(source) {
         // 3. Update the in-memory cache
         projectsCache = projects;
 
+        // 3b. If projectsCache is still empty but localStorage has projects,
+        //     fall back to localStorage (defensive for IDB/cloud failures)
+        if (projectsCache.length === 0) {
+            var lsProjects = getStorageItem(STORAGE_KEYS.PROJECTS);
+            if (lsProjects && typeof lsProjects === 'object') {
+                projectsCache = Object.values(lsProjects);
+                console.log('[INDEX] Fell back to localStorage projects:', projectsCache.length);
+            }
+        }
+
         // 4. Prune stale reports
         pruneCurrentReports();
 
         // 5. Render
+        console.log('[INDEX] Rendering with', projectsCache.length, 'projects,',
+            Object.keys(getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {}).length, 'reports');
         renderReportCards();
         updateReportStatus();
 
@@ -307,9 +378,18 @@ async function refreshDashboard(source) {
         console.error('[INDEX] refreshDashboard error:', err);
         // Best-effort render with whatever data is available
         try {
+            // Recover projectsCache from localStorage
+            if (projectsCache.length === 0) {
+                var fallbackProjects = getStorageItem(STORAGE_KEYS.PROJECTS);
+                if (fallbackProjects && typeof fallbackProjects === 'object') {
+                    projectsCache = Object.values(fallbackProjects);
+                }
+            }
             renderReportCards();
             updateReportStatus();
-        } catch (e) { /* give up */ }
+        } catch (e) {
+            console.error('[INDEX] Best-effort render also failed:', e);
+        }
     } finally {
         _dashboardRefreshing = false;
     }
