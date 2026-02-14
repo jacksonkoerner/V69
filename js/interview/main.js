@@ -133,6 +133,9 @@ overlay.style.display = 'none';
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+// Initialize PWA features (moved from inline script)
+if (typeof initPWA === 'function') initPWA();
+
 // === NEW: Wire up processing overlay error buttons ===
 document.getElementById('processingRetryBtn')?.addEventListener('click', () => {
 hideProcessingOverlay();

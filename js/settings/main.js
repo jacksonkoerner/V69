@@ -510,6 +510,9 @@ async function resetAllData() {
 
 // ============ INIT ============
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize PWA features (moved from inline script)
+    if (typeof initPWA === 'function') initPWA();
+
     // Get all form input fields
     const inputFields = [
         document.getElementById('inspectorName'),

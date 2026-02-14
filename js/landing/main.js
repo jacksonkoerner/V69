@@ -1,3 +1,6 @@
+// Initialize PWA features (moved from inline script)
+if (typeof initPWA === 'function') initPWA();
+
 // Voice Recording Demo
 const demoMicBtn = document.getElementById('demoMicBtn');
 const demoMicIcon = document.getElementById('demoMicIcon');

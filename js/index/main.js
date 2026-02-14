@@ -139,6 +139,11 @@ async function dismissSubmittedBanner() {
 
 // ============ INIT ============
 document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize PWA features (moved from inline script in index.html)
+    if (typeof initPWA === 'function') {
+        initPWA({ onOnline: typeof updateDraftsSection === 'function' ? updateDraftsSection : function() {} });
+    }
+
     if (shouldShowOnboarding()) {
         window.location.href = 'permissions.html';
         return;

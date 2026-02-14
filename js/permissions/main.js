@@ -746,6 +746,9 @@ function finishSetup() {
 
 // ============ INIT ============
 function init() {
+    // Initialize PWA features (moved from inline script)
+    if (typeof initPWA === 'function') initPWA();
+
     log('=== FieldVoice Pro Permission Setup ===', 'info');
     log(`iOS: ${isIOS}, Safari: ${isSafari}, Secure: ${isSecureContext}`, 'info');
     log(`MediaDevices: ${hasMediaDevices}`, 'info');
