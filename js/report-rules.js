@@ -108,10 +108,10 @@ function getTodayDateString() {
  * @returns {boolean} True if report date matches today
  */
 function isReportFromToday(report) {
-  if (!report || !report.date) {
+  if (!report || !report.reportDate) {
     return false;
   }
-  return report.date === getTodayDateString();
+  return report.reportDate === getTodayDateString();
 }
 
 /**
@@ -121,10 +121,10 @@ function isReportFromToday(report) {
  * @returns {boolean} True if report is late
  */
 function isReportLate(report) {
-  if (!report || !report.date) {
+  if (!report || !report.reportDate) {
     return false;
   }
-  return report.date < getTodayDateString() && report.status !== REPORT_STATUS.SUBMITTED;
+  return report.reportDate < getTodayDateString() && report.status !== REPORT_STATUS.SUBMITTED;
 }
 
 // ============================================================================
@@ -162,7 +162,7 @@ function canStartNewReport(projectId) {
 
   // Check: In-progress report for TODAY (not blocked, but caller should continue)
   const inProgressToday = projectReports.find(
-    r => r.date === today && r.status !== REPORT_STATUS.SUBMITTED
+    r => r.reportDate === today && r.status !== REPORT_STATUS.SUBMITTED
   );
   if (inProgressToday) {
     return {
@@ -219,10 +219,10 @@ function getReportsByUrgency() {
   };
 
   for (const report of Object.values(reports)) {
-    if (report.date < today && report.status !== REPORT_STATUS.SUBMITTED) {
+    if (report.reportDate < today && report.status !== REPORT_STATUS.SUBMITTED) {
       // Late reports (previous days, not submitted)
       result.late.push(report);
-    } else if (report.date === today) {
+    } else if (report.reportDate === today) {
       // Today's reports
       if (report.status === REPORT_STATUS.DRAFT || report.status === REPORT_STATUS.PENDING_REFINE) {
         result.todayDrafts.push(report);
@@ -236,8 +236,8 @@ function getReportsByUrgency() {
     }
   }
 
-  // Sort late reports by date (oldest first)
-  result.late.sort((a, b) => a.date.localeCompare(b.date));
+  // Sort late reports by reportDate (oldest first)
+  result.late.sort((a, b) => a.reportDate.localeCompare(b.reportDate));
 
   // Sort today's reports by created_at (newest first)
   result.todayDrafts.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
@@ -537,7 +537,7 @@ function validateReportForSubmit(reportId) {
     errors.push('Project ID is required');
   }
 
-  if (!report.date) {
+  if (!report.reportDate) {
     errors.push('Report date is required');
   }
 

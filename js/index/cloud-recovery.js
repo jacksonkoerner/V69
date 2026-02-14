@@ -52,7 +52,7 @@ function recoverCloudDrafts() {
                     id: row.id,
                     project_id: row.project_id,
                     project_name: projectName,
-                    date: row.report_date,
+                    reportDate: row.report_date,
                     status: row.status || 'draft',
                     created_at: row.created_at,
                     updated_at: row.updated_at
@@ -84,7 +84,7 @@ function recoverCloudDrafts() {
                                     status: rd.status,
                                     createdAt: rd.created_at,
                                     lastSaved: rd.updated_at,
-                                    reportDate: localReports[rd.report_id]?.date || null
+                                    reportDate: localReports[rd.report_id]?.reportDate || null
                                 };
                                 saveReportData(rd.report_id, localData);
                                 console.log('[RECOVERY] Cached report_data for:', rd.report_id);
