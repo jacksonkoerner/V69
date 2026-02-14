@@ -68,9 +68,20 @@ function renderReportCards() {
     }
     if (orphanReports.length > 0) unknownProjectReports.push(...orphanReports);
 
-    // If no projects and no reports, show nothing
+    // If no projects and no reports, show empty state
     if (allProjects.length === 0 && allReports.length === 0) {
-        container.innerHTML = '';
+        container.innerHTML = `
+            <div class="bg-white border-2 border-dashed border-slate-300 p-8 text-center">
+                <div class="w-16 h-16 bg-slate-100 border-2 border-slate-200 flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-building text-slate-400 text-2xl"></i>
+                </div>
+                <p class="text-lg font-bold text-slate-600 mb-2">No projects yet</p>
+                <p class="text-sm text-slate-400 mb-4">Create one to get started.</p>
+                <a href="projects.html" class="inline-flex items-center gap-2 px-6 py-3 bg-dot-navy text-white font-bold uppercase tracking-wide hover:bg-dot-blue transition-colors text-sm">
+                    <i class="fas fa-plus"></i> Create Project
+                </a>
+            </div>
+        `;
         return;
     }
 
@@ -261,44 +272,3 @@ function updateReportStatus() {
     `;
 }
 
-function updateActiveProjectCard() {
-    const section = document.getElementById('activeProjectSection');
-    const project = getActiveProjectFromCache();
-
-    if (project) {
-        section.innerHTML = `
-            <div class="bg-white border-l-4 border-safety-green p-4 shadow-sm">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3 min-w-0 flex-1">
-                        <div class="w-10 h-10 bg-safety-green flex items-center justify-center shrink-0">
-                            <i class="fas fa-building text-white"></i>
-                        </div>
-                        <div class="min-w-0">
-                            <p class="text-[10px] font-bold text-safety-green uppercase tracking-wider">Active Project</p>
-                            <p class="font-bold text-lg text-slate-800 truncate">${escapeHtml(project.projectName)}</p>
-                            ${project.noabProjectNo ? `<p class="text-xs text-slate-500">#${escapeHtml(project.noabProjectNo)}</p>` : ''}
-                        </div>
-                    </div>
-                    <a href="projects.html" class="text-dot-blue hover:text-dot-navy transition-colors shrink-0 ml-2" title="Change Project">
-                        <i class="fas fa-exchange-alt"></i>
-                    </a>
-                </div>
-            </div>
-        `;
-    } else {
-        section.innerHTML = `
-            <a href="projects.html" class="block bg-orange-50 border-2 border-dashed border-dot-orange p-4 shadow-sm hover:bg-orange-100 transition-colors">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-dot-orange/10 border-2 border-dot-orange flex items-center justify-center shrink-0">
-                        <i class="fas fa-exclamation text-dot-orange"></i>
-                    </div>
-                    <div class="flex-1">
-                        <p class="text-xs font-bold text-dot-orange uppercase tracking-wider">No Project Selected</p>
-                        <p class="text-sm text-slate-600">Tap to configure a project</p>
-                    </div>
-                    <i class="fas fa-chevron-right text-dot-orange"></i>
-                </div>
-            </a>
-        `;
-    }
-}

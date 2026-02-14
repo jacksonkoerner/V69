@@ -13,14 +13,9 @@
 
 // Shared state — use var so other files can access via window.*
 var projectsCache = [];
-var activeProjectCache = null;
 
 function getProjects() {
     return projectsCache;
-}
-
-function getActiveProjectFromCache() {
-    return activeProjectCache;
 }
 
 function openProjectConfig() {
@@ -236,15 +231,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Cache projects for this page
         projectsCache = projects;
 
-        // Load active project (picker selection) for dashboard display
-        const activeId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
-        activeProjectCache = activeId ? await window.dataLayer.loadProjectById(activeId) : null;
-
         // Prune stale reports before rendering
         pruneCurrentReports();
 
         // Update UI - reports come from localStorage now
-        updateActiveProjectCard();
         renderReportCards();
         updateReportStatus();
 
@@ -263,7 +253,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
         console.error('Failed to initialize:', err);
         // Still update UI with whatever we have
-        updateActiveProjectCard();
         renderReportCards();
         updateReportStatus();
         recoverCloudDrafts();
