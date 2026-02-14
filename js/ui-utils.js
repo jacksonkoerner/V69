@@ -24,10 +24,15 @@ function generateId() {
 
 /**
  * Show toast notification
- * @param {string} message - Message to display
+ * @param {string} message - Message to display (plain text; use innerHTML for rich content via durationMs+onClick)
  * @param {string} type - 'success', 'warning', 'error', or 'info'
+ * @param {number} [durationMs=3000] - How long to show the toast
+ * @param {Function} [onClick] - Optional click callback (makes toast tappable; message can include HTML)
  */
-function showToast(message, type = 'success') {
+function showToast(message, type, durationMs, onClick) {
+    if (type === undefined) type = 'success';
+    if (!durationMs) durationMs = 3000;
+
     // Remove existing toast if any
     const existing = document.querySelector('.toast-msg');
     if (existing) existing.remove();
@@ -48,10 +53,20 @@ function showToast(message, type = 'success') {
 
     const toast = document.createElement('div');
     toast.className = `toast-msg fixed bottom-24 left-1/2 -translate-x-1/2 ${colors[type] || colors.success} text-white px-6 py-3 font-bold text-sm shadow-lg z-50 flex items-center gap-2 uppercase`;
-    toast.innerHTML = `<i class="fas ${icons[type] || icons.success}"></i>${escapeHtml(message)}`;
+    if (onClick) {
+        toast.style.cursor = 'pointer';
+        // Allow HTML in message for clickable toasts (undo link etc.)
+        toast.innerHTML = `<i class="fas ${icons[type] || icons.success}"></i>${message}`;
+        toast.addEventListener('click', function() {
+            toast.remove();
+            onClick();
+        });
+    } else {
+        toast.innerHTML = `<i class="fas ${icons[type] || icons.success}"></i>${escapeHtml(message)}`;
+    }
     document.body.appendChild(toast);
 
-    setTimeout(() => toast.remove(), 3000);
+    setTimeout(() => toast.remove(), durationMs);
 }
 
 /**

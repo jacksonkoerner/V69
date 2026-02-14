@@ -207,26 +207,36 @@ function updatePhotoUploadIndicator(photoId, status) {
 async function removePhoto(index) {
     console.log(`[PHOTO] Removing photo at index ${index}`);
     const photo = IS.report.photos[index];
+    if (!photo) return;
 
-    if (photo) {
-        // Delete from IndexedDB first
+    // Immediately remove from UI for responsive feel
+    const removedPhoto = IS.report.photos.splice(index, 1)[0];
+    saveReport();
+    renderSection('photos');
+
+    // Show undo toast (3 second window)
+    let undone = false;
+    showToast('Photo removed — <b>tap to undo</b>', 'info', 3000, function() {
+        undone = true;
+        IS.report.photos.splice(index, 0, removedPhoto);
+        saveReport();
+        renderSection('photos');
+        showToast('Photo restored', 'success');
+    });
+
+    // After undo window, actually delete from storage
+    setTimeout(async function() {
+        if (undone) return;
         try {
-            await window.idb.deletePhoto(photo.id);
-            console.log('[PHOTO] Deleted from IndexedDB:', photo.id);
+            await window.idb.deletePhoto(removedPhoto.id);
+            console.log('[PHOTO] Deleted from IndexedDB:', removedPhoto.id);
         } catch (err) {
             console.warn('[PHOTO] Failed to delete from IndexedDB:', err);
         }
-
-        // Delete from Supabase if it was uploaded
-        if (photo.storagePath) {
-            await deletePhotoFromSupabase(photo.id, photo.storagePath);
+        if (removedPhoto.storagePath) {
+            await deletePhotoFromSupabase(removedPhoto.id, removedPhoto.storagePath);
         }
-    }
-
-    IS.report.photos.splice(index, 1);
-    saveReport();
-    renderSection('photos');
-    showToast('Photo removed', 'info');
+    }, 3500);
 }
 
 // Update photo caption - save to localStorage and IndexedDB (Supabase on Submit)

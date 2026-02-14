@@ -470,30 +470,40 @@ e.target.value = '';
 }
 
 /**
- * Delete a photo in minimal mode
+ * Delete a photo in minimal mode — immediate delete with undo toast
  */
 async function deleteMinimalPhoto(idx) {
-if (!confirm('Delete this photo?')) return;
-
 const photo = IS.report.photos[idx];
-if (photo) {
-// Delete from IndexedDB first
-try {
-await window.idb.deletePhoto(photo.id);
-console.log('[PHOTO] Deleted from IndexedDB:', photo.id);
-} catch (err) {
-console.warn('[PHOTO] Failed to delete from IndexedDB:', err);
-}
+if (!photo) return;
 
-// Delete from Supabase if it was uploaded
-if (photo.storagePath) {
-await deletePhotoFromSupabase(photo.id, photo.storagePath);
-}
-}
-
-IS.report.photos.splice(idx, 1);
+// Immediately remove from UI for responsive feel
+const removedPhoto = IS.report.photos.splice(idx, 1)[0];
 saveReport();
 renderMinimalPhotos();
+
+// Show undo toast (3 second window)
+let undone = false;
+showToast('Photo removed — <b>tap to undo</b>', 'info', 3000, function() {
+    undone = true;
+    IS.report.photos.splice(idx, 0, removedPhoto);
+    saveReport();
+    renderMinimalPhotos();
+    showToast('Photo restored', 'success');
+});
+
+// After undo window, actually delete from storage
+setTimeout(async function() {
+    if (undone) return;
+    try {
+        await window.idb.deletePhoto(removedPhoto.id);
+        console.log('[PHOTO] Deleted from IndexedDB:', removedPhoto.id);
+    } catch (err) {
+        console.warn('[PHOTO] Failed to delete from IndexedDB:', err);
+    }
+    if (removedPhoto.storagePath) {
+        await deletePhotoFromSupabase(removedPhoto.id, removedPhoto.storagePath);
+    }
+}, 3500);
 }
 
 /**
