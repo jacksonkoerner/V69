@@ -100,6 +100,66 @@ async function loadReport() {
         }
     }
 
+    // Sprint 9: If still no data, try report_backup table as third fallback
+    // report_backup contains page_state JSONB written by report/autosave.js every 5s
+    if (!reportData && navigator.onLine) {
+        try {
+            console.log('[LOAD] report_data miss — trying Supabase report_backup...');
+            var rbResult = await supabaseClient
+                .from('report_backup')
+                .select('page_state, updated_at')
+                .eq('report_id', reportIdParam)
+                .maybeSingle();
+
+            if (rbResult.data && !rbResult.error && rbResult.data.page_state) {
+                console.log('[LOAD] Recovered report from report_backup');
+                var ps = rbResult.data.page_state;
+                reportData = {
+                    aiGenerated: ps.aiGenerated || null,
+                    originalInput: {
+                        weather: ps.overview?.weather || {},
+                        activities: ps.activities || [],
+                        operations: ps.operations || [],
+                        equipment: ps.equipment || [],
+                        safety: ps.safety || {},
+                        issues: ps.issues || '',
+                        qaqc: ps.qaqc || '',
+                        communications: ps.communications || '',
+                        visitors: ps.visitors || '',
+                        photos: []
+                    },
+                    userEdits: ps.userEdits || {},
+                    captureMode: ps.captureMode || 'guided',
+                    status: 'refined',
+                    createdAt: null,
+                    lastSaved: rbResult.data.updated_at || ps.savedAt,
+                    reportDate: null
+                };
+
+                // Get reportDate and createdAt from reports table
+                try {
+                    var metaResult2 = await supabaseClient
+                        .from('reports')
+                        .select('report_date, created_at')
+                        .eq('id', reportIdParam)
+                        .maybeSingle();
+                    if (metaResult2.data) {
+                        reportData.reportDate = metaResult2.data.report_date;
+                        reportData.createdAt = metaResult2.data.created_at;
+                    }
+                } catch (metaErr2) {
+                    console.warn('[LOAD] Could not fetch report metadata:', metaErr2);
+                }
+
+                // Cache back to localStorage for speed
+                saveReportData(reportIdParam, reportData);
+                showToast('Report recovered from backup', 'success');
+            }
+        } catch (err) {
+            console.error('[LOAD] report_backup recovery failed:', err);
+        }
+    }
+
     if (!reportData) {
         console.error('[LOAD] No report data found for:', reportIdParam);
         showToast('Report data not found. It may have been cleared.', 'error');
