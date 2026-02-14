@@ -197,7 +197,7 @@ function renderReports() {
                 <div class="flex justify-between items-center gap-2">
                     <div class="flex-1 min-w-0">
                         <h3 class="font-medium text-gray-900 text-sm truncate">${escapeHtml(report.projectName)}</h3>
-                        <p class="text-xs text-gray-500">${formatDate(report.reportDate)}</p>
+                        <p class="text-xs text-gray-500">${formatDate(report.reportDate, 'long')}</p>
                     </div>
                     <div class="flex-shrink-0">
                         ${report.pdfUrl
@@ -219,7 +219,7 @@ function renderReports() {
             <div class="flex justify-between items-start gap-3">
                 <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 truncate">${escapeHtml(report.projectName)}</h3>
-                    <p class="text-sm text-gray-600 mt-1">${formatDate(report.reportDate)}</p>
+                    <p class="text-sm text-gray-600 mt-1">${formatDate(report.reportDate, 'long')}</p>
                     ${report.submittedAt ? `<p class="text-xs text-gray-400 mt-2">Submitted ${formatDateTime(report.submittedAt)}</p>` : ''}
                 </div>
                 <div class="flex-shrink-0">
@@ -309,40 +309,8 @@ function retryLoad() {
 }
 
 // ============ Utility Functions ============
-
-function formatDate(dateStr) {
-    if (!dateStr) return 'N/A';
-    // Parse as local date to avoid timezone issues
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-        const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        return d.toLocaleDateString('en-US', {
-            weekday: 'long',
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
-    }
-    return dateStr;
-}
-
-function formatDateTime(isoStr) {
-    if (!isoStr) return '';
-    const d = new Date(isoStr);
-    return d.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit'
-    });
-}
-
-function escapeHtml(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
+// escapeHtml(), formatDate(), formatDateTime() now provided by ui-utils.js (loaded via script tag)
+// Archives uses formatDate(dateStr, 'long') for full weekday names (e.g. "Monday, Jan 5, 2026")
 
 // Make viewPdf available globally for onclick handlers
 window.viewPdf = viewPdf;
