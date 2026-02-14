@@ -15,8 +15,6 @@
 (function () {
     'use strict';
 
-    const AUTH_ROLE_KEY = 'fvp_auth_role';
-
     /**
      * Check if user is authenticated. If not, redirect to login.
      * Call this on every protected page.
@@ -69,7 +67,7 @@
      * @returns {string} 'inspector' or 'admin'
      */
     function getAuthRole() {
-        return localStorage.getItem(AUTH_ROLE_KEY) || 'inspector';
+        return localStorage.getItem(STORAGE_KEYS.AUTH_ROLE) || 'inspector';
     }
 
     /**
@@ -77,7 +75,7 @@
      * @param {string} role - 'inspector' or 'admin'
      */
     function setAuthRole(role) {
-        localStorage.setItem(AUTH_ROLE_KEY, role);
+        localStorage.setItem(STORAGE_KEYS.AUTH_ROLE, role);
     }
 
     /**
@@ -86,7 +84,7 @@
     async function signOut() {
         try {
             await supabaseClient.auth.signOut();
-            localStorage.removeItem(AUTH_ROLE_KEY);
+            localStorage.removeItem(STORAGE_KEYS.AUTH_ROLE);
             console.log('[AUTH] User signed out');
             window.location.href = 'login.html';
         } catch (e) {
@@ -131,10 +129,10 @@
 
         // Store profile info in localStorage (raw values, no JSON.stringify)
         if (data && data.id) {
-            localStorage.setItem('fvp_user_id', data.id);
-            localStorage.setItem('fvp_user_name', data.full_name || '');
-            localStorage.setItem('fvp_user_email', data.email || '');
-            localStorage.setItem('fvp_auth_user_id', authUserId);
+            localStorage.setItem(STORAGE_KEYS.USER_ID, data.id);
+            localStorage.setItem(STORAGE_KEYS.USER_NAME, data.full_name || '');
+            localStorage.setItem(STORAGE_KEYS.USER_EMAIL, data.email || '');
+            localStorage.setItem(STORAGE_KEYS.AUTH_USER_ID, authUserId);
         }
 
         return data;
