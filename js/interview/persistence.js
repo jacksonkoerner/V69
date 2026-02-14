@@ -57,8 +57,7 @@ async function confirmCancelReport() {
         // Also delete orphaned report data (fvp_report_{id})
         deleteReportData(IS.currentReportId);
 
-        // Clear any sync queue items for this report
-        clearSyncQueueForReport(IS.currentReportId);
+        // Sprint 15 (OFF-02): sync queue removed — no queue items to clear
 
         // Reset local state
         IS.currentReportId = null;
@@ -932,14 +931,21 @@ async function uploadPhotoToSupabase(file, photoId) {
             throw error;
         }
 
-        // Get public URL
-        const { data: urlData } = supabaseClient.storage
+        // SEC-04: Use signed URL instead of public URL for security
+        // NOTE: Signed URLs expire after 1 hour. Photos stored in IndexedDB/localStorage
+        // with signed URLs may go stale and fail to load. Future consideration: implement
+        // a URL refresh mechanism when displaying photos, or re-sign URLs on demand.
+        const { data: urlData, error: urlError } = await supabaseClient.storage
             .from('report-photos')
-            .getPublicUrl(fileName);
+            .createSignedUrl(fileName, 3600); // 1 hour expiry
+
+        if (urlError) {
+            console.error('Failed to create signed photo URL:', urlError);
+        }
 
         return {
             storagePath: fileName,
-            publicUrl: urlData?.publicUrl || ''
+            publicUrl: urlData?.signedUrl || ''
         };
     } catch (err) {
         console.error('Photo upload failed:', err);
@@ -998,7 +1004,19 @@ async function uploadPendingPhotos() {
             // Update IndexedDB with synced status and reportId
             photo.reportId = IS.currentReportId;
             photo.syncStatus = 'synced';
+            photo.base64 = null; // Clear base64 from IndexedDB after successful upload
             await window.idb.savePhoto(photo);
+
+            // PHO-02: Also update the matching entry in IS.report.photos[]
+            // so downstream code (buildProcessPayload, etc.) has correct URLs
+            const isPhoto = (IS.report.photos || []).find(function(p) { return p.id === photo.id; });
+            if (isPhoto) {
+                isPhoto.storagePath = photo.storagePath;
+                isPhoto.url = photo.url;
+                isPhoto.uploadStatus = 'uploaded';
+                console.log('[PHOTO] Updated IS.report.photos entry:', photo.id);
+            }
+
             console.log('[PHOTO] Synced to Supabase:', photo.id);
         } catch (err) {
             console.error('[PHOTO] Failed to sync photo:', photo.id, err);
@@ -1044,19 +1062,4 @@ async function deleteReportFromSupabase(reportId) {
     }
 }
 
-/**
- * Clear sync queue items for a specific report
- * @param {string} reportId - The report UUID
- */
-function clearSyncQueueForReport(reportId) {
-    if (!reportId) return;
-
-    try {
-        const queue = getStorageItem(STORAGE_KEYS.SYNC_QUEUE) || [];
-        const filtered = queue.filter(item => item.reportId !== reportId);
-        setStorageItem(STORAGE_KEYS.SYNC_QUEUE, filtered);
-        console.log('[CANCEL] Cleared sync queue for report:', reportId);
-    } catch (error) {
-        console.error('[CANCEL] Error clearing sync queue:', error);
-    }
-}
+// clearSyncQueueForReport removed (Sprint 15, OFF-02) — sync queue no longer exists

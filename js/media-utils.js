@@ -160,13 +160,18 @@ async function uploadLogoToStorage(file, projectId) {
             return null;
         }
 
-        // Get public URL
-        const { data: urlData } = supabaseClient.storage
+        // SEC-03/04: Use signed URL instead of public URL for security
+        const { data: urlData, error: urlError } = await supabaseClient.storage
             .from('project-logos')
-            .getPublicUrl(filePath);
+            .createSignedUrl(filePath, 3600); // 1 hour expiry
 
-        console.log('[LOGO] Uploaded successfully:', urlData.publicUrl);
-        return urlData.publicUrl;
+        if (urlError) {
+            console.error('[LOGO] Failed to create signed URL:', urlError);
+            return null;
+        }
+
+        console.log('[LOGO] Uploaded successfully with signed URL');
+        return urlData.signedUrl;
     } catch (err) {
         console.warn('[LOGO] Upload failed (offline?):', err.message);
         return null;

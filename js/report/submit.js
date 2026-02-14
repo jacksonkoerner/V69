@@ -114,12 +114,15 @@ async function uploadPDFToStorage(pdf) {
 
     if (result.error) throw new Error('PDF upload failed: ' + result.error.message);
 
-    var urlResult = supabaseClient
+    // SEC-03: Use signed URL instead of public URL for security
+    var urlResult = await supabaseClient
         .storage
         .from('report-pdfs')
-        .getPublicUrl(storagePath);
+        .createSignedUrl(storagePath, 3600); // 1 hour expiry
 
-    return urlResult.data.publicUrl;
+    if (urlResult.error) throw new Error('Failed to create signed PDF URL: ' + urlResult.error.message);
+
+    return urlResult.data.signedUrl;
 }
 
 /**

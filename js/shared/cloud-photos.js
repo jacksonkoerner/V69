@@ -32,14 +32,18 @@ async function fetchCloudPhotos(reportId) {
             return [];
         }
 
-        return result.data.map(function(row) {
-            // Generate public URL from storage_path if photo_url is missing or is a blob URL
+        // SEC-04: Use signed URLs instead of public URLs for security
+        // NOTE: Signed URLs expire after 1 hour. If photos are cached (IndexedDB/localStorage)
+        // with signed URLs, they may go stale and fail to load. Future consideration: implement
+        // a URL refresh mechanism or re-sign URLs on demand when displaying photos.
+        return Promise.all(result.data.map(async function(row) {
+            // Generate signed URL from storage_path if photo_url is missing or is a blob URL
             var url = row.photo_url || '';
             if ((!url || url.startsWith('blob:')) && row.storage_path) {
-                var urlResult = supabaseClient.storage
+                var urlResult = await supabaseClient.storage
                     .from('report-photos')
-                    .getPublicUrl(row.storage_path);
-                url = urlResult.data?.publicUrl || '';
+                    .createSignedUrl(row.storage_path, 3600); // 1 hour expiry
+                url = urlResult.data?.signedUrl || '';
             }
 
             // Parse taken_at into date/time strings
@@ -67,7 +71,7 @@ async function fetchCloudPhotos(reportId) {
                 fileName: row.filename || '',
                 fileType: row.photo_type || ''
             };
-        });
+        }));
     } catch (err) {
         console.error('[CLOUD-PHOTOS] Failed to fetch:', err);
         return [];
@@ -102,12 +106,13 @@ async function fetchCloudPhotosBatch(reportIds) {
             var row = result.data[i];
             if (!photoMap[row.report_id]) photoMap[row.report_id] = [];
 
+            // SEC-04: Use signed URL instead of public URL
             var url = row.photo_url || '';
             if ((!url || url.startsWith('blob:')) && row.storage_path) {
-                var urlResult = supabaseClient.storage
+                var urlResult = await supabaseClient.storage
                     .from('report-photos')
-                    .getPublicUrl(row.storage_path);
-                url = urlResult.data?.publicUrl || '';
+                    .createSignedUrl(row.storage_path, 3600); // 1 hour expiry
+                url = urlResult.data?.signedUrl || '';
             }
 
             var dateStr = '--';
