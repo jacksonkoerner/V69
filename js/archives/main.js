@@ -6,6 +6,7 @@
 
 let allReports = [];
 let allProjects = [];
+let _listenersAttached = false;
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', init);
@@ -18,7 +19,11 @@ async function init() {
         return;
     }
 
-    setupEventListeners();
+    // Only attach event listeners once (init can be called again on 'online')
+    if (!_listenersAttached) {
+        setupEventListeners();
+        _listenersAttached = true;
+    }
 
     // Check online status — if offline, try cached data
     if (!navigator.onLine) {

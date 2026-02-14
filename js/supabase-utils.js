@@ -51,7 +51,14 @@ function fromSupabaseProject(row) {
         status: row.status || 'active',
         userId: row.user_id || null,
         // Contractors + crews from JSONB (single table approach)
-        contractors: (typeof row.contractors === 'string' ? JSON.parse(row.contractors) : row.contractors) || [],
+        contractors: (function() {
+            try {
+                return (typeof row.contractors === 'string' ? JSON.parse(row.contractors) : row.contractors) || [];
+            } catch (e) {
+                console.warn('[supabase-utils] Malformed contractors JSON for project', row.id, ':', e.message);
+                return [];
+            }
+        })(),
         createdAt: row.created_at,
         updatedAt: row.updated_at
     };

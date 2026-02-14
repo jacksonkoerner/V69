@@ -707,20 +707,14 @@ async function getReport() {
     // If we have a reportId, try to restore existing data first
     if (urlReportId) {
         // 1. Try localStorage (fast, sync)
-        var localDraft = loadFromLocalStorage.call({ currentReportId: urlReportId } , urlReportId);
-        // loadFromLocalStorage reads IS.currentReportId — temporarily set it
         var prevId = IS.currentReportId;
         IS.currentReportId = urlReportId;
-        localDraft = loadFromLocalStorage();
+        var localDraft = loadFromLocalStorage();
         IS.currentReportId = prevId;
 
         if (localDraft) {
             console.log('[getReport] Restored from localStorage');
             var report = createFreshReport();
-            restoreFromLocalStorage.call(null, localDraft);
-            // restoreFromLocalStorage modifies IS.report, but IS.report isn't set yet.
-            // Instead, build report from localDraft directly:
-            report = createFreshReport();
             applyDraftToReport(report, localDraft);
             return report;
         }

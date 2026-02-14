@@ -28,6 +28,24 @@ var arMeasureState = {
 // ── Open AR Measure ──────────────────────────────────────────────────────────
 
 async function openARMeasure() {
+    // Lazy-load Three.js if not already loaded
+    if (typeof THREE === 'undefined') {
+        try {
+            await new Promise(function(resolve, reject) {
+                var script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';
+                script.onload = resolve;
+                script.onerror = function() { reject(new Error('Failed to load Three.js')); };
+                document.head.appendChild(script);
+            });
+            console.log('[AR] Three.js loaded on demand');
+        } catch (e) {
+            console.error('[AR] Could not load Three.js:', e);
+            if (typeof showToast === 'function') showToast('AR unavailable — library load failed', 'error');
+            return;
+        }
+    }
+
     var overlay = document.getElementById('arMeasureOverlay');
     if (!overlay) return;
     overlay.classList.remove('hidden');

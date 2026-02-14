@@ -37,10 +37,10 @@ async function executeDeleteReport() {
         // 1. Delete from localStorage
         deleteReportData(RS.currentReportId);
 
-        // 2. Remove from current reports tracker
-        var currentReports = JSON.parse(localStorage.getItem('fvp_current_reports') || '{}');
-        delete currentReports[RS.currentReportId];
-        localStorage.setItem('fvp_current_reports', JSON.stringify(currentReports));
+        // 2. Remove from current reports tracker (uses helper for IndexedDB write-through)
+        if (typeof deleteCurrentReport === 'function') {
+            deleteCurrentReport(RS.currentReportId);
+        }
 
         // 3. Delete from IndexedDB
         if (window.idb) {

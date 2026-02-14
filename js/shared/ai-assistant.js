@@ -8,7 +8,9 @@
 
     // ── Config ──
     const AI_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-ai-chat';
-    const STORAGE_KEY = 'fvp_ai_conversation';
+    // Namespace conversation per user to prevent cross-user leakage on shared devices
+    const _userId = (typeof STORAGE_KEYS !== 'undefined' && localStorage.getItem(STORAGE_KEYS.AUTH_USER_ID)) || '';
+    const STORAGE_KEY = _userId ? 'fvp_ai_conversation_' + _userId : 'fvp_ai_conversation';
     const MAX_HISTORY = 50;
 
     // ── State ──
@@ -736,17 +738,16 @@
     // ── Project Context Helper ──
     function getProjectContext() {
         try {
-            const pid = localStorage.getItem('fvp_active_project');
+            const pid = localStorage.getItem(
+                (typeof STORAGE_KEYS !== 'undefined' && STORAGE_KEYS.ACTIVE_PROJECT_ID)
+                    ? STORAGE_KEYS.ACTIVE_PROJECT_ID
+                    : 'fvp_active_project_id'
+            );
             if (!pid) return null;
-            // Try to find project data in any localStorage key
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && key.includes('project')) {
-                    try {
-                        const val = JSON.parse(localStorage.getItem(key));
-                        if (val && val.id === pid) return val;
-                    } catch (e) {}
-                }
+            // Look up project from cached projects data
+            if (typeof getStorageItem === 'function') {
+                var projects = getStorageItem(STORAGE_KEYS.PROJECTS) || {};
+                if (projects[pid]) return projects[pid];
             }
             return { id: pid };
         } catch (e) {
