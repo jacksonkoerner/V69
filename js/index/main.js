@@ -59,6 +59,8 @@ function pruneCurrentReports() {
     if (pruned > 0) {
         setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, reports);
         console.log(`[PRUNE] Pruned ${pruned} stale/malformed report(s) from local map`);
+        // Sync pruned state to IndexedDB
+        syncCurrentReportsToIDB();
     }
 }
 
@@ -211,6 +213,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Still set the flag to avoid retrying on every load
             localStorage.setItem(MIGRATION_KEY, 'failed-' + new Date().toISOString());
         }
+    }
+
+    // Hydrate current reports from IndexedDB if localStorage is empty/stale
+    try {
+        await hydrateCurrentReportsFromIDB();
+    } catch (hydErr) {
+        console.warn('[INDEX] IDB hydration failed:', hydErr);
     }
 
     try {

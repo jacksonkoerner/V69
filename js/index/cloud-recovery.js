@@ -63,6 +63,8 @@ function recoverCloudDrafts() {
             if (recovered > 0) {
                 setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, localReports);
                 console.log(`[RECOVERY] Recovered ${recovered} draft(s) from cloud`);
+                // Sync to IndexedDB after recovery
+                syncCurrentReportsToIDB();
                 renderReportCards();
 
                 // Sprint 4: Also cache report_data for recovered reports

@@ -7,7 +7,7 @@
     'use strict';
 
     const DB_NAME = 'fieldvoice-pro';
-    const DB_VERSION = 3; // Bumped to remove dead archives store
+    const DB_VERSION = 4; // v4: add currentReports store
 
     let db = null;
 
@@ -62,6 +62,14 @@
                 if (database.objectStoreNames.contains('archives')) {
                     database.deleteObjectStore('archives');
                     console.log('Deleted archives object store');
+                }
+
+                // Create currentReports store (v4)
+                if (!database.objectStoreNames.contains('currentReports')) {
+                    const crStore = database.createObjectStore('currentReports', { keyPath: 'id' });
+                    crStore.createIndex('project_id', 'project_id', { unique: false });
+                    crStore.createIndex('status', 'status', { unique: false });
+                    console.log('Created currentReports object store');
                 }
             };
         });
@@ -387,6 +395,118 @@
     }
 
     // ============================================
+    // CURRENT REPORTS STORE (v4)
+    // ============================================
+
+    /**
+     * Gets all current reports from IndexedDB
+     * @returns {Promise<Object>} Map of report id → report object
+     */
+    function getAllCurrentReports() {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('currentReports')) {
+                    resolve({});
+                    return;
+                }
+                var transaction = database.transaction(['currentReports'], 'readonly');
+                var store = transaction.objectStore('currentReports');
+                var request = store.getAll();
+
+                request.onsuccess = function(event) {
+                    var arr = event.target.result || [];
+                    var map = {};
+                    arr.forEach(function(r) { map[r.id] = r; });
+                    resolve(map);
+                };
+
+                request.onerror = function(event) {
+                    console.error('Error getting all current reports:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    /**
+     * Saves a single current report to IndexedDB
+     * @param {Object} report - Report object (must have id)
+     * @returns {Promise<void>}
+     */
+    function saveCurrentReportIDB(report) {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('currentReports')) {
+                    resolve();
+                    return;
+                }
+                var transaction = database.transaction(['currentReports'], 'readwrite');
+                var store = transaction.objectStore('currentReports');
+                var request = store.put(report);
+
+                request.onsuccess = function() { resolve(); };
+                request.onerror = function(event) {
+                    console.error('Error saving current report to IDB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    /**
+     * Deletes a single current report from IndexedDB
+     * @param {string} reportId - The report UUID
+     * @returns {Promise<void>}
+     */
+    function deleteCurrentReportIDB(reportId) {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('currentReports')) {
+                    resolve();
+                    return;
+                }
+                var transaction = database.transaction(['currentReports'], 'readwrite');
+                var store = transaction.objectStore('currentReports');
+                var request = store.delete(reportId);
+
+                request.onsuccess = function() { resolve(); };
+                request.onerror = function(event) {
+                    console.error('Error deleting current report from IDB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    /**
+     * Replaces all current reports in IndexedDB (bulk sync)
+     * @param {Object} reportsMap - Map of report id → report object
+     * @returns {Promise<void>}
+     */
+    function replaceAllCurrentReports(reportsMap) {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('currentReports')) {
+                    resolve();
+                    return;
+                }
+                var transaction = database.transaction(['currentReports'], 'readwrite');
+                var store = transaction.objectStore('currentReports');
+                store.clear();
+
+                var reports = Object.values(reportsMap || {});
+                reports.forEach(function(r) { store.put(r); });
+
+                transaction.oncomplete = function() { resolve(); };
+                transaction.onerror = function(event) {
+                    console.error('Error replacing current reports in IDB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    // ============================================
     // GENERAL
     // ============================================
 
@@ -443,6 +563,12 @@
         getPhotosBySyncStatus,
         deletePhoto,
         deletePhotosByReportId,
+
+        // Current reports store
+        getAllCurrentReports,
+        saveCurrentReportIDB,
+        deleteCurrentReportIDB,
+        replaceAllCurrentReports,
 
         // General
         clearStore

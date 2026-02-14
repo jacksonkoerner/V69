@@ -231,6 +231,7 @@ function getCurrentReport(reportId) {
 /**
  * Saves a report to current reports
  * Updates the report's updated_at timestamp automatically
+ * Also writes through to IndexedDB as durable backup.
  *
  * @param {Report} report - The report object to save (must have id property)
  * @returns {boolean} True on success, false on failure
@@ -246,11 +247,21 @@ function saveCurrentReport(report) {
   report.updated_at = Date.now();
   reports[report.id] = report;
 
-  return setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, reports);
+  const ok = setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, reports);
+
+  // Write-through to IndexedDB (fire-and-forget)
+  if (ok && typeof window !== 'undefined' && window.idb && window.idb.saveCurrentReportIDB) {
+    window.idb.saveCurrentReportIDB(report).catch(function(e) {
+      console.warn('[STORAGE] IDB write-through failed for report:', report.id, e);
+    });
+  }
+
+  return ok;
 }
 
 /**
  * Deletes a report from current reports
+ * Also removes from IndexedDB backup.
  *
  * @param {string} reportId - The report UUID to delete
  * @returns {boolean} True on success, false on failure
@@ -259,12 +270,25 @@ function deleteCurrentReport(reportId) {
   const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS);
 
   if (!reports || typeof reports !== 'object') {
+    // Still try to remove from IDB
+    if (typeof window !== 'undefined' && window.idb && window.idb.deleteCurrentReportIDB) {
+      window.idb.deleteCurrentReportIDB(reportId).catch(function() {});
+    }
     return true; // Nothing to delete
   }
 
   delete reports[reportId];
 
-  return setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, reports);
+  const ok = setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, reports);
+
+  // Remove from IndexedDB too (fire-and-forget)
+  if (typeof window !== 'undefined' && window.idb && window.idb.deleteCurrentReportIDB) {
+    window.idb.deleteCurrentReportIDB(reportId).catch(function(e) {
+      console.warn('[STORAGE] IDB delete failed for report:', reportId, e);
+    });
+  }
+
+  return ok;
 }
 
 /**
@@ -342,6 +366,69 @@ function deleteReportData(reportId) {
   console.log('Report data deleted:', key);
 }
 
+/**
+ * Hydrates fvp_current_reports from IndexedDB → localStorage if localStorage is empty.
+ * Called once on page load by pages that need current reports (Dashboard).
+ * This enables cross-device recovery: IDB may have reports from a previous
+ * cloud recovery that localStorage lost (iOS 7-day eviction, cleared cache).
+ *
+ * @returns {Promise<boolean>} True if hydration happened, false otherwise
+ */
+async function hydrateCurrentReportsFromIDB() {
+  if (typeof window === 'undefined' || !window.idb || !window.idb.getAllCurrentReports) {
+    return false;
+  }
+
+  const localReports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS);
+  const hasLocal = localReports && typeof localReports === 'object' && Object.keys(localReports).length > 0;
+
+  try {
+    const idbReports = await window.idb.getAllCurrentReports();
+    const idbKeys = Object.keys(idbReports);
+
+    if (idbKeys.length === 0) return false;
+
+    if (!hasLocal) {
+      // localStorage empty, restore from IDB
+      setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, idbReports);
+      console.log(`[STORAGE] Hydrated ${idbKeys.length} current reports from IDB → localStorage`);
+      return true;
+    }
+
+    // Merge: add any IDB reports missing from localStorage
+    let merged = 0;
+    const mergedReports = { ...localReports };
+    for (const id of idbKeys) {
+      if (!mergedReports[id]) {
+        mergedReports[id] = idbReports[id];
+        merged++;
+      }
+    }
+    if (merged > 0) {
+      setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, mergedReports);
+      console.log(`[STORAGE] Merged ${merged} reports from IDB into localStorage`);
+      return true;
+    }
+  } catch (e) {
+    console.warn('[STORAGE] IDB hydration failed:', e);
+  }
+  return false;
+}
+
+/**
+ * Syncs all current reports from localStorage → IndexedDB.
+ * Called after bulk operations (prune, cloud recovery) that modify
+ * the entire fvp_current_reports map.
+ */
+function syncCurrentReportsToIDB() {
+  if (typeof window === 'undefined' || !window.idb || !window.idb.replaceAllCurrentReports) return;
+
+  const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
+  window.idb.replaceAllCurrentReports(reports).catch(function(e) {
+    console.warn('[STORAGE] Bulk IDB sync failed:', e);
+  });
+}
+
 // Expose to window for non-module scripts
 if (typeof window !== 'undefined') {
   window.STORAGE_KEYS = STORAGE_KEYS;
@@ -357,4 +444,6 @@ if (typeof window !== 'undefined') {
   window.getReportData = getReportData;
   window.saveReportData = saveReportData;
   window.deleteReportData = deleteReportData;
+  window.hydrateCurrentReportsFromIDB = hydrateCurrentReportsFromIDB;
+  window.syncCurrentReportsToIDB = syncCurrentReportsToIDB;
 }
