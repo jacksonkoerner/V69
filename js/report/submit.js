@@ -177,13 +177,13 @@ async function cleanupLocalStorage() {
 
     // v6.9: Keep entry in fvp_current_reports with submitted status + timestamp
     // Dashboard will show it for 24hrs, then pruning removes it
-    var currentReports = JSON.parse(localStorage.getItem('fvp_current_reports') || '{}');
+    var currentReports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
     if (currentReports[RS.currentReportId]) {
         currentReports[RS.currentReportId].status = 'submitted';
         currentReports[RS.currentReportId].submitted_at = new Date().toISOString();
         currentReports[RS.currentReportId].updated_at = Date.now();
     }
-    localStorage.setItem('fvp_current_reports', JSON.stringify(currentReports));
+    setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, currentReports);
 
     if (window.idb && typeof window.idb.deletePhotosByReportId === 'function') {
         try {
