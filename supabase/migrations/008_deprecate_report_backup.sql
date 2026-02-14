@@ -1,0 +1,12 @@
+-- Sprint 13: Deprecate report_backup table
+--
+-- The report_backup table was used by report/autosave.js to sync page state
+-- every 5 seconds. With report_data now serving as the authoritative store
+-- for AI-generated content + user edits (synced on every autosave), and
+-- interview_backup covering draft capture state, report_backup is redundant.
+--
+-- JS code no longer writes to or reads from report_backup.
+-- The table is kept for now as a safety net. It can be DROPped in a future
+-- migration once we're confident report_data covers all recovery scenarios.
+--
+-- DO NOT DROP TABLE report_backup; -- future migration

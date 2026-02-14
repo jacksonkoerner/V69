@@ -84,6 +84,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Setup auto-save listeners
         setupAutoSave();
 
+        // Start Realtime subscriptions for multi-device sync
+        if (typeof initRealtimeSync === 'function') initRealtimeSync();
+
         // Initialize auto-expand textareas
         initAllAutoExpandTextareas();
 

@@ -31,6 +31,9 @@ async function init() {
 
     await loadProjects();
     await loadReports();
+
+    // Start Realtime subscriptions for multi-device sync
+    if (typeof initRealtimeSync === 'function') initRealtimeSync();
 }
 
 function setupEventListeners() {

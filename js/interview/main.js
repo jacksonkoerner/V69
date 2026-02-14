@@ -283,6 +283,9 @@ updateMinimalWeatherDisplay();
 
 checkAndShowWarningBanner();
 checkDictationHintBanner();
+
+// Start Realtime subscriptions for multi-device sync
+if (typeof initRealtimeSync === 'function') initRealtimeSync();
 } catch (error) {
 console.error('Initialization failed:', error);
 hideLoadingOverlay();

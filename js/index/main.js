@@ -250,6 +250,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Fire-and-forget: recover drafts missing from localStorage
         recoverCloudDrafts();
 
+        // Start Realtime subscriptions for multi-device sync
+        if (typeof initRealtimeSync === 'function') initRealtimeSync();
+
         // Show submitted banner if there are submitted reports today and not dismissed this session
         const bannerDismissedThisSession = sessionStorage.getItem('fvp_submitted_banner_dismissed') === 'true';
         const { todaySubmitted } = getReportsByUrgency();

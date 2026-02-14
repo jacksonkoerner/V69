@@ -80,11 +80,28 @@ async function handleSignIn() {
                     screen: (screen.width || 0) + 'x' + (screen.height || 0),
                     capturedAt: new Date().toISOString()
                 };
+                // Backwards compat: still write to user_profiles.device_id
                 supabaseClient
                     .from('user_profiles')
                     .update({ device_id: deviceId, device_info: deviceInfo })
                     .eq('auth_user_id', data.user.id)
                     .then(() => console.log('[LOGIN] Updated device_id and device_info on profile'));
+
+                // Sprint 13: Upsert to user_devices (authoritative multi-device table)
+                if (profile && profile.id) {
+                    supabaseClient
+                        .from('user_devices')
+                        .upsert({
+                            user_id: profile.id,
+                            device_id: deviceId,
+                            device_info: deviceInfo,
+                            last_active: new Date().toISOString()
+                        }, { onConflict: 'user_id,device_id' })
+                        .then(function(res) {
+                            if (res.error) console.warn('[LOGIN] user_devices upsert failed:', res.error.message);
+                            else console.log('[LOGIN] user_devices upserted for sign-in');
+                        });
+                }
             }
 
             window.location.href = 'index.html';
@@ -232,6 +249,22 @@ async function handleSignUp() {
             localStorage.setItem(STORAGE_KEYS.USER_NAME, profile.full_name || name);
             localStorage.setItem(STORAGE_KEYS.USER_EMAIL, profile.email || email);
             localStorage.setItem(STORAGE_KEYS.AUTH_USER_ID, data.user.id);
+
+            // Sprint 13: Upsert to user_devices (authoritative multi-device table)
+            if (deviceId) {
+                supabaseClient
+                    .from('user_devices')
+                    .upsert({
+                        user_id: profile.id,
+                        device_id: deviceId,
+                        device_info: profileRow.device_info,
+                        last_active: new Date().toISOString()
+                    }, { onConflict: 'user_id,device_id' })
+                    .then(function(res) {
+                        if (res.error) console.warn('[LOGIN] user_devices upsert failed:', res.error.message);
+                        else console.log('[LOGIN] user_devices upserted for sign-up');
+                    });
+            }
         }
 
         // Cache org_id in localStorage
