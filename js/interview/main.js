@@ -183,8 +183,11 @@ IS.currentReportId = generateId();
 console.warn('[QUICK-INTERVIEW] No reportId in URL — generated fallback:', IS.currentReportId);
 }
 
-// LOCALSTORAGE-FIRST: Check if we have a localStorage draft with unsaved changes
-// This recovers data if user swiped away the app without clicking FINISH
+// Sprint 11: getReport() now handles the full recovery chain:
+// localStorage → IndexedDB → Supabase interview_backup → create fresh
+// The code below is a safety net: if getReport returned a fresh report but
+// localStorage/IDB has data (e.g., currentReportId wasn't set yet during getReport),
+// we still recover it here.
 updateLoadingStatus('Checking for saved draft...');
 let localDraft = loadFromLocalStorage();
 
@@ -194,47 +197,8 @@ localDraft = await loadDraftFromIDB();
 }
 
 if (localDraft) {
-console.log('[INIT] Found draft, restoring...');
+console.log('[INIT] Found local draft, restoring...');
 restoreFromLocalStorage(localDraft);
-}
-
-// Sprint 7: SUPABASE FALLBACK — if no local draft, check interview_backup table
-// This enables cross-device recovery (start on phone → phone dies → open laptop)
-if (!localDraft && IS.currentReportId && navigator.onLine) {
-try {
-updateLoadingStatus('Checking cloud backup...');
-const { data: backup, error } = await supabaseClient
-    .from('interview_backup')
-    .select('page_state, updated_at')
-    .eq('report_id', IS.currentReportId)
-    .maybeSingle();
-
-if (!error && backup && backup.page_state) {
-    console.log('[INIT] Recovered interview data from Supabase interview_backup, saved at:', backup.updated_at);
-    const pageState = backup.page_state;
-
-    // Restore page_state fields into IS.report (same structure as buildInterviewPageState)
-    if (pageState.captureMode) IS.report.meta.captureMode = pageState.captureMode;
-    if (pageState.freeform_entries) IS.report.freeform_entries = pageState.freeform_entries;
-    if (pageState.fieldNotes) IS.report.fieldNotes = { ...IS.report.fieldNotes, ...pageState.fieldNotes };
-    if (pageState.guidedNotes) IS.report.guidedNotes = { ...IS.report.guidedNotes, ...pageState.guidedNotes };
-    if (pageState.activities) IS.report.activities = pageState.activities;
-    if (pageState.operations) IS.report.operations = pageState.operations;
-    if (pageState.equipment) IS.report.equipment = pageState.equipment;
-    if (pageState.equipmentRows) IS.report.equipmentRows = pageState.equipmentRows;
-    if (pageState.overview) IS.report.overview = { ...IS.report.overview, ...pageState.overview };
-    if (pageState.safety) IS.report.safety = { ...IS.report.safety, ...pageState.safety };
-    if (pageState.generalIssues) IS.report.generalIssues = pageState.generalIssues;
-    if (pageState.toggleStates) IS.report.toggleStates = pageState.toggleStates;
-    if (pageState.entries) IS.report.entries = pageState.entries;
-
-    // Cache to localStorage so subsequent loads are fast
-    saveToLocalStorage();
-    showToast('Draft recovered from cloud backup', 'success');
-}
-} catch (err) {
-console.warn('[INIT] interview_backup recovery failed:', err);
-}
 }
 
 // Sprint 1 fix: Load project from the REPORT's project_id, not ACTIVE_PROJECT_ID.

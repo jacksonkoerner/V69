@@ -11,15 +11,118 @@ let isSaving = false;
 // getReportKey() removed in Task 3 — UUID-only payload
 
 /**
- * Load report from Supabase
- * v6.6.15: Simplified - always create fresh reports
- * With the new composite report system, each session creates a new report,
- * so we don't lookup existing reports by project+date
+ * Load report — try localStorage → IDB → Supabase interview_backup → fresh
+ * Sprint 11: Refactored to restore existing data before creating fresh.
+ * Returns a populated report object if prior data exists, fresh otherwise.
  */
 async function getReport() {
-    // Clear any stale report ID - each session starts fresh
+    const urlReportId = new URLSearchParams(window.location.search).get('reportId');
+
+    // If we have a reportId, try to restore existing data first
+    if (urlReportId) {
+        // 1. Try localStorage (fast, sync)
+        var localDraft = loadFromLocalStorage.call({ currentReportId: urlReportId } , urlReportId);
+        // loadFromLocalStorage reads IS.currentReportId — temporarily set it
+        var prevId = IS.currentReportId;
+        IS.currentReportId = urlReportId;
+        localDraft = loadFromLocalStorage();
+        IS.currentReportId = prevId;
+
+        if (localDraft) {
+            console.log('[getReport] Restored from localStorage');
+            var report = createFreshReport();
+            restoreFromLocalStorage.call(null, localDraft);
+            // restoreFromLocalStorage modifies IS.report, but IS.report isn't set yet.
+            // Instead, build report from localDraft directly:
+            report = createFreshReport();
+            applyDraftToReport(report, localDraft);
+            return report;
+        }
+
+        // 2. Try IndexedDB
+        if (window.idb && window.idb.getDraftDataIDB) {
+            try {
+                var idbData = await window.idb.getDraftDataIDB(urlReportId);
+                if (idbData) {
+                    console.log('[getReport] Restored from IndexedDB');
+                    var report = createFreshReport();
+                    applyDraftToReport(report, idbData);
+                    return report;
+                }
+            } catch (e) {
+                console.warn('[getReport] IDB restore failed:', e);
+            }
+        }
+
+        // 3. Try Supabase interview_backup (cross-device)
+        if (navigator.onLine) {
+            try {
+                var result = await supabaseClient
+                    .from('interview_backup')
+                    .select('page_state, updated_at')
+                    .eq('report_id', urlReportId)
+                    .maybeSingle();
+
+                if (!result.error && result.data && result.data.page_state) {
+                    console.log('[getReport] Restored from Supabase interview_backup');
+                    var report = createFreshReport();
+                    var ps = result.data.page_state;
+                    if (ps.captureMode) report.meta.captureMode = ps.captureMode;
+                    if (ps.freeform_entries) report.freeform_entries = ps.freeform_entries;
+                    if (ps.fieldNotes) report.fieldNotes = Object.assign(report.fieldNotes, ps.fieldNotes);
+                    if (ps.guidedNotes) report.guidedNotes = Object.assign(report.guidedNotes, ps.guidedNotes);
+                    if (ps.activities) report.activities = ps.activities;
+                    if (ps.operations) report.operations = ps.operations;
+                    if (ps.equipment) report.equipment = ps.equipment;
+                    if (ps.equipmentRows) report.equipmentRows = ps.equipmentRows;
+                    if (ps.overview) report.overview = Object.assign(report.overview, ps.overview);
+                    if (ps.safety) report.safety = Object.assign(report.safety, ps.safety);
+                    if (ps.generalIssues) report.generalIssues = ps.generalIssues;
+                    if (ps.toggleStates) report.toggleStates = ps.toggleStates;
+                    if (ps.entries) report.entries = ps.entries;
+                    return report;
+                }
+            } catch (e) {
+                console.warn('[getReport] Supabase interview_backup restore failed:', e);
+            }
+        }
+    }
+
+    // 4. Nothing found — create fresh
     IS.currentReportId = null;
     return createFreshReport();
+}
+
+/**
+ * Apply draft data fields onto a fresh report object
+ * Mirrors the field mapping from restoreFromLocalStorage but works on any report object
+ */
+function applyDraftToReport(report, data) {
+    if (!data) return;
+    if (data.meta) report.meta = Object.assign(report.meta, data.meta);
+    if (data.captureMode) report.meta.captureMode = data.captureMode;
+    if (data.weather) report.overview.weather = data.weather;
+    if (data.freeformNotes) report.fieldNotes.freeformNotes = data.freeformNotes;
+    if (data.freeform_entries && Array.isArray(data.freeform_entries)) report.freeform_entries = data.freeform_entries;
+    if (data.freeform_checklist) report.freeform_checklist = data.freeform_checklist;
+    if (data.siteConditions) report.overview.weather.jobSiteCondition = data.siteConditions;
+    if (data.issuesNotes && Array.isArray(data.issuesNotes)) report.generalIssues = data.issuesNotes;
+    if (data.safetyNoIncidents !== undefined) report.safety.noIncidents = data.safetyNoIncidents;
+    if (data.safetyHasIncidents !== undefined) report.safety.hasIncidents = data.safetyHasIncidents;
+    if (data.safetyNotes && Array.isArray(data.safetyNotes)) report.safety.notes = data.safetyNotes;
+    if (data.qaqcNotes && Array.isArray(data.qaqcNotes)) report.qaqcNotes = data.qaqcNotes;
+    if (data.communications) report.contractorCommunications = data.communications;
+    if (data.visitorsRemarks) report.visitorsRemarks = data.visitorsRemarks;
+    if (data.additionalNotes) report.additionalNotes = data.additionalNotes;
+    if (data.activities && Array.isArray(data.activities)) report.activities = data.activities;
+    if (data.operations && Array.isArray(data.operations)) report.operations = data.operations;
+    if (data.equipment && Array.isArray(data.equipment)) report.equipment = data.equipment;
+    if (data.equipmentRows && Array.isArray(data.equipmentRows)) report.equipmentRows = data.equipmentRows;
+    if (data.photos && Array.isArray(data.photos)) report.photos = data.photos;
+    if (data.reporter) report.reporter = Object.assign(report.reporter, data.reporter);
+    if (data.overview) report.overview = Object.assign(report.overview, data.overview);
+    if (data.entries && Array.isArray(data.entries)) report.entries = data.entries;
+    if (data.toggleStates) report.toggleStates = data.toggleStates;
 }
 
 function createFreshReport() {
