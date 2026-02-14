@@ -101,7 +101,7 @@ function saveToLocalStorage() {
             version: IS.report.meta?.version || 2,
             naMarked: IS.report.meta?.naMarked || {},
             captureMode: IS.report.meta?.captureMode,
-            status: 'draft'
+            status: IS.report.meta?.status || 'draft'
         },
 
         // Weather data
@@ -175,7 +175,7 @@ function saveToLocalStorage() {
             project_id: reportProjectId,
             project_name: IS.activeProject?.projectName || '',
             reportDate: todayStr,
-            status: 'draft',
+            status: IS.report.meta?.status || 'draft',
             capture_mode: data.captureMode,
             created_at: IS.report.meta?.createdAt || Date.now(),
             // Store the full draft data in a nested object for compatibility
@@ -244,7 +244,7 @@ async function loadDraftFromIDB() {
                 project_id: reportProjectId,
                 project_name: IS.activeProject?.projectName || '',
                 reportDate: idbData.reportDate || getTodayDateString(),
-                status: 'draft',
+                status: idbData.meta?.status || 'draft',
                 capture_mode: idbData.captureMode,
                 created_at: idbData.meta?.createdAt || Date.now(),
                 _draft_data: idbData
