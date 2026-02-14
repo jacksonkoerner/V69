@@ -82,12 +82,15 @@ function buildProcessPayload() {
  */
 async function callProcessWebhook(payload) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
         const response = await fetch(N8N_PROCESS_WEBHOOK, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': N8N_WEBHOOK_API_KEY
+            },
             body: JSON.stringify(payload),
             signal: controller.signal
         });
@@ -218,54 +221,17 @@ function hideNetworkErrorModal() {
 
 /**
  * Handle offline/error scenario for AI processing
- * v6: Uses addToSyncQueue() from storage-keys.js for offline queue
+ * Sprint 15 (OFF-02): Removed dead sync queue — reports are saved as drafts only.
+ * User must manually retry when back online.
  */
 function handleOfflineProcessing(payload, redirectToDrafts = false) {
-    // Sprint 5: Use the report's own project ID, not ACTIVE_PROJECT_ID
-    const activeProjectId = IS.activeProject?.id;
-    const todayStr = getTodayDateString();
-
-    // v6: Use addToSyncQueue for offline operations
-    const syncOperation = {
-        type: 'report',
-        action: 'upsert',
-        data: {
-            projectId: activeProjectId,
-            projectName: IS.report.overview?.projectName || IS.activeProject?.projectName || 'Unknown Project',
-            reportDate: todayStr,
-            captureMode: IS.report.meta?.captureMode || 'guided',
-            payload: payload,
-            reportData: {
-                meta: IS.report.meta,
-                overview: IS.report.overview,
-                weather: IS.report.overview?.weather,
-                guidedNotes: IS.report.guidedNotes,
-                fieldNotes: IS.report.fieldNotes,
-                activities: IS.report.activities,
-                operations: IS.report.operations,
-                equipment: IS.report.equipment,
-                photos: IS.report.photos,
-                safety: IS.report.safety,
-                generalIssues: IS.report.generalIssues,
-                qaqcNotes: IS.report.qaqcNotes,
-                contractorCommunications: IS.report.contractorCommunications,
-                visitorsRemarks: IS.report.visitorsRemarks,
-                additionalNotes: IS.report.additionalNotes,
-                reporter: IS.report.reporter
-            }
-        },
-        timestamp: Date.now()
-    };
-
-    // v6: Add to sync queue using storage-keys.js helper
-    addToSyncQueue(syncOperation);
-    console.log('[OFFLINE] Report added to sync queue');
-
-    // Also update local meta status
+    // Save report as draft in localStorage (primary offline storage)
     IS.report.meta.status = 'pending_refine';
     saveReport();
 
-    showToast("You're offline. Report saved to drafts.", 'warning');
+    console.log('[OFFLINE] Report saved to drafts. Sync queue removed — manual retry required.');
+
+    showToast('Report saved to drafts. Please retry when back online.', 'warning');
 
     // Redirect to index page if requested
     if (redirectToDrafts) {

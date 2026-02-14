@@ -688,13 +688,30 @@
         return false; // Not a local command → send to AI webhook
     }
 
+    // ── Input Sanitization (SEC-06) ──
+    const MAX_INPUT_LENGTH = 10000;
+    function sanitizeInput(text) {
+        if (typeof text !== 'string') return '';
+        // Strip control characters (C0/C1) except newline, tab, carriage return
+        let clean = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '');
+        // Enforce max length
+        if (clean.length > MAX_INPUT_LENGTH) {
+            clean = clean.substring(0, MAX_INPUT_LENGTH);
+        }
+        return clean.trim();
+    }
+
     // ── AI Webhook ──
     async function callAIWebhook(userMessage) {
+        // Sanitize user input before sending to webhook
+        userMessage = sanitizeInput(userMessage);
+        if (!userMessage) throw new Error('Empty message after sanitization');
+
         // Build context
         const projectData = getProjectContext();
         const recentHistory = conversation.slice(-10).map(m => ({
             role: m.role,
-            content: m.content
+            content: sanitizeInput(m.content)
         }));
 
         const payload = {
@@ -717,7 +734,10 @@
         try {
             const res = await fetch(AI_WEBHOOK, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': N8N_WEBHOOK_API_KEY
+                },
                 body: JSON.stringify(payload),
                 signal: controller.signal
             });

@@ -48,7 +48,10 @@ async function retryRefineProcessing() {
 
         var response = await fetch(N8N_PROCESS_WEBHOOK, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': N8N_WEBHOOK_API_KEY
+            },
             body: JSON.stringify(queued.payload),
             signal: controller.signal
         });
@@ -124,7 +127,10 @@ async function refineTextField(textareaId) {
 
         var response = await fetch(N8N_REFINE_TEXT_WEBHOOK, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': N8N_WEBHOOK_API_KEY
+            },
             body: JSON.stringify(payload),
             signal: controller.signal
         });
@@ -213,7 +219,10 @@ async function refineContractorNarrative(contractorId) {
 
         var response = await fetch(N8N_REFINE_TEXT_WEBHOOK, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': N8N_WEBHOOK_API_KEY
+            },
             body: JSON.stringify(payload),
             signal: controller.signal
         });
