@@ -29,6 +29,34 @@ async function handleSubmit() {
         return;
     }
 
+    // Sprint 11: Duplicate detection — warn if a report for same project+date already exists
+    try {
+        var dupProjectId = RS.activeProject?.id;
+        var dupReportDate = formVal('reportDate') || getReportDateStr();
+        if (dupProjectId && dupReportDate) {
+            var dupResult = await supabaseClient
+                .from('final_reports')
+                .select('report_id')
+                .eq('project_id', dupProjectId)
+                .eq('report_date', dupReportDate)
+                .neq('report_id', RS.currentReportId)
+                .limit(1);
+
+            if (!dupResult.error && dupResult.data && dupResult.data.length > 0) {
+                var proceed = confirm(
+                    'A report for this project on ' + dupReportDate + ' already exists. Submit anyway?'
+                );
+                if (!proceed) {
+                    console.log('[SUBMIT] User cancelled due to duplicate warning');
+                    return;
+                }
+            }
+        }
+    } catch (dupErr) {
+        console.warn('[SUBMIT] Duplicate check failed (non-blocking):', dupErr);
+        // Non-blocking — proceed with submit even if check fails
+    }
+
     // Show loading overlay
     showSubmitLoadingOverlay(true, 'Generating PDF...');
 
