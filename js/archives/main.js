@@ -18,13 +18,17 @@ async function init() {
         return;
     }
 
-    // Check online status
+    setupEventListeners();
+
+    // Check online status — if offline, try cached data
     if (!navigator.onLine) {
-        showOfflineWarning();
+        const loaded = await loadFromCache();
+        if (!loaded) {
+            showOfflineWarning();
+        }
         return;
     }
 
-    setupEventListeners();
     await loadProjects();
     await loadReports();
 }
@@ -64,6 +68,9 @@ async function loadProjects() {
 
         allProjects = data || [];
         populateProjectFilter();
+
+        // Cache projects to IndexedDB for offline use
+        cacheArchiveData('projects', allProjects);
     } catch (err) {
         console.error('[Archives] Failed to load projects:', err);
     }
@@ -147,6 +154,9 @@ async function loadReports(projectId = null) {
         }));
 
         renderReports();
+
+        // Cache reports to IndexedDB for offline use
+        cacheArchiveData('reports', allReports);
     } catch (err) {
         console.error('[Archives] Failed to load reports:', err);
         showError('Failed to load reports. Please check your connection.');
@@ -287,6 +297,62 @@ function showOfflineWarning() {
 
 function hideOfflineWarning() {
     document.getElementById('offlineWarning').classList.add('hidden');
+}
+
+// ============ Offline Caching ============
+
+/**
+ * Cache archive data to IndexedDB (fire-and-forget)
+ */
+function cacheArchiveData(key, data) {
+    if (window.idb && typeof window.idb.saveCachedArchive === 'function') {
+        window.idb.saveCachedArchive(key, data).catch(err => {
+            console.warn('[Archives] Failed to cache', key, ':', err);
+        });
+    }
+}
+
+/**
+ * Load archive data from IndexedDB cache (offline fallback)
+ * @returns {Promise<boolean>} true if cached data was loaded successfully
+ */
+async function loadFromCache() {
+    if (!window.idb || typeof window.idb.getCachedArchive !== 'function') {
+        console.warn('[Archives] IndexedDB cache not available');
+        return false;
+    }
+
+    try {
+        const cachedProjects = await window.idb.getCachedArchive('projects');
+        const cachedReports = await window.idb.getCachedArchive('reports');
+
+        if (!cachedReports || cachedReports.length === 0) {
+            console.log('[Archives] No cached data available');
+            return false;
+        }
+
+        console.log(`[Archives] Loading from cache: ${cachedReports.length} reports, ${(cachedProjects || []).length} projects`);
+
+        // Restore data
+        allProjects = cachedProjects || [];
+        allReports = cachedReports;
+
+        // Render
+        populateProjectFilter();
+        renderReports();
+
+        // Show a subtle offline banner
+        const warning = document.getElementById('offlineWarning');
+        if (warning) {
+            warning.innerHTML = '<p class="text-yellow-800 text-sm"><i class="fas fa-wifi-slash mr-1"></i> Showing cached data. Connect to internet for latest reports.</p>';
+            warning.classList.remove('hidden');
+        }
+
+        return true;
+    } catch (err) {
+        console.error('[Archives] Failed to load from cache:', err);
+        return false;
+    }
 }
 
 function retryLoad() {

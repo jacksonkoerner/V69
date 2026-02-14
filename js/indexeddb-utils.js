@@ -7,7 +7,7 @@
     'use strict';
 
     const DB_NAME = 'fieldvoice-pro';
-    const DB_VERSION = 5; // v5: add draftData store
+    const DB_VERSION = 6; // v6: add cachedArchives store
 
     let db = null;
 
@@ -76,6 +76,12 @@
                 if (!database.objectStoreNames.contains('draftData')) {
                     database.createObjectStore('draftData', { keyPath: 'reportId' });
                     console.log('Created draftData object store');
+                }
+
+                // Create cachedArchives store (v6)
+                if (!database.objectStoreNames.contains('cachedArchives')) {
+                    database.createObjectStore('cachedArchives', { keyPath: 'key' });
+                    console.log('Created cachedArchives object store');
                 }
             };
         });
@@ -596,6 +602,64 @@
     }
 
     // ============================================
+    // CACHED ARCHIVES STORE (v6)
+    // ============================================
+
+    /**
+     * Saves data to the cachedArchives store
+     * @param {string} key - Cache key (e.g. 'reports', 'projects')
+     * @param {*} data - Data to cache
+     * @returns {Promise<void>}
+     */
+    function saveCachedArchive(key, data) {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('cachedArchives')) {
+                    resolve();
+                    return;
+                }
+                var transaction = database.transaction(['cachedArchives'], 'readwrite');
+                var store = transaction.objectStore('cachedArchives');
+                var request = store.put({ key: key, data: data, cachedAt: new Date().toISOString() });
+
+                request.onsuccess = function() { resolve(); };
+                request.onerror = function(event) {
+                    console.error('Error saving cached archive:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    /**
+     * Gets data from the cachedArchives store
+     * @param {string} key - Cache key
+     * @returns {Promise<*>} The cached data, or undefined
+     */
+    function getCachedArchive(key) {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('cachedArchives')) {
+                    resolve(undefined);
+                    return;
+                }
+                var transaction = database.transaction(['cachedArchives'], 'readonly');
+                var store = transaction.objectStore('cachedArchives');
+                var request = store.get(key);
+
+                request.onsuccess = function(event) {
+                    var result = event.target.result;
+                    resolve(result ? result.data : undefined);
+                };
+                request.onerror = function(event) {
+                    console.error('Error getting cached archive:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    // ============================================
     // GENERAL
     // ============================================
 
@@ -663,6 +727,10 @@
         saveDraftDataIDB,
         getDraftDataIDB,
         deleteDraftDataIDB,
+
+        // Cached archives store
+        saveCachedArchive,
+        getCachedArchive,
 
         // General
         clearStore
