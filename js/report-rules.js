@@ -153,22 +153,14 @@ function canStartNewReport(projectId) {
   // Find all reports for this project
   const projectReports = Object.values(reports).filter(r => r.project_id === projectId);
 
-  // Check 1: Unfinished report from a PREVIOUS day
-  const unfinishedPrevious = projectReports.find(
-    r => r.date < today && r.status !== REPORT_STATUS.SUBMITTED
-  );
-  if (unfinishedPrevious) {
-    return {
-      allowed: false,
-      reason: 'UNFINISHED_PREVIOUS',
-      blockingReportId: unfinishedPrevious.id
-    };
-  }
-
   // v6.6.17: Removed ALREADY_SUBMITTED_TODAY check
   // Users can now create multiple reports per project per day
 
-  // Check 2: In-progress report for TODAY (not blocked, but caller should continue)
+  // v6.9.1: Removed UNFINISHED_PREVIOUS blocking check
+  // Each report has its own UUID now — late reports don't block new ones.
+  // Late reports are still shown on the dashboard for visibility.
+
+  // Check: In-progress report for TODAY (not blocked, but caller should continue)
   const inProgressToday = projectReports.find(
     r => r.date === today && r.status !== REPORT_STATUS.SUBMITTED
   );
