@@ -569,7 +569,7 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - [ ] `getReport()` calls `createFreshReport()` every time — ignores existing report data. Relies on localStorage restore to recover drafts.
 - [ ] `interview_backup` exists in Supabase but is never read back — it's write-only backup, not used for cross-device recovery
 - [ ] AI response saved to `fvp_report_{id}` in localStorage — not accessible from other devices
-- [ ] `finishMinimalReport()` and `finishReport()` are near-duplicate functions (~200 lines each) — comment says "keep in sync"
+- [x] `finishMinimalReport()` and `finishReport()` are near-duplicate functions (~200 lines each) — comment says "keep in sync" *(Sprint 3: refactored into shared `finishReportFlow(options)` with thin wrappers)*
 - [ ] 34 script tags on one page — largest in the app
 
 ### Confirmed Decisions
@@ -588,7 +588,7 @@ All 20+ JS files share state via `window.interviewState` (alias `IS`):
 - [ ] Read `interview_backup` from Supabase on page load (enables cross-device draft recovery) — write-back capability needs development
 - [ ] Move draft data from localStorage to IndexedDB for larger storage + persistence
 - [ ] Move AI response (`fvp_report_{id}`) to Supabase for cross-device access
-- [ ] Refactor `finishMinimalReport()` and `finishReport()` into shared function
+- [x] Refactor `finishMinimalReport()` and `finishReport()` into shared function *(Sprint 3)*
 - [ ] Add `org_id` to report data
 - [ ] **Real-time photo upload** — photos should upload to Supabase Storage as they're taken, not batch at FINISH (must not be laggy)
 - [ ] Processing overlay JS is clean (in `processing-overlay.js`, not inline) ✅
@@ -862,16 +862,16 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 - **Supabase-first** — no localStorage dependency, no IndexedDB. Queries Supabase directly.
 - **Already cross-platform** — since it reads from Supabase, it works on any device.
 - **Clean separation** — single JS file, no shared state issues.
-- **Has its own `escapeHtml` and `formatDate`** — doesn't rely on `ui-utils.js` (though this means duplicate functions)
+- ~~Has its own `escapeHtml` and `formatDate`~~ — now uses shared `ui-utils.js` (Sprint 3)
 
 ### Naming Notes
 - Uses `project_name` (snake_case) from Supabase join — correct since it's raw DB data
-- Uses its own `escapeHtml()` — duplicates the one in `ui-utils.js`
-- Uses its own `formatDate()` — different implementation from `ui-utils.js`
+- ~~Uses its own `escapeHtml()`~~ — now uses shared `ui-utils.js` (Sprint 3)
+- ~~Uses its own `formatDate()`~~ — now uses `formatDate(dateStr, 'long')` from shared `ui-utils.js` (Sprint 3)
 - Missing Font Awesome CSS (flagged in code map) — icons may not render
 
 ### Known Issues
-- [ ] Duplicates `escapeHtml()` and `formatDate()` — should use shared `ui-utils.js`
+- [x] Duplicates `escapeHtml()` and `formatDate()` — should use shared `ui-utils.js` *(Sprint 3: removed, now loads ui-utils.js)*
 - [ ] Missing Font Awesome CSS include (only page without it)
 - [ ] Path inconsistency: uses `css/output.css` and `js/config.js` (no `./` prefix) unlike all other pages
 - [ ] No offline support — shows warning and stops. Could cache last-viewed reports in IndexedDB.
@@ -890,4 +890,4 @@ This page exports `window.refreshFromCloud` — **same name** as `projects/main.
 - [ ] Include Font Awesome CSS
 - [ ] Remove dead `pdfModal` HTML if it exists
 - [ ] Consider offline caching (IndexedDB) for previously viewed reports
-- [ ] Use shared `ui-utils.js` functions instead of local duplicates
+- [x] Use shared `ui-utils.js` functions instead of local duplicates *(Sprint 3: removed from archives/main.js, ai-assistant.js, qrscanner.js, ar-measure.js)*
