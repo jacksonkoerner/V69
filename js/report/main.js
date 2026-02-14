@@ -25,9 +25,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Load report data from localStorage
         RS.report = await loadReport();
 
-        // Sprint 1 fix: Load project from the REPORT's own project_id, not ACTIVE_PROJECT_ID.
-        // This prevents the project_id swap bug where browsing another project corrupts
-        // this report's data on save.
+        // Sprint 1+5 fix: Load project from the REPORT's own project_id, never from ACTIVE_PROJECT_ID.
         var reportProjectId = null;
 
         // 1. Check loaded report data for projectId
@@ -46,10 +44,11 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         }
 
-        // 3. Fallback to ACTIVE_PROJECT_ID (shouldn't happen for existing reports)
+        // 3. Check URL params (passed from report-creation.js)
         if (!reportProjectId) {
-            reportProjectId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
-            console.log('[REPORT] Falling back to ACTIVE_PROJECT_ID:', reportProjectId);
+            var urlParams = new URLSearchParams(window.location.search);
+            reportProjectId = urlParams.get('projectId');
+            if (reportProjectId) console.log('[REPORT] Got project_id from URL:', reportProjectId);
         }
 
         // Load the project by its specific ID

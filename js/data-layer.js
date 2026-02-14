@@ -98,10 +98,12 @@
     }
 
     /**
-     * Load active project with contractors (IndexedDB-first, Supabase-fallback)
-     * @returns {Promise<Object|null>} Project object with contractors, or null
+     * @deprecated Sprint 5: Use loadProjectById(id) instead. This reads from
+     * ACTIVE_PROJECT_ID localStorage which is unreliable for report context.
+     * Kept for backward compatibility but all callers have been migrated.
      */
     async function loadActiveProject() {
+        console.warn('[DATA] loadActiveProject() is deprecated — use loadProjectById() instead');
         const activeId = getStorageItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
         if (!activeId) {
             console.log('[DATA] No active project ID set');
