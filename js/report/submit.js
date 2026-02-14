@@ -30,16 +30,18 @@ async function handleSubmit() {
     }
 
     // Sprint 11: Duplicate detection — warn if a report for same project+date already exists
+    // Sprint 13: Check reports table instead of deprecated final_reports
     try {
         var dupProjectId = RS.activeProject?.id;
         var dupReportDate = formVal('reportDate') || getReportDateStr();
         if (dupProjectId && dupReportDate) {
             var dupResult = await supabaseClient
-                .from('final_reports')
-                .select('report_id')
+                .from('reports')
+                .select('id')
                 .eq('project_id', dupProjectId)
                 .eq('report_date', dupReportDate)
-                .neq('report_id', RS.currentReportId)
+                .eq('status', 'submitted')
+                .neq('id', RS.currentReportId)
                 .limit(1);
 
             if (!dupResult.error && dupResult.data && dupResult.data.length > 0) {
@@ -76,14 +78,10 @@ async function handleSubmit() {
         var pdfUrl = await uploadPDFToStorage(pdf);
         console.log('[SUBMIT] PDF uploaded:', pdfUrl);
 
-        // Ensure report exists
+        // Save report with PDF URL, inspector name, and submitted status
         showSubmitLoadingOverlay(true, 'Saving report...');
         await ensureReportExists();
-
-        // Save to final_reports
-        await saveToFinalReports(pdfUrl);
-
-        // Update status
+        await saveSubmittedReportData(pdfUrl);
         await updateReportStatus('submitted');
 
         // Cleanup
@@ -151,28 +149,23 @@ async function ensureReportExists() {
 }
 
 /**
- * Save report metadata to final_reports table (lean — new schema)
+ * Sprint 13: Save pdf_url + inspector_name + submitted_at directly on reports table.
+ * Replaces saveToFinalReports() — final_reports table is deprecated.
  */
-async function saveToFinalReports(pdfUrl) {
+async function saveSubmittedReportData(pdfUrl) {
     var submittedAt = new Date().toISOString();
-    var reportDateStr = RS.report.overview?.date || new Date().toISOString().split('T')[0];
-
-    var finalReportData = {
-        report_id: RS.currentReportId,
-        project_id: RS.activeProject?.id || null,
-        user_id: getStorageItem(STORAGE_KEYS.USER_ID) || null,
-        report_date: reportDateStr,
-        inspector_name: RS.report.overview?.completedBy || RS.userSettings?.fullName || '',
-        pdf_url: pdfUrl,
-        submitted_at: submittedAt,
-        status: 'submitted'
-    };
+    var inspectorName = RS.report.overview?.completedBy || RS.userSettings?.fullName || '';
 
     var result = await supabaseClient
-        .from('final_reports')
-        .upsert(finalReportData, { onConflict: 'report_id' });
+        .from('reports')
+        .update({
+            pdf_url: pdfUrl,
+            inspector_name: inspectorName,
+            submitted_at: submittedAt
+        })
+        .eq('id', RS.currentReportId);
 
-    if (result.error) throw new Error('Failed to save report: ' + result.error.message);
+    if (result.error) throw new Error('Failed to save report data: ' + result.error.message);
 }
 
 /**

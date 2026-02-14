@@ -96,7 +96,7 @@ async function loadReports(projectId = null) {
 
     try {
         // Query reports with status = 'submitted'
-        // Filter by org_id if available (backwards compatible)
+        // Sprint 13: pdf_url now lives on reports table (no more final_reports join)
         const orgId = typeof getStorageItem === 'function' ? getStorageItem(STORAGE_KEYS.ORG_ID) : null;
         let query = supabaseClient
             .from('reports')
@@ -106,6 +106,8 @@ async function loadReports(projectId = null) {
                 report_date,
                 status,
                 submitted_at,
+                pdf_url,
+                inspector_name,
                 created_at,
                 projects (project_name)
             `)
@@ -129,31 +131,14 @@ async function loadReports(projectId = null) {
             return;
         }
 
-        // Get PDF URLs from final_reports table
-        const reportIds = reports.map(r => r.id);
-        const { data: finalReports, error: finalError } = await supabaseClient
-            .from('final_reports')
-            .select('report_id, pdf_url')
-            .in('report_id', reportIds);
-
-        if (finalError) {
-            console.warn('[Archives] Could not fetch PDF URLs:', finalError);
-        }
-
-        // Create PDF URL lookup map
-        const pdfMap = {};
-        (finalReports || []).forEach(fr => {
-            if (fr.pdf_url) pdfMap[fr.report_id] = fr.pdf_url;
-        });
-
-        // Merge data
+        // Map data — pdf_url is now directly on reports
         allReports = reports.map(r => ({
             id: r.id,
             projectId: r.project_id,
             projectName: r.projects?.project_name || 'Unknown Project',
             reportDate: r.report_date,
             submittedAt: r.submitted_at,
-            pdfUrl: pdfMap[r.id] || null
+            pdfUrl: r.pdf_url || null
         }));
 
         renderReports();

@@ -58,24 +58,37 @@ async function deleteReportCascade(reportId) {
         }
     }
 
-    // 4. Look up PDF url from final_reports (if row exists) and remove from storage
+    // 4. Look up PDF url from reports table (Sprint 13) and legacy final_reports, remove from storage
     try {
-        var finalResult = await client
-            .from('final_reports')
+        // New: pdf_url on reports table
+        var reportResult = await client
+            .from('reports')
             .select('pdf_url')
-            .eq('report_id', reportId)
+            .eq('id', reportId)
             .maybeSingle();
-        if (finalResult.data && finalResult.data.pdf_url) {
-            var pdfPath = finalResult.data.pdf_url.split('/report-pdfs/')[1];
+        var pdfUrl = reportResult.data && reportResult.data.pdf_url;
+
+        // Legacy fallback: check final_reports if reports.pdf_url is null
+        if (!pdfUrl) {
+            var finalResult = await client
+                .from('final_reports')
+                .select('pdf_url')
+                .eq('report_id', reportId)
+                .maybeSingle();
+            pdfUrl = finalResult.data && finalResult.data.pdf_url;
+        }
+
+        if (pdfUrl) {
+            var pdfPath = pdfUrl.split('/report-pdfs/')[1];
             if (pdfPath) {
                 await client.storage.from('report-pdfs').remove([decodeURIComponent(pdfPath)]);
             }
         }
     } catch (e) {
-        errors.push('final_reports pdf: ' + e.message);
+        errors.push('pdf cleanup: ' + e.message);
     }
 
-    // 5. Delete final_reports row
+    // 5. Delete final_reports row (legacy — table still exists but no longer written to)
     try {
         await client.from('final_reports').delete().eq('report_id', reportId);
     } catch (e) {
