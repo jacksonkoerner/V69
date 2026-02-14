@@ -58,13 +58,13 @@ async function handleSignIn() {
 
         if (profile && profile.role) {
             // User already has a role — go straight to app
-            localStorage.setItem('fvp_auth_role', profile.role);
+            localStorage.setItem(STORAGE_KEYS.AUTH_ROLE, profile.role);
             if (profile.id) {
-                localStorage.setItem('fvp_user_id', profile.id);
+                localStorage.setItem(STORAGE_KEYS.USER_ID, profile.id);
             }
-            localStorage.setItem('fvp_user_name', profile.full_name || '');
-            localStorage.setItem('fvp_user_email', profile.email || '');
-            localStorage.setItem('fvp_auth_user_id', data.user.id);
+            localStorage.setItem(STORAGE_KEYS.USER_NAME, profile.full_name || '');
+            localStorage.setItem(STORAGE_KEYS.USER_EMAIL, profile.email || '');
+            localStorage.setItem(STORAGE_KEYS.AUTH_USER_ID, data.user.id);
 
             // Update device_id on this profile (informational, not for lookups)
             const deviceId = typeof getDeviceId === 'function' ? getDeviceId() : null;
@@ -181,10 +181,10 @@ async function handleSignUp() {
         }
 
         if (profile && profile.id) {
-            localStorage.setItem('fvp_user_id', profile.id);
-            localStorage.setItem('fvp_user_name', profile.full_name || name);
-            localStorage.setItem('fvp_user_email', profile.email || email);
-            localStorage.setItem('fvp_auth_user_id', data.user.id);
+            localStorage.setItem(STORAGE_KEYS.USER_ID, profile.id);
+            localStorage.setItem(STORAGE_KEYS.USER_NAME, profile.full_name || name);
+            localStorage.setItem(STORAGE_KEYS.USER_EMAIL, profile.email || email);
+            localStorage.setItem(STORAGE_KEYS.AUTH_USER_ID, data.user.id);
         }
 
         // Show role picker
@@ -212,7 +212,7 @@ async function selectRole(role) {
     }
 
     // Store role locally
-    localStorage.setItem('fvp_auth_role', role);
+    localStorage.setItem(STORAGE_KEYS.AUTH_ROLE, role);
 
     // Update profile in Supabase
     try {
