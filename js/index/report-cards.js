@@ -568,17 +568,9 @@ async function executeDeleteReport(reportId, overlay) {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Deleting...';
 
     try {
-        // 1. BLOCKLIST FIRST — prevents cloud recovery, realtime sync, and IDB
-        //    hydration from re-inserting this report during the Supabase cascade
-        if (typeof addToDeletedBlocklist === 'function') addToDeletedBlocklist(reportId);
+        console.log('[SWIPE-DELETE] Deleting report:', reportId);
 
-        // 2. Delete from localStorage FIRST (instant UI cleanup)
-        if (typeof deleteCurrentReport === 'function') deleteCurrentReport(reportId);
-        if (typeof deleteReportData === 'function') deleteReportData(reportId);
-
-        console.log('[SWIPE-DELETE] Local cleanup done, removing card:', reportId);
-
-        // 3. Close modal and animate card removal IMMEDIATELY
+        // Close modal and animate card removal IMMEDIATELY
         overlay.remove();
 
         const wrapper = document.querySelector(`.swipe-card-wrapper[data-report-id="${reportId}"]`);
@@ -596,36 +588,18 @@ async function executeDeleteReport(reportId, overlay) {
             updateReportStatus();
         }
 
-        // 4. Delete from IndexedDB in background (non-blocking after UI is clean)
-        if (window.idb) {
-            Promise.allSettled([
-                window.idb.deleteCurrentReportIDB(reportId).catch(function(e) {}),
-                window.idb.deletePhotosByReportId(reportId).catch(function(e) {}),
-                window.idb.deleteDraftDataIDB(reportId).catch(function(e) {}),
-                typeof window.idb.deleteReportDataIDB === 'function' ? window.idb.deleteReportDataIDB(reportId).catch(function(e) {}) : Promise.resolve()
-            ]).then(function() {
-                console.log('[SWIPE-DELETE] IDB cleanup complete:', reportId);
-            });
-        }
-
-        // 5. Supabase cascade in background (non-blocking — local state is already clean)
-        if (reportId.length === 36 && typeof deleteReportCascade === 'function' && typeof supabaseClient !== 'undefined') {
-            deleteReportCascade(reportId).then(function(result) {
-                if (!result.success) {
-                    console.warn('[SWIPE-DELETE] Supabase cascade had errors:', result.errors);
-                } else {
-                    console.log('[SWIPE-DELETE] Supabase cascade complete:', reportId);
-                }
-            }).catch(function(err) {
-                console.error('[SWIPE-DELETE] Supabase cascade failed:', err);
-                // Report is already gone locally — Supabase orphan will be cleaned up
-                // next time the user or admin runs maintenance
-            });
-        }
+        // Delegate full cleanup to shared implementation (blocklist, localStorage, IDB, Supabase)
+        deleteReportFull(reportId).then(function(result) {
+            if (result.success) {
+                console.log('[SWIPE-DELETE] Full delete complete:', reportId);
+            } else {
+                console.warn('[SWIPE-DELETE] Delete had errors:', result.errors);
+            }
+        }).catch(function(err) {
+            console.error('[SWIPE-DELETE] deleteReportFull failed:', err);
+        });
     } catch (e) {
         console.error('[SWIPE-DELETE] Error:', e);
-        // Remove from blocklist if local cleanup failed so recovery can re-fetch
-        if (typeof removeFromDeletedBlocklist === 'function') removeFromDeletedBlocklist(reportId);
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-trash mr-1"></i> Delete';
         alert('Failed to delete report. Please try again.');

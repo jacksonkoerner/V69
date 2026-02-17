@@ -430,6 +430,13 @@ async function finishReportFlow(options) {
         await new Promise(r => setTimeout(r, 800)); // Brief pause to show success
         hideProcessingOverlay();
 
+        // Close IDB connections before navigating — prevents iOS Safari
+        // from blocking the v7 upgrade on report.html (bfcache keeps old
+        // connection alive and BLOCKS the new page's onupgradeneeded).
+        if (window.idb && typeof window.idb.closeAllIDBConnections === 'function') {
+            window.idb.closeAllIDBConnections();
+        }
+
         // Navigate to report with date and reportId parameters
         window.location.href = `report.html?date=${todayStr}&reportId=${IS.currentReportId}`;
     } catch (error) {

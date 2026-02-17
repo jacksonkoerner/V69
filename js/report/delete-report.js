@@ -34,52 +34,20 @@ async function executeDeleteReport() {
     var _reportId = RS.currentReportId;
     console.log('[DELETE] Deleting report:', _reportId);
 
-    try {
-        // 1. BLOCKLIST FIRST — prevents cloud recovery/realtime from resurrecting
-        if (typeof addToDeletedBlocklist === 'function') addToDeletedBlocklist(_reportId);
-
-        // 2. Delete from localStorage FIRST (instant)
-        deleteReportData(_reportId);
-        if (typeof deleteCurrentReport === 'function') {
-            deleteCurrentReport(_reportId);
+    // Delegate full cleanup to shared implementation (blocklist, localStorage, IDB, Supabase)
+    // Navigate immediately — deleteReportFull runs Supabase cascade but we don't wait for it
+    deleteReportFull(_reportId).then(function(result) {
+        if (result.success) {
+            console.log('[DELETE] Full delete complete');
+        } else {
+            console.warn('[DELETE] Delete had errors:', result.errors);
         }
+    }).catch(function(e) {
+        console.error('[DELETE] deleteReportFull failed:', e);
+    });
 
-        // 3. Delete from IndexedDB
-        if (window.idb) {
-            if (typeof window.idb.deleteCurrentReportIDB === 'function') {
-                try { await window.idb.deleteCurrentReportIDB(_reportId); } catch(e) { /* ok */ }
-            }
-            if (typeof window.idb.deletePhotosByReportId === 'function') {
-                try { await window.idb.deletePhotosByReportId(_reportId); } catch(e) { /* ok */ }
-            }
-            if (typeof window.idb.deleteDraftDataIDB === 'function') {
-                try { await window.idb.deleteDraftDataIDB(_reportId); } catch(e) { /* ok */ }
-            }
-            if (typeof window.idb.deleteReportDataIDB === 'function') {
-                try { await window.idb.deleteReportDataIDB(_reportId); } catch(e) { /* ok */ }
-            }
-        }
-
-        console.log('[DELETE] Local cleanup done, redirecting');
-    } catch(e) {
-        console.error('[DELETE] Error during local cleanup:', e);
-    }
-
-    // Navigate to home IMMEDIATELY
+    // Navigate to home IMMEDIATELY (local cleanup is synchronous within deleteReportFull)
     window.location.href = 'index.html';
-
-    // 4. Supabase cascade in background (non-blocking — local state already clean)
-    if (window.supabaseClient && _reportId.length === 36) {
-        deleteReportCascade(_reportId).then(function(result) {
-            if (result.success) {
-                console.log('[DELETE] Supabase cascade complete');
-            } else {
-                console.warn('[DELETE] Supabase cascade errors:', result.errors);
-            }
-        }).catch(function(e) {
-            console.error('[DELETE] Supabase cascade failed:', e);
-        });
-    }
 }
 
 // Expose to window for HTML onclick handlers

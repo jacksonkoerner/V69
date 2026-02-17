@@ -851,11 +851,26 @@
         }
     }
 
+    /**
+     * Close all open IDB connections so that other pages (e.g. report.html)
+     * can upgrade the database version without being BLOCKED by this page's
+     * stale connection.  Critical on iOS Safari where bfcache keeps the old
+     * page alive after navigation.
+     */
+    function closeAllIDBConnections() {
+        if (db) {
+            try { db.close(); } catch (e) { /* already closed */ }
+            db = null;
+            console.log('[IDB] All connections closed (pre-navigation cleanup)');
+        }
+    }
+
     // Export to window.idb
     window.idb = {
         // Setup
         initDB,
         resetDB,
+        closeAllIDBConnections,
 
         // Projects store
         saveProject,

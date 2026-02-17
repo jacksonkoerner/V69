@@ -310,4 +310,8 @@ console.log('[HARDENING] pagehide, saving... (persisted:', event.persisted, ')')
 saveToLocalStorage();
 flushInterviewBackup();
 }
+// Close IDB connections so the next page's upgrade isn't blocked (iOS bfcache)
+if (window.idb && typeof window.idb.closeAllIDBConnections === 'function') {
+window.idb.closeAllIDBConnections();
+}
 });

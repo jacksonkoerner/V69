@@ -112,4 +112,73 @@ async function deleteReportCascade(reportId) {
     return { success: errors.length === 0, errors: errors };
 }
 
+/**
+ * Full local + cloud delete for a report.
+ * Handles blocklist, localStorage cleanup, IDB cleanup, and Supabase cascade.
+ * UI concerns (modals, animations, redirects) are NOT handled here — callers
+ * manage their own UX.
+ *
+ * @param {string} reportId - The report UUID to delete
+ * @returns {Promise<{success: boolean, errors: string[]}>}
+ */
+async function deleteReportFull(reportId) {
+    var errors = [];
+
+    if (!reportId) {
+        return { success: false, errors: ['Missing reportId'] };
+    }
+
+    // 1. BLOCKLIST FIRST — prevents cloud recovery / realtime from resurrecting
+    try {
+        if (typeof addToDeletedBlocklist === 'function') addToDeletedBlocklist(reportId);
+    } catch (e) {
+        errors.push('blocklist: ' + e.message);
+    }
+
+    // 2. localStorage cleanup (instant)
+    try {
+        if (typeof deleteReportData === 'function') deleteReportData(reportId);
+    } catch (e) {
+        errors.push('deleteReportData: ' + e.message);
+    }
+    try {
+        if (typeof deleteCurrentReport === 'function') deleteCurrentReport(reportId);
+    } catch (e) {
+        errors.push('deleteCurrentReport: ' + e.message);
+    }
+
+    // 3. IDB cleanup (non-blocking, best-effort via Promise.allSettled)
+    if (window.idb) {
+        try {
+            await Promise.allSettled([
+                typeof window.idb.deleteCurrentReportIDB === 'function'
+                    ? window.idb.deleteCurrentReportIDB(reportId).catch(function() {}) : Promise.resolve(),
+                typeof window.idb.deletePhotosByReportId === 'function'
+                    ? window.idb.deletePhotosByReportId(reportId).catch(function() {}) : Promise.resolve(),
+                typeof window.idb.deleteDraftDataIDB === 'function'
+                    ? window.idb.deleteDraftDataIDB(reportId).catch(function() {}) : Promise.resolve(),
+                typeof window.idb.deleteReportDataIDB === 'function'
+                    ? window.idb.deleteReportDataIDB(reportId).catch(function() {}) : Promise.resolve()
+            ]);
+        } catch (e) {
+            errors.push('IDB cleanup: ' + e.message);
+        }
+    }
+
+    // 4. Supabase cascade (cloud cleanup — non-fatal if it fails)
+    if (typeof supabaseClient !== 'undefined' && supabaseClient && reportId.length === 36) {
+        try {
+            var cascadeResult = await deleteReportCascade(reportId);
+            if (!cascadeResult.success) {
+                errors = errors.concat(cascadeResult.errors.map(function(e) { return 'cascade: ' + e; }));
+            }
+        } catch (e) {
+            errors.push('cascade: ' + e.message);
+        }
+    }
+
+    return { success: errors.length === 0, errors: errors };
+}
+
 window.deleteReportCascade = deleteReportCascade;
+window.deleteReportFull = deleteReportFull;
