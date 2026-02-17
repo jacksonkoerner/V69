@@ -329,35 +329,49 @@ async function refreshDashboard(source) {
     _renderFromLocalStorage();
 
     try {
-        // 1. Hydrate current reports from IndexedDB → localStorage
-        //    (picks up reports created on other pages that wrote to IDB)
-        //    Timeout: 3s — if IDB is frozen, skip hydration (localStorage reports still work)
-        try {
-            await withTimeout(
-                hydrateCurrentReportsFromIDB(),
-                3000, false, 'IDB hydration'
-            );
-        } catch (e) {
+        // ── PHASE 1: Local data (IDB) — no auth/network needed ──────────
+        // Run IDB hydration and loadProjects in parallel.
+        // These only touch IndexedDB and don't need auth or network.
+        // Timeout: 4s total for both (was 3+4=7s serial before).
+        var _localDataStart = Date.now();
+
+        var _idbHydrationPromise = withTimeout(
+            hydrateCurrentReportsFromIDB(),
+            3000, false, 'IDB hydration'
+        ).catch(function(e) {
             console.warn('[INDEX] IDB hydration failed during refresh:', e);
-        }
+            return false;
+        });
+
+        var _loadProjectsPromise = withTimeout(
+            window.dataLayer.loadProjects(),
+            4000, [], 'loadProjects'
+        ).catch(function(e) {
+            console.warn('[INDEX] loadProjects failed:', e);
+            return [];
+        });
+
+        // Wait for both local operations together
+        var _localResults = await Promise.all([_idbHydrationPromise, _loadProjectsPromise]);
+        var projects = _localResults[1] || [];
+
+        console.log('[INDEX] Local data loaded in ' + (Date.now() - _localDataStart) + 'ms (' + projects.length + ' projects from IDB)');
 
         // Re-render after hydration (reports may have been updated from IDB)
         renderReportCards();
         updateReportStatus();
 
-        // 2. Reload projects (IndexedDB first, then cloud if online)
-        //    Timeout: 4s for IDB, 8s for cloud
-        var projects = [];
-        try {
-            projects = await withTimeout(
-                window.dataLayer.loadProjects(),
-                4000, [], 'loadProjects'
-            );
-            console.log('[INDEX] Loaded', projects.length, 'projects from IDB');
-        } catch (e) {
-            console.warn('[INDEX] loadProjects failed:', e);
-        }
+        // ── PHASE 2: Network data — runs in parallel, auth gates cloud ──
+        // Cloud project refresh and weather sync run simultaneously.
+        // Weather is fire-and-forget (never blocks dashboard).
+        var _networkStart = Date.now();
 
+        // Weather: fire-and-forget — don't await, don't block anything
+        withTimeout(syncWeather(), 15000, undefined, 'syncWeather').catch(function(e) {
+            console.warn('[INDEX] Weather sync failed:', e);
+        });
+
+        // Cloud project refresh (needs network + auth)
         if (navigator.onLine) {
             try {
                 var cloudProjects = await withTimeout(
@@ -366,7 +380,7 @@ async function refreshDashboard(source) {
                 );
                 if (cloudProjects && cloudProjects.length > 0) {
                     projects = cloudProjects;
-                    console.log('[INDEX] Refreshed', projects.length, 'projects from cloud');
+                    console.log('[INDEX] Refreshed', projects.length, 'projects from cloud in ' + (Date.now() - _networkStart) + 'ms');
                 }
             } catch (e) {
                 console.warn('[INDEX] Cloud project refresh failed:', e);
@@ -398,12 +412,6 @@ async function refreshDashboard(source) {
         // 6. Recover any cloud drafts we don't have locally (fire-and-forget)
         try { recoverCloudDrafts(); } catch (e) { /* non-critical */ }
 
-        // 7. Sync weather (with timeout, properly awaited)
-        try {
-            await withTimeout(syncWeather(), 15000, undefined, 'syncWeather');
-        } catch (e) {
-            console.warn('[INDEX] Weather sync failed:', e);
-        }
     } catch (err) {
         console.error('[INDEX] refreshDashboard error:', err);
         // Best-effort render with whatever data is available
