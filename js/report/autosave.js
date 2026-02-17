@@ -154,7 +154,7 @@ function flushReportBackup() {
     var _autosaveReportId = RS.currentReportId;
     var _autosavePayload = {
         report_id: _autosaveReportId,
-        org_id: localStorage.getItem('fvp_org_id') || null,
+        org_id: localStorage.getItem(STORAGE_KEYS.ORG_ID) || null,
         user_edits: RS.userEdits || {},
         status: RS.report?.meta?.status || 'refined',
         updated_at: new Date().toISOString()

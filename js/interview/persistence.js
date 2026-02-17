@@ -89,7 +89,6 @@ async function confirmCancelReport() {
 // ============ LOCALSTORAGE DRAFT MANAGEMENT ============
 // v6: Use STORAGE_KEYS from storage-keys.js for all localStorage operations
 // Draft storage uses STORAGE_KEYS.CURRENT_REPORTS via getCurrentReport()/saveCurrentReport()
-// Sync queue uses STORAGE_KEYS.SYNC_QUEUE via getSyncQueue()/addToSyncQueue()
 
 /**
  * Save all form data to localStorage
@@ -690,7 +689,7 @@ _interviewBackupDirty = false;
 const pageState = buildInterviewPageState();
 
 // Fire and forget with retry — do NOT await, do NOT block UI (SUP-02)
-const orgId = localStorage.getItem('fvp_org_id');
+const orgId = localStorage.getItem(STORAGE_KEYS.ORG_ID);
 const reportId = IS.currentReportId;
 supabaseRetry(function() {
     return supabaseClient
@@ -999,7 +998,7 @@ async function uploadPendingPhotos() {
                 const photoData = {
                     id: photo.id,
                     report_id: IS.currentReportId,
-                    org_id: localStorage.getItem('fvp_org_id') || null,
+                    org_id: localStorage.getItem(STORAGE_KEYS.ORG_ID) || null,
                     storage_path: photo.storagePath,
                     photo_url: photo.url || null,
                     caption: photo.caption || '',

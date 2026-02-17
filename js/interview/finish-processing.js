@@ -152,7 +152,7 @@ async function saveAIResponse(originalPayload, response, processingTimeMs) {
     try {
         const submissionData = {
             report_id: IS.currentReportId,
-            org_id: localStorage.getItem('fvp_org_id') || null,
+            org_id: localStorage.getItem(STORAGE_KEYS.ORG_ID) || null,
             original_input: originalPayload || null,
             ai_response: response || null,
             model_used: 'n8n-fieldvoice-refine',
@@ -374,7 +374,7 @@ async function finishReportFlow(options) {
 
         // Sprint 4+15 (SUP-02): Sync report data to Supabase with retry
         var _finishReportId = IS.currentReportId;
-        var _finishOrgId = localStorage.getItem('fvp_org_id') || null;
+        var _finishOrgId = localStorage.getItem(STORAGE_KEYS.ORG_ID) || null;
         var _finishPayload = {
             report_id: _finishReportId,
             org_id: _finishOrgId,

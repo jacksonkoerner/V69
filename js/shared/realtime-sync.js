@@ -21,7 +21,7 @@ function initRealtimeSync() {
 
     var userId = typeof getStorageItem === 'function'
         ? getStorageItem(STORAGE_KEYS.USER_ID)
-        : localStorage.getItem('fvp_user_id');
+        : localStorage.getItem(STORAGE_KEYS.USER_ID);
     if (!userId) return;
 
     // Tear down any existing subscriptions (idempotent)
@@ -60,7 +60,7 @@ function initRealtimeSync() {
     // --- Projects channel (scoped to org) ---
     var orgId = typeof getStorageItem === 'function'
         ? getStorageItem(STORAGE_KEYS.ORG_ID)
-        : localStorage.getItem('fvp_org_id');
+        : localStorage.getItem(STORAGE_KEYS.ORG_ID);
     if (orgId) {
         var projectsChannel = supabaseClient
             .channel('projects-sync')

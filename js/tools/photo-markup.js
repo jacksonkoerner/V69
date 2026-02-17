@@ -846,7 +846,7 @@ function _saveMarkup() {
 
     // Save to sessionStorage as backup
     try {
-        sessionStorage.setItem('fvp_markup_photo', dataUrl);
+        sessionStorage.setItem(STORAGE_KEYS.MARKUP_PHOTO, dataUrl);
     } catch (e) {
         console.warn('[MARKUP] sessionStorage save failed:', e);
     }

@@ -10,7 +10,7 @@ let isDirty = false;
 let originalValues = {};
 
 // Storage key for scratch pad (localStorage)
-const SETTINGS_SCRATCH_KEY = 'fvp_settings_scratch';
+const SETTINGS_SCRATCH_KEY = STORAGE_KEYS.SETTINGS_SCRATCH;
 
 // ============ PROFILE MANAGEMENT ============
 async function loadSettings() {

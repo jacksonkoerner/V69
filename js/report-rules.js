@@ -207,7 +207,7 @@ function getProjectsEligibleForNewReport() {
 async function ensureFreshProjectsCache(maxAgeMinutes) {
   if (typeof maxAgeMinutes !== 'number') maxAgeMinutes = 10;
 
-  var cacheTimestamp = getStorageItem('fvp_projects_cache_ts');
+  var cacheTimestamp = getStorageItem(STORAGE_KEYS.PROJECTS_CACHE_TS);
   var now = Date.now();
 
   if (cacheTimestamp && (now - cacheTimestamp) < maxAgeMinutes * 60 * 1000) {
@@ -229,7 +229,7 @@ async function ensureFreshProjectsCache(maxAgeMinutes) {
       }
 
       // Update timestamp
-      setStorageItem('fvp_projects_cache_ts', now);
+      setStorageItem(STORAGE_KEYS.PROJECTS_CACHE_TS, now);
       console.log('[RULES] Projects cache refreshed, age reset');
       return true;
     }

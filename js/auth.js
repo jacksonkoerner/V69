@@ -109,14 +109,14 @@
             STORAGE_KEYS.BANNER_DISMISSED,
             STORAGE_KEYS.BANNER_DISMISSED_DATE,
             STORAGE_KEYS.PROJECTS,
-            'fvp_projects_cache_ts',
+            STORAGE_KEYS.PROJECTS_CACHE_TS,
             STORAGE_KEYS.ACTIVE_PROJECT_ID
         ];
         keysToRemove.forEach(key => localStorage.removeItem(key));
 
         // Clear all report drafts (fvp_report_*) to prevent data leakage
         Object.keys(localStorage)
-            .filter(k => k.startsWith('fvp_report_') || k.startsWith('fvp_ai_conversation_'))
+            .filter(k => k.startsWith(STORAGE_KEYS.REPORT_DATA) || k.startsWith(STORAGE_KEYS.AI_CONVERSATION))
             .forEach(k => localStorage.removeItem(k));
 
         // Clear IndexedDB stores with user data

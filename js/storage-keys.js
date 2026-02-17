@@ -38,7 +38,13 @@ const STORAGE_KEYS = {
   DICTATION_HINT_DISMISSED: 'fvp_dictation_hint_dismissed',
   PERMISSIONS_DISMISSED: 'fvp_permissions_dismissed',
   ORG_ID: 'fvp_org_id',
-  DELETED_REPORT_IDS: 'fvp_deleted_report_ids'
+  DELETED_REPORT_IDS: 'fvp_deleted_report_ids',
+  PROJECTS_CACHE_TS: 'fvp_projects_cache_ts',
+  SETTINGS_SCRATCH: 'fvp_settings_scratch',
+  AI_CONVERSATION: 'fvp_ai_conversation',        // Base key; use aiConversationKey() for per-user
+  SUBMITTED_BANNER_DISMISSED: 'fvp_submitted_banner_dismissed',  // sessionStorage
+  MIGRATION_V113_IDB_CLEAR: 'fvp_migration_v113_idb_clear',
+  MARKUP_PHOTO: 'fvp_markup_photo'                // sessionStorage
 };
 
 // ── Deleted Reports Blocklist ──────────────────────────────────────────
@@ -189,6 +195,17 @@ function removeFromDeletedBlocklist(reportId) {
  * @property {Object} data - Operation data
  * @property {number} timestamp - When operation was queued
  */
+
+/**
+ * Returns the localStorage key for a per-user AI conversation.
+ * @param {string} [userId] - The auth user ID (omit for anonymous)
+ * @returns {string} The namespaced key
+ */
+function aiConversationKey(userId) {
+  return userId
+    ? STORAGE_KEYS.AI_CONVERSATION + '_' + userId
+    : STORAGE_KEYS.AI_CONVERSATION;
+}
 
 /**
  * Gets or creates a persistent device ID
@@ -519,4 +536,5 @@ if (typeof window !== 'undefined') {
   window.hydrateCurrentReportsFromIDB = hydrateCurrentReportsFromIDB;
   window.syncCurrentReportsToIDB = syncCurrentReportsToIDB;
   window.saveCurrentReportSync = saveCurrentReportSync;
+  window.aiConversationKey = aiConversationKey;
 }

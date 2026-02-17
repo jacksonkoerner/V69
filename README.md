@@ -130,7 +130,7 @@ draft -> pending_refine -> refined -> submitted
 ├── js/                         # JavaScript modules
 │   ├── config.js               # Supabase client initialization
 │   ├── storage-keys.js         # localStorage constants + helpers
-│   ├── indexeddb-utils.js      # IndexedDB CRUD operations (v6)
+│   ├── indexeddb-utils.js      # IndexedDB CRUD operations (v7)
 │   ├── data-layer.js           # Unified data access (IndexedDB-first)
 │   ├── supabase-utils.js       # Data converters (snake_case <-> camelCase)
 │   ├── ui-utils.js             # UI helpers (toast, date, escapeHtml)
@@ -198,12 +198,13 @@ draft -> pending_refine -> refined -> submitted
 ## Storage Architecture
 
 ```
-IndexedDB (fieldvoice-pro, v6)
+IndexedDB (fieldvoice-pro, v7)
 ├── projects          # Cached projects with contractors (JSONB)
 ├── userProfile       # User settings (keyed by deviceId)
 ├── photos            # Photo metadata + base64 for offline
 ├── currentReports    # Active draft reports (durable backup of localStorage)
 ├── draftData         # Full draft interview data (replaces localStorage for large data)
+├── reportData        # AI-generated + user-edited report content (IDB mirror of Supabase report_data)
 └── cachedArchives    # Cached archive reports/projects for offline viewing
 
 localStorage (flags only, fvp_* prefix)
@@ -260,6 +261,11 @@ See `js/README.md` for the complete developer storage reference.
 ### Archives Offline (Sprint 12)
 - Successful archive loads cached to IndexedDB `cachedArchives` store
 - Offline access shows cached reports with a subtle banner
+
+### IndexedDB Improvements (Sprint 14+)
+- **IDB v7**: Added `reportData` object store for durable caching of AI-generated + user-edited report content
+- **`closeAllIDBConnections()`**: Utility to close all open IDB connections (used before `deleteDatabase()` for clean reset)
+- **`deleteReportFull()`**: Consolidated delete function in `shared/delete-report.js` — removes report from localStorage, IndexedDB (`currentReports`, `draftData`, `reportData`), and Supabase (`reports`, `report_data`, `photos`) in one call
 
 ### Multi-Device Sync (Sprint 13)
 - **Supabase Realtime**: `reports`, `report_data`, `projects` tables publish changes via postgres_changes

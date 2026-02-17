@@ -10,7 +10,9 @@
     const AI_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-ai-chat';
     // Namespace conversation per user to prevent cross-user leakage on shared devices
     const _userId = (typeof STORAGE_KEYS !== 'undefined' && localStorage.getItem(STORAGE_KEYS.AUTH_USER_ID)) || '';
-    const STORAGE_KEY = _userId ? 'fvp_ai_conversation_' + _userId : 'fvp_ai_conversation';
+    const STORAGE_KEY = typeof aiConversationKey === 'function'
+        ? aiConversationKey(_userId)
+        : (_userId ? 'fvp_ai_conversation_' + _userId : 'fvp_ai_conversation');
     const MAX_HISTORY = 50;
 
     // ── State ──
@@ -722,7 +724,7 @@
                 projectName: projectData?.projectName || null,
                 projectId: projectData?.id || null,
                 reportDate: new Date().toISOString().split('T')[0],
-                deviceId: localStorage.getItem('fvp_device_id') || null,
+                deviceId: localStorage.getItem(STORAGE_KEYS.DEVICE_ID) || null,
                 lat: cachedGPS.lat,
                 lng: cachedGPS.lng
             }
@@ -759,7 +761,7 @@
     function getProjectContext() {
         try {
             const pid = localStorage.getItem(
-                (typeof STORAGE_KEYS !== 'undefined' && STORAGE_KEYS.ACTIVE_PROJECT_ID)
+                typeof STORAGE_KEYS !== 'undefined'
                     ? STORAGE_KEYS.ACTIVE_PROJECT_ID
                     : 'fvp_active_project_id'
             );

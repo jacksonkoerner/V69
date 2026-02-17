@@ -127,7 +127,7 @@ function dismissPermissionsBanner() {
 async function dismissSubmittedBanner() {
     const banner = document.getElementById('submittedBanner');
     banner.classList.add('hidden');
-    sessionStorage.setItem('fvp_submitted_banner_dismissed', 'true');
+    sessionStorage.setItem(STORAGE_KEYS.SUBMITTED_BANNER_DISMISSED, 'true');
 
     // Refresh UI
     renderReportCards();
@@ -208,7 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ============ ONE-TIME MIGRATION: Clear stale IndexedDB projects (v1.13.0) ============
     // This fixes mobile PWA showing duplicate/stale projects from before user_id filtering
-    const MIGRATION_KEY = 'fvp_migration_v113_idb_clear';
+    const MIGRATION_KEY = STORAGE_KEYS.MIGRATION_V113_IDB_CLEAR;
     if (!localStorage.getItem(MIGRATION_KEY)) {
         console.log('[MIGRATION v1.13.0] Clearing stale IndexedDB projects...');
         try {
@@ -252,7 +252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof initRealtimeSync === 'function') initRealtimeSync();
 
         // Show submitted banner if there are submitted reports today and not dismissed this session
-        const bannerDismissedThisSession = sessionStorage.getItem('fvp_submitted_banner_dismissed') === 'true';
+        const bannerDismissedThisSession = sessionStorage.getItem(STORAGE_KEYS.SUBMITTED_BANNER_DISMISSED) === 'true';
         const { todaySubmitted } = getReportsByUrgency();
         if (todaySubmitted.length > 0 && !bannerDismissedThisSession) {
             document.getElementById('submittedBanner').classList.remove('hidden');
