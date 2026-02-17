@@ -37,8 +37,49 @@ const STORAGE_KEYS = {
   BANNER_DISMISSED_DATE: 'fvp_banner_dismissed_date',
   DICTATION_HINT_DISMISSED: 'fvp_dictation_hint_dismissed',
   PERMISSIONS_DISMISSED: 'fvp_permissions_dismissed',
-  ORG_ID: 'fvp_org_id'
+  ORG_ID: 'fvp_org_id',
+  DELETED_REPORT_IDS: 'fvp_deleted_report_ids'
 };
+
+// ── Deleted Reports Blocklist ──────────────────────────────────────────
+// Prevents race conditions where cloud recovery, realtime sync, or IDB
+// hydration re-insert a report that the user just deleted.
+
+/**
+ * Mark a report as recently deleted. All re-insertion paths check this.
+ * @param {string} reportId
+ */
+function addToDeletedBlocklist(reportId) {
+  if (!reportId) return;
+  var list = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_REPORT_IDS) || '[]');
+  if (list.indexOf(reportId) === -1) {
+    list.push(reportId);
+    // Keep only last 100 entries to avoid bloat
+    if (list.length > 100) list = list.slice(-100);
+    localStorage.setItem(STORAGE_KEYS.DELETED_REPORT_IDS, JSON.stringify(list));
+  }
+}
+
+/**
+ * Check if a report was recently deleted.
+ * @param {string} reportId
+ * @returns {boolean}
+ */
+function isDeletedReport(reportId) {
+  if (!reportId) return false;
+  var list = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_REPORT_IDS) || '[]');
+  return list.indexOf(reportId) !== -1;
+}
+
+/**
+ * Remove a report from the deleted blocklist (e.g., if delete failed and we want to allow recovery).
+ * @param {string} reportId
+ */
+function removeFromDeletedBlocklist(reportId) {
+  if (!reportId) return;
+  var list = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_REPORT_IDS) || '[]');
+  localStorage.setItem(STORAGE_KEYS.DELETED_REPORT_IDS, JSON.stringify(list.filter(function(id) { return id !== reportId; })));
+}
 
 /**
  * @typedef {Object} Contractor
@@ -395,17 +436,23 @@ async function hydrateCurrentReportsFromIDB() {
     if (idbKeys.length === 0) return false;
 
     if (!hasLocal) {
-      // localStorage empty, restore from IDB
-      setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, idbReports);
-      console.log(`[STORAGE] Hydrated ${idbKeys.length} current reports from IDB → localStorage`);
+      // localStorage empty, restore from IDB — but skip deleted reports
+      var filtered = {};
+      var skipped = 0;
+      for (var k in idbReports) {
+        if (isDeletedReport(k)) { skipped++; continue; }
+        filtered[k] = idbReports[k];
+      }
+      setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, filtered);
+      console.log('[STORAGE] Hydrated ' + (idbKeys.length - skipped) + ' current reports from IDB → localStorage' + (skipped ? ' (skipped ' + skipped + ' deleted)' : ''));
       return true;
     }
 
-    // Merge: add any IDB reports missing from localStorage
+    // Merge: add any IDB reports missing from localStorage (skip deleted)
     let merged = 0;
     const mergedReports = { ...localReports };
     for (const id of idbKeys) {
-      if (!mergedReports[id]) {
+      if (!mergedReports[id] && !isDeletedReport(id)) {
         mergedReports[id] = idbReports[id];
         merged++;
       }

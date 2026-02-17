@@ -41,6 +41,12 @@ function recoverCloudDrafts() {
             let recovered = 0;
 
             for (const row of data) {
+                // Skip reports that are pending deletion (blocklist prevents zombie resurrection)
+                if (typeof isDeletedReport === 'function' && isDeletedReport(row.id)) {
+                    console.log('[RECOVERY] Skipping report on deleted blocklist:', row.id);
+                    continue;
+                }
+
                 // SYN-01 (Sprint 15): Compare timestamps — cloud wins if newer
                 const existing = localReports[row.id];
                 if (existing) {

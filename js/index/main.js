@@ -312,10 +312,10 @@ async function refreshDashboard(source) {
         return;
     }
 
-    // Cooldown: skip if we just refreshed < 2s ago (prevents double-fire from
-    // DOMContentLoaded + immediate pageshow or visibilitychange)
+    // Cooldown: skip if we just refreshed < 2s ago (prevents triple-fire from
+    // pageshow + visibilitychange + focus which all fire on tab return)
     var now = Date.now();
-    if (source !== 'DOMContentLoaded' && source === _lastRefreshSource && (now - _lastRefreshTime) < _REFRESH_COOLDOWN) {
+    if (source !== 'DOMContentLoaded' && (now - _lastRefreshTime) < _REFRESH_COOLDOWN) {
         console.log('[INDEX] refreshDashboard cooldown, skipping (' + source + ', ' + (now - _lastRefreshTime) + 'ms since last)');
         return;
     }

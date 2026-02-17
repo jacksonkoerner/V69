@@ -100,6 +100,12 @@ function _handleReportChange(payload) {
     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
         var report = payload.new;
 
+        // Skip reports on the deleted blocklist (prevents resurrection during cascade)
+        if (typeof isDeletedReport === 'function' && isDeletedReport(report.id)) {
+            console.log('[REALTIME] Ignoring ' + payload.eventType + ' for report on deleted blocklist:', report.id);
+            return;
+        }
+
         // SYN-02 (Sprint 15): Skip realtime overwrites for the report currently being edited.
         // If user is on quick-interview.html or report.html editing this specific report,
         // a realtime event could reset local state (status, dates, etc.) mid-edit.

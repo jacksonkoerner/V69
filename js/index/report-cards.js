@@ -568,52 +568,59 @@ async function executeDeleteReport(reportId, overlay) {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Deleting...';
 
     try {
-        // 1. Delete from Supabase (full cascade: photos, child tables, PDF, report)
-        if (reportId.length === 36 && typeof deleteReportCascade === 'function' && typeof supabaseClient !== 'undefined') {
-            const result = await deleteReportCascade(reportId);
-            if (!result.success) {
-                console.warn('[SWIPE-DELETE] Supabase cascade had errors:', result.errors);
-            }
-        }
+        // 1. BLOCKLIST FIRST — prevents cloud recovery, realtime sync, and IDB
+        //    hydration from re-inserting this report during the Supabase cascade
+        if (typeof addToDeletedBlocklist === 'function') addToDeletedBlocklist(reportId);
 
-        // 2. Delete from IndexedDB
+        // 2. Delete from localStorage FIRST (instant UI cleanup)
+        if (typeof deleteCurrentReport === 'function') deleteCurrentReport(reportId);
+        if (typeof deleteReportData === 'function') deleteReportData(reportId);
+
+        // 3. Delete from IndexedDB (fast, local)
         if (window.idb) {
             try { await window.idb.deleteCurrentReportIDB(reportId); } catch(e) { /* ok */ }
             try { await window.idb.deletePhotosByReportId(reportId); } catch(e) { /* ok */ }
             try { await window.idb.deleteDraftDataIDB(reportId); } catch(e) { /* ok */ }
         }
 
-        // 3. Delete from localStorage
-        if (typeof deleteCurrentReport === 'function') deleteCurrentReport(reportId);
-        if (typeof deleteReportData === 'function') deleteReportData(reportId);
+        console.log('[SWIPE-DELETE] Local cleanup done, removing card:', reportId);
 
-        console.log('[SWIPE-DELETE] Deleted report:', reportId);
-
-        // 4. Close modal
+        // 4. Close modal and animate card removal IMMEDIATELY (don't wait for Supabase)
         overlay.remove();
 
-        // 5. Animate card removal, then full re-render to update project sections
         const wrapper = document.querySelector(`.swipe-card-wrapper[data-report-id="${reportId}"]`);
         if (wrapper) {
-            // Set explicit max-height for animation
             wrapper.style.maxHeight = wrapper.offsetHeight + 'px';
-            // Force reflow
-            wrapper.offsetHeight;
+            wrapper.offsetHeight; // force reflow
             wrapper.classList.add('removing');
             setTimeout(() => {
                 wrapper.remove();
-                // Always re-render — updates project sections, report counts,
-                // and removes empty project headers correctly
                 renderReportCards();
                 updateReportStatus();
             }, 350);
         } else {
-            // Card not found in DOM (edge case) — re-render immediately
             renderReportCards();
             updateReportStatus();
         }
+
+        // 5. Supabase cascade in background (non-blocking — local state is already clean)
+        if (reportId.length === 36 && typeof deleteReportCascade === 'function' && typeof supabaseClient !== 'undefined') {
+            deleteReportCascade(reportId).then(function(result) {
+                if (!result.success) {
+                    console.warn('[SWIPE-DELETE] Supabase cascade had errors:', result.errors);
+                } else {
+                    console.log('[SWIPE-DELETE] Supabase cascade complete:', reportId);
+                }
+            }).catch(function(err) {
+                console.error('[SWIPE-DELETE] Supabase cascade failed:', err);
+                // Report is already gone locally — Supabase orphan will be cleaned up
+                // next time the user or admin runs maintenance
+            });
+        }
     } catch (e) {
         console.error('[SWIPE-DELETE] Error:', e);
+        // Remove from blocklist if local cleanup failed so recovery can re-fetch
+        if (typeof removeFromDeletedBlocklist === 'function') removeFromDeletedBlocklist(reportId);
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-trash mr-1"></i> Delete';
         alert('Failed to delete report. Please try again.');
