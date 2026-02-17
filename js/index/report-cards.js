@@ -592,7 +592,7 @@ async function executeDeleteReport(reportId, overlay) {
         // 4. Close modal
         overlay.remove();
 
-        // 5. Animate card removal
+        // 5. Animate card removal, then full re-render to update project sections
         const wrapper = document.querySelector(`.swipe-card-wrapper[data-report-id="${reportId}"]`);
         if (wrapper) {
             // Set explicit max-height for animation
@@ -602,12 +602,15 @@ async function executeDeleteReport(reportId, overlay) {
             wrapper.classList.add('removing');
             setTimeout(() => {
                 wrapper.remove();
-                // Re-render if no cards left
-                const container = document.getElementById('reportCardsSection');
-                if (container && container.querySelectorAll('.swipe-card-wrapper').length === 0) {
-                    renderReportCards();
-                }
+                // Always re-render — updates project sections, report counts,
+                // and removes empty project headers correctly
+                renderReportCards();
+                updateReportStatus();
             }, 350);
+        } else {
+            // Card not found in DOM (edge case) — re-render immediately
+            renderReportCards();
+            updateReportStatus();
         }
     } catch (e) {
         console.error('[SWIPE-DELETE] Error:', e);
