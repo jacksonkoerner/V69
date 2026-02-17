@@ -55,6 +55,9 @@ async function executeDeleteReport() {
             if (typeof window.idb.deleteDraftDataIDB === 'function') {
                 try { await window.idb.deleteDraftDataIDB(_reportId); } catch(e) { /* ok */ }
             }
+            if (typeof window.idb.deleteReportDataIDB === 'function') {
+                try { await window.idb.deleteReportDataIDB(_reportId); } catch(e) { /* ok */ }
+            }
         }
 
         console.log('[DELETE] Local cleanup done, redirecting');

@@ -576,16 +576,9 @@ async function executeDeleteReport(reportId, overlay) {
         if (typeof deleteCurrentReport === 'function') deleteCurrentReport(reportId);
         if (typeof deleteReportData === 'function') deleteReportData(reportId);
 
-        // 3. Delete from IndexedDB (fast, local)
-        if (window.idb) {
-            try { await window.idb.deleteCurrentReportIDB(reportId); } catch(e) { /* ok */ }
-            try { await window.idb.deletePhotosByReportId(reportId); } catch(e) { /* ok */ }
-            try { await window.idb.deleteDraftDataIDB(reportId); } catch(e) { /* ok */ }
-        }
-
         console.log('[SWIPE-DELETE] Local cleanup done, removing card:', reportId);
 
-        // 4. Close modal and animate card removal IMMEDIATELY (don't wait for Supabase)
+        // 3. Close modal and animate card removal IMMEDIATELY
         overlay.remove();
 
         const wrapper = document.querySelector(`.swipe-card-wrapper[data-report-id="${reportId}"]`);
@@ -601,6 +594,18 @@ async function executeDeleteReport(reportId, overlay) {
         } else {
             renderReportCards();
             updateReportStatus();
+        }
+
+        // 4. Delete from IndexedDB in background (non-blocking after UI is clean)
+        if (window.idb) {
+            Promise.allSettled([
+                window.idb.deleteCurrentReportIDB(reportId).catch(function(e) {}),
+                window.idb.deletePhotosByReportId(reportId).catch(function(e) {}),
+                window.idb.deleteDraftDataIDB(reportId).catch(function(e) {}),
+                typeof window.idb.deleteReportDataIDB === 'function' ? window.idb.deleteReportDataIDB(reportId).catch(function(e) {}) : Promise.resolve()
+            ]).then(function() {
+                console.log('[SWIPE-DELETE] IDB cleanup complete:', reportId);
+            });
         }
 
         // 5. Supabase cascade in background (non-blocking — local state is already clean)

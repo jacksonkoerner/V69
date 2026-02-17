@@ -118,6 +118,12 @@ async function loadReport() {
 
                 // Cache back to localStorage for speed
                 saveReportData(reportIdParam, reportData);
+                // Also cache to IDB for durability
+                if (window.idb && typeof window.idb.saveReportDataIDB === 'function') {
+                    window.idb.saveReportDataIDB(reportIdParam, reportData).catch(function(idbErr) {
+                        console.warn('[LOAD] IDB cache-back failed:', idbErr);
+                    });
+                }
                 showToast('Report recovered from cloud', 'success');
             }
         } catch (err) {

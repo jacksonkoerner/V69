@@ -732,16 +732,17 @@
         return ensureDB().then(function(database) {
             return new Promise(function(resolve, reject) {
                 if (!database.objectStoreNames.contains('reportData')) {
-                    resolve();
+                    console.warn('[IDB] reportData store not found — upgrade may have failed');
+                    reject(new Error('reportData store not available'));
                     return;
                 }
                 var transaction = database.transaction(['reportData'], 'readwrite');
                 var store = transaction.objectStore('reportData');
                 var record = Object.assign({}, data, { reportId: reportId, _idbSavedAt: new Date().toISOString() });
-                var request = store.put(record);
+                store.put(record);
 
-                request.onsuccess = function() { resolve(); };
-                request.onerror = function(event) {
+                transaction.oncomplete = function() { resolve(); };
+                transaction.onerror = function(event) {
                     console.error('Error saving report data to IDB:', event.target.error);
                     reject(event.target.error);
                 };
@@ -790,10 +791,10 @@
                 }
                 var transaction = database.transaction(['reportData'], 'readwrite');
                 var store = transaction.objectStore('reportData');
-                var request = store.delete(reportId);
+                store.delete(reportId);
 
-                request.onsuccess = function() { resolve(); };
-                request.onerror = function(event) {
+                transaction.oncomplete = function() { resolve(); };
+                transaction.onerror = function(event) {
                     console.error('Error deleting report data from IDB:', event.target.error);
                     reject(event.target.error);
                 };
