@@ -46,16 +46,21 @@ async function confirmCancelReport() {
 
         if (!IS.currentReportId) throw new Error('No report ID — cannot cancel');
 
-        // Delete from Supabase only if we have a real Supabase ID (UUID format, 36 chars)
-        if (IS.currentReportId.length === 36) {
-            await deleteReportFromSupabase(IS.currentReportId);
+        var _reportId = IS.currentReportId;
+
+        // 1. BLOCKLIST FIRST — prevents cloud recovery/realtime from resurrecting
+        if (typeof addToDeletedBlocklist === 'function') addToDeletedBlocklist(_reportId);
+
+        // 2. Delete from localStorage FIRST (instant cleanup)
+        deleteCurrentReport(_reportId);
+        deleteReportData(_reportId);
+
+        // 3. Delete from IndexedDB
+        if (window.idb) {
+            try { await window.idb.deleteCurrentReportIDB(_reportId); } catch(e) { /* ok */ }
+            try { await window.idb.deletePhotosByReportId(_reportId); } catch(e) { /* ok */ }
+            try { await window.idb.deleteDraftDataIDB(_reportId); } catch(e) { /* ok */ }
         }
-
-        // v6.9: UUID-only — delete by currentReportId
-        deleteCurrentReport(IS.currentReportId);
-
-        // Also delete orphaned report data (fvp_report_{id})
-        deleteReportData(IS.currentReportId);
 
         // Sprint 15 (OFF-02): sync queue removed — no queue items to clear
 
@@ -63,8 +68,15 @@ async function confirmCancelReport() {
         IS.currentReportId = null;
         IS.report = {};
 
-        // Navigate to home
+        // Navigate to home IMMEDIATELY — Supabase cleanup runs in background
         window.location.href = 'index.html';
+
+        // 4. Supabase cascade in background (non-blocking)
+        if (_reportId.length === 36) {
+            deleteReportFromSupabase(_reportId).catch(function(err) {
+                console.warn('[CANCEL] Supabase cascade failed:', err);
+            });
+        }
 
     } catch (error) {
         console.error('[CANCEL] Error canceling report:', error);

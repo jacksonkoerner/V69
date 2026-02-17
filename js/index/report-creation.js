@@ -224,36 +224,40 @@ function showDuplicateReportModal(projectName, date, existingReportId, projectId
         deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
 
         try {
-            // Delete from Supabase if it exists (UUID format, 36 chars)
-            if (existingReportId && existingReportId.length === 36 && typeof supabaseClient !== 'undefined' && supabaseClient) {
-                const result = await deleteReportCascade(existingReportId);
-                if (result.success) {
-                    console.log('[DUPLICATE] Deleted existing report from Supabase:', existingReportId);
-                } else {
-                    console.warn('[DUPLICATE] Supabase delete had errors (continuing):', result.errors);
-                }
-            }
+            // 1. BLOCKLIST FIRST — prevents resurrection during Supabase cascade
+            if (typeof addToDeletedBlocklist === 'function') addToDeletedBlocklist(existingReportId);
 
-            // Delete from IndexedDB
-            if (window.idb) {
-                try { await window.idb.deleteReport(existingReportId); } catch(e) { /* ok */ }
-                try { await window.idb.deletePhotosByReportId(existingReportId); } catch(e) { /* ok */ }
-            }
-
-            // Delete from localStorage: fvp_current_reports entry
+            // 2. Delete from localStorage FIRST (instant)
             deleteCurrentReport(existingReportId);
-            // Delete orphaned report data: fvp_report_{uuid}
             deleteReportData(existingReportId);
-            console.log('[DUPLICATE] Deleted existing report from localStorage:', existingReportId);
+            console.log('[DUPLICATE] Local cleanup done:', existingReportId);
+
+            // 3. Delete from IndexedDB
+            if (window.idb) {
+                try { await window.idb.deleteCurrentReportIDB(existingReportId); } catch(e) { /* ok */ }
+                try { await window.idb.deletePhotosByReportId(existingReportId); } catch(e) { /* ok */ }
+                try { await window.idb.deleteDraftDataIDB(existingReportId); } catch(e) { /* ok */ }
+            }
 
             closeDuplicateReportModal();
 
-            // Proceed with new UUID
+            // 4. Proceed with new UUID immediately — Supabase cleanup in background
             const newReportId = crypto.randomUUID();
             await createSupabaseReportRow(newReportId, projectId);
             window.location.href = `quick-interview.html?reportId=${newReportId}&projectId=${projectId}`;
+
+            // 5. Supabase cascade in background (non-blocking)
+            if (existingReportId && existingReportId.length === 36 && typeof supabaseClient !== 'undefined' && supabaseClient) {
+                deleteReportCascade(existingReportId).then(function(result) {
+                    if (!result.success) console.warn('[DUPLICATE] Supabase cascade errors:', result.errors);
+                }).catch(function(err) {
+                    console.error('[DUPLICATE] Supabase cascade failed:', err);
+                });
+            }
         } catch (e) {
             console.error('[DUPLICATE] Error deleting report:', e);
+            // Remove from blocklist if we failed before proceeding
+            if (typeof removeFromDeletedBlocklist === 'function') removeFromDeletedBlocklist(existingReportId);
             deleteBtn.disabled = false;
             deleteBtn.innerHTML = '<i class="fas fa-trash mr-2"></i>Delete & Start Fresh';
             alert('Failed to delete existing report. Please try again.');

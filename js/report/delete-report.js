@@ -31,43 +31,52 @@ async function executeDeleteReport() {
         return;
     }
 
-    console.log('[DELETE] Deleting report:', RS.currentReportId);
+    var _reportId = RS.currentReportId;
+    console.log('[DELETE] Deleting report:', _reportId);
 
     try {
-        // 1. Delete from localStorage
-        deleteReportData(RS.currentReportId);
+        // 1. BLOCKLIST FIRST — prevents cloud recovery/realtime from resurrecting
+        if (typeof addToDeletedBlocklist === 'function') addToDeletedBlocklist(_reportId);
 
-        // 2. Remove from current reports tracker (uses helper for IndexedDB write-through)
+        // 2. Delete from localStorage FIRST (instant)
+        deleteReportData(_reportId);
         if (typeof deleteCurrentReport === 'function') {
-            deleteCurrentReport(RS.currentReportId);
+            deleteCurrentReport(_reportId);
         }
 
         // 3. Delete from IndexedDB
         if (window.idb) {
-            if (typeof window.idb.deleteReport === 'function') {
-                try { await window.idb.deleteReport(RS.currentReportId); } catch(e) { console.warn('[DELETE] IDB report:', e); }
+            if (typeof window.idb.deleteCurrentReportIDB === 'function') {
+                try { await window.idb.deleteCurrentReportIDB(_reportId); } catch(e) { /* ok */ }
             }
             if (typeof window.idb.deletePhotosByReportId === 'function') {
-                try { await window.idb.deletePhotosByReportId(RS.currentReportId); } catch(e) { console.warn('[DELETE] IDB photos:', e); }
+                try { await window.idb.deletePhotosByReportId(_reportId); } catch(e) { /* ok */ }
+            }
+            if (typeof window.idb.deleteDraftDataIDB === 'function') {
+                try { await window.idb.deleteDraftDataIDB(_reportId); } catch(e) { /* ok */ }
             }
         }
 
-        // 4. Delete from Supabase (if synced)
-        if (window.supabaseClient) {
-            var result = await deleteReportCascade(RS.currentReportId);
-            if (result.success) {
-                console.log('[DELETE] Supabase records deleted');
-            } else {
-                console.warn('[DELETE] Supabase cleanup errors (may not have been synced):', result.errors);
-            }
-        }
-
-        console.log('[DELETE] Report deleted successfully');
+        console.log('[DELETE] Local cleanup done, redirecting');
     } catch(e) {
-        console.error('[DELETE] Error:', e);
+        console.error('[DELETE] Error during local cleanup:', e);
     }
 
+    // Navigate to home IMMEDIATELY
     window.location.href = 'index.html';
+
+    // 4. Supabase cascade in background (non-blocking — local state already clean)
+    if (window.supabaseClient && _reportId.length === 36) {
+        deleteReportCascade(_reportId).then(function(result) {
+            if (result.success) {
+                console.log('[DELETE] Supabase cascade complete');
+            } else {
+                console.warn('[DELETE] Supabase cascade errors:', result.errors);
+            }
+        }).catch(function(e) {
+            console.error('[DELETE] Supabase cascade failed:', e);
+        });
+    }
 }
 
 // Expose to window for HTML onclick handlers
