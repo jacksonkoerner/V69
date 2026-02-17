@@ -362,6 +362,16 @@ async function finishReportFlow(options) {
             console.warn('[LOCAL] Failed to save report package to localStorage');
         }
 
+        // Save to IndexedDB (durable, survives iOS localStorage eviction)
+        if (window.idb && typeof window.idb.saveReportDataIDB === 'function') {
+            try {
+                await window.idb.saveReportDataIDB(IS.currentReportId, reportDataPackage);
+                console.log('[LOCAL] Report data saved to IndexedDB:', IS.currentReportId);
+            } catch (idbErr) {
+                console.warn('[LOCAL] IndexedDB save failed (non-blocking):', idbErr.message);
+            }
+        }
+
         // Sprint 4+15 (SUP-02): Sync report data to Supabase with retry
         var _finishReportId = IS.currentReportId;
         var _finishOrgId = localStorage.getItem('fvp_org_id') || null;
@@ -375,17 +385,23 @@ async function finishReportFlow(options) {
             status: 'refined'
         };
 
-        supabaseRetry(function() {
-            return supabaseClient
-                .from('report_data')
-                .upsert(_finishPayload, { onConflict: 'report_id' });
-        }, 3, 'FINISH:report_data')
-        .then(function() {
+        // Sprint 16: Await Supabase report_data sync with bounded timeout
+        // This ensures cloud data is ready if report.html needs the fallback
+        try {
+            await Promise.race([
+                supabaseRetry(function() {
+                    return supabaseClient
+                        .from('report_data')
+                        .upsert(_finishPayload, { onConflict: 'report_id' });
+                }, 3, 'FINISH:report_data'),
+                new Promise(function(_, reject) {
+                    setTimeout(function() { reject(new Error('Supabase sync timeout')); }, 5000);
+                })
+            ]);
             console.log('[FINISH] Report data synced to Supabase:', _finishReportId);
-        })
-        .catch(function(err) {
-            console.error('[FINISH] report_data sync failed after retries:', err.message);
-        });
+        } catch (syncErr) {
+            console.warn('[FINISH] Supabase sync failed/timed out (IDB fallback available):', syncErr.message);
+        }
 
 
         // v6.9: Use saveCurrentReport helper (sets updated_at, validates)

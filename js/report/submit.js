@@ -200,6 +200,13 @@ async function updateReportStatus(status) {
 async function cleanupLocalStorage() {
     deleteReportData(RS.currentReportId);
 
+    // Clean up IndexedDB report data too
+    if (window.idb && typeof window.idb.deleteReportDataIDB === 'function') {
+        window.idb.deleteReportDataIDB(RS.currentReportId).catch(function(e) {
+            console.warn('[SUBMIT] Could not clean IndexedDB report data:', e);
+        });
+    }
+
     // v6.9: Keep entry in fvp_current_reports with submitted status + timestamp
     // Dashboard will show it for 24hrs, then pruning removes it
     var currentReports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};

@@ -46,6 +46,8 @@ async function loadReport() {
     var reportIdParam = params.get('reportId');
     var reportDateStr = getReportDateStr();
 
+    console.log('[LOAD-DEBUG] loadReport called, reportId:', reportIdParam, 'date:', reportDateStr);
+
     if (!reportIdParam) {
         console.error('[LOAD] No reportId in URL params');
         showToast('Report not found. Redirecting to home.', 'error');
@@ -54,6 +56,29 @@ async function loadReport() {
     }
 
     var reportData = getReportData(reportIdParam);
+    console.log('[LOAD-DEBUG] localStorage getReportData result:', reportData ? 'EXISTS' : 'NULL');
+    if (reportData) {
+        console.log('[LOAD-DEBUG] reportData keys:', Object.keys(reportData));
+        console.log('[LOAD-DEBUG] reportData.aiGenerated:', reportData.aiGenerated ? 'EXISTS (keys: ' + Object.keys(reportData.aiGenerated).join(',') + ')' : 'NULL/MISSING');
+        console.log('[LOAD-DEBUG] reportData.status:', reportData.status);
+        console.log('[LOAD-DEBUG] reportData.captureMode:', reportData.captureMode);
+    }
+
+    // Check IndexedDB before going to Supabase (faster, works offline)
+    if (!reportData && window.idb && typeof window.idb.getReportDataIDB === 'function') {
+        try {
+            console.log('[LOAD] localStorage miss — trying IndexedDB...');
+            var idbData = await window.idb.getReportDataIDB(reportIdParam);
+            if (idbData) {
+                console.log('[LOAD] Recovered report data from IndexedDB');
+                reportData = idbData;
+                // Cache back to localStorage for speed
+                saveReportData(reportIdParam, reportData);
+            }
+        } catch (idbErr) {
+            console.warn('[LOAD] IndexedDB recovery failed:', idbErr);
+        }
+    }
 
     // Sprint 4: If not in localStorage, try Supabase report_data table
     if (!reportData && navigator.onLine) {
@@ -120,6 +145,7 @@ async function loadReport() {
     }
 
     console.log('[LOAD] Report loaded for:', reportIdParam);
+    console.log('[LOAD-DEBUG] === ASSEMBLING REPORT OBJECT ===');
 
     RS.currentReportId = reportIdParam;
 
@@ -139,6 +165,10 @@ async function loadReport() {
     loadedReport.originalInput = reportData.originalInput || null;
     loadedReport.aiCaptureMode = reportData.captureMode || null;
     loadedReport.userEdits = reportData.userEdits || {};
+
+    console.log('[LOAD-DEBUG] loadedReport.aiGenerated:', loadedReport.aiGenerated ? 'SET (activities: ' + (loadedReport.aiGenerated.activities?.length ?? 'none') + ', operations: ' + (loadedReport.aiGenerated.operations?.length ?? 'none') + ')' : 'NULL');
+    console.log('[LOAD-DEBUG] loadedReport.originalInput:', loadedReport.originalInput ? 'SET' : 'NULL');
+    console.log('[LOAD-DEBUG] loadedReport.userEdits:', Object.keys(loadedReport.userEdits).length, 'keys');
 
     if (reportData.originalInput?.weather) {
         loadedReport.overview.weather = reportData.originalInput.weather;

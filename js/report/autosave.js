@@ -216,6 +216,13 @@ function saveReportToLocalStorage() {
         console.error('[LOCAL] Failed to save report to localStorage');
     }
 
+    // Dual-write to IndexedDB for durability
+    if (window.idb && typeof window.idb.saveReportDataIDB === 'function') {
+        window.idb.saveReportDataIDB(RS.currentReportId, reportToSave).catch(function(err) {
+            console.warn('[AUTOSAVE] IDB dual-write failed:', err.message);
+        });
+    }
+
     // Also update current_reports status so dashboard reflects correct state
     if (RS.currentReportId) {
         var currentReport = getCurrentReport(RS.currentReportId);

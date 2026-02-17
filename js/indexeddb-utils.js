@@ -7,7 +7,7 @@
     'use strict';
 
     const DB_NAME = 'fieldvoice-pro';
-    const DB_VERSION = 6; // v6: add cachedArchives store
+    const DB_VERSION = 7; // v7: add reportData store
 
     let db = null;
     const IDB_OPEN_TIMEOUT_MS = 3000; // 3s timeout for indexedDB.open()
@@ -136,6 +136,12 @@
                 if (!database.objectStoreNames.contains('cachedArchives')) {
                     database.createObjectStore('cachedArchives', { keyPath: 'key' });
                     console.log('Created cachedArchives object store');
+                }
+
+                // Create reportData store (v7) — durable report data for cross-page handoff
+                if (!database.objectStoreNames.contains('reportData')) {
+                    database.createObjectStore('reportData', { keyPath: 'reportId' });
+                    console.log('Created reportData object store');
                 }
             };
         });
@@ -713,6 +719,89 @@
     }
 
     // ============================================
+    // REPORT DATA STORE (v7)
+    // ============================================
+
+    /**
+     * Saves report data package to IndexedDB (durable cross-page handoff)
+     * @param {string} reportId - The report UUID
+     * @param {Object} data - The report data package
+     * @returns {Promise<void>}
+     */
+    function saveReportDataIDB(reportId, data) {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('reportData')) {
+                    resolve();
+                    return;
+                }
+                var transaction = database.transaction(['reportData'], 'readwrite');
+                var store = transaction.objectStore('reportData');
+                var record = Object.assign({}, data, { reportId: reportId, _idbSavedAt: new Date().toISOString() });
+                var request = store.put(record);
+
+                request.onsuccess = function() { resolve(); };
+                request.onerror = function(event) {
+                    console.error('Error saving report data to IDB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    /**
+     * Gets report data package from IndexedDB
+     * @param {string} reportId - The report UUID
+     * @returns {Promise<Object|undefined>}
+     */
+    function getReportDataIDB(reportId) {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('reportData')) {
+                    resolve(undefined);
+                    return;
+                }
+                var transaction = database.transaction(['reportData'], 'readonly');
+                var store = transaction.objectStore('reportData');
+                var request = store.get(reportId);
+
+                request.onsuccess = function(event) {
+                    resolve(event.target.result);
+                };
+                request.onerror = function(event) {
+                    console.error('Error getting report data from IDB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    /**
+     * Deletes report data from IndexedDB
+     * @param {string} reportId - The report UUID
+     * @returns {Promise<void>}
+     */
+    function deleteReportDataIDB(reportId) {
+        return ensureDB().then(function(database) {
+            return new Promise(function(resolve, reject) {
+                if (!database.objectStoreNames.contains('reportData')) {
+                    resolve();
+                    return;
+                }
+                var transaction = database.transaction(['reportData'], 'readwrite');
+                var store = transaction.objectStore('reportData');
+                var request = store.delete(reportId);
+
+                request.onsuccess = function() { resolve(); };
+                request.onerror = function(event) {
+                    console.error('Error deleting report data from IDB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        });
+    }
+
+    // ============================================
     // GENERAL
     // ============================================
 
@@ -799,6 +888,11 @@
         // Cached archives store
         saveCachedArchive,
         getCachedArchive,
+
+        // Report data store
+        saveReportDataIDB,
+        getReportDataIDB,
+        deleteReportDataIDB,
 
         // General
         clearStore
