@@ -293,6 +293,9 @@ checkDictationHintBanner();
 
 // Start Realtime subscriptions for multi-device sync
 if (typeof initRealtimeSync === 'function') initRealtimeSync();
+
+// Step 3: Drain any pending backups that survived a page kill
+if (typeof drainPendingBackups === 'function') drainPendingBackups();
 } catch (error) {
 console.error('Initialization failed:', error);
 hideLoadingOverlay();
@@ -319,5 +322,21 @@ flushInterviewBackup();
 }
 if (window.dataStore && typeof window.dataStore.closeAll === 'function') {
 window.dataStore.closeAll();
+}
+});
+
+// Step 3: pageshow — drain pending backups on bfcache restore
+window.addEventListener('pageshow', (event) => {
+if (event.persisted && typeof drainPendingBackups === 'function') {
+console.log('[HARDENING] pageshow (bfcache restore) — draining pending backups');
+drainPendingBackups();
+}
+});
+
+// Step 3: online — drain pending backups when connectivity returns
+window.addEventListener('online', () => {
+if (typeof drainPendingBackups === 'function') {
+console.log('[HARDENING] Back online — draining pending backups');
+drainPendingBackups();
 }
 });

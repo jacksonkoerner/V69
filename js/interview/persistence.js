@@ -179,6 +179,8 @@ function saveToLocalStorage() {
             });
         }
         console.log('[LOCAL] Draft saved to IDB');
+        // Step 3: Mark backup as stale (local is ahead of cloud)
+        _markBackupStale(IS.currentReportId);
     } catch (e) {
         console.error('[LOCAL] Failed to save draft:', e);
         if (IS.currentReportId && window.dataStore) {
@@ -379,6 +381,75 @@ let _interviewBackupTimer = null;
 // Step 2: Sync metadata for cross-device conflict detection
 let _syncRevision = 0;  // Monotonic counter, increments on every saveReport()
 const _syncSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+
+// Step 3: Outbound queue — track pending backups that survived a page kill
+// Uses localStorage flags so they persist even if iOS kills the WebView mid-flush.
+// Key pattern: fvp_backup_stale_{reportId} = timestamp of last local save
+function _markBackupStale(reportId) {
+    try { localStorage.setItem('fvp_backup_stale_' + reportId, Date.now().toString()); } catch (e) {}
+}
+function _clearBackupStale(reportId) {
+    try { localStorage.removeItem('fvp_backup_stale_' + reportId); } catch (e) {}
+}
+function _getStaleBackupReportIds() {
+    var ids = [];
+    try {
+        for (var i = 0; i < localStorage.length; i++) {
+            var key = localStorage.key(i);
+            if (key && key.indexOf('fvp_backup_stale_') === 0) {
+                ids.push(key.replace('fvp_backup_stale_', ''));
+            }
+        }
+    } catch (e) {}
+    return ids;
+}
+
+/**
+ * Step 3: Drain any pending backups that were interrupted by a page kill.
+ * Loads draft data from IDB, rebuilds page_state, and flushes to Supabase.
+ * Called on page init, pageshow (bfcache restore), and online events.
+ */
+async function drainPendingBackups() {
+    if (!navigator.onLine || typeof supabaseClient === 'undefined' || !supabaseClient) return;
+    var staleIds = _getStaleBackupReportIds();
+    if (staleIds.length === 0) return;
+
+    console.log('[DRAIN] Found', staleIds.length, 'pending backup(s):', staleIds);
+    var orgId = localStorage.getItem(STORAGE_KEYS.ORG_ID);
+
+    for (var i = 0; i < staleIds.length; i++) {
+        var reportId = staleIds[i];
+        try {
+            // Load draft from IDB (our reliable local store)
+            if (!window.dataStore || !window.dataStore.getDraftData) continue;
+            var draftData = await window.dataStore.getDraftData(reportId);
+            if (!draftData) {
+                // No draft in IDB — stale flag is orphaned, clean it up
+                _clearBackupStale(reportId);
+                continue;
+            }
+
+            // Flush to Supabase
+            var result = await supabaseClient
+                .from('interview_backup')
+                .upsert({
+                    report_id: reportId,
+                    page_state: draftData,
+                    org_id: orgId || null,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'report_id' });
+
+            if (result.error) {
+                console.warn('[DRAIN] Failed to flush backup for', reportId, ':', result.error.message);
+            } else {
+                _clearBackupStale(reportId);
+                console.log('[DRAIN] Successfully flushed pending backup for', reportId);
+            }
+        } catch (e) {
+            console.warn('[DRAIN] Error draining backup for', reportId, ':', e.message);
+        }
+    }
+}
 
 // Track active auto-save sessions to prevent duplicates
 var guidedAutoSaveSessions = {};
@@ -591,7 +662,7 @@ markInterviewBackupDirty();
 function markInterviewBackupDirty() {
 _interviewBackupDirty = true;
 if (_interviewBackupTimer) clearTimeout(_interviewBackupTimer);
-_interviewBackupTimer = setTimeout(flushInterviewBackup, 5000); // 5s debounce
+_interviewBackupTimer = setTimeout(flushInterviewBackup, 2000); // 2s debounce (reduced from 5s, Step 4)
 }
 
 function buildInterviewPageState() {
@@ -657,6 +728,8 @@ supabaseRetry(function() {
         }, { onConflict: 'report_id' });
 }, 3, 'flushInterviewBackup').then(function() {
     console.log('[BACKUP] Interview backup saved');
+    // Step 3: Cloud is now in sync — clear the stale flag
+    _clearBackupStale(reportId);
 }).catch(function(err) {
     console.warn('[BACKUP] Interview backup failed after retries:', err.message);
     // Re-dirty so next save cycle retries the upload
