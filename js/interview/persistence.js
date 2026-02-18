@@ -435,12 +435,20 @@ function applyInterviewMerge(mergeResult) {
 
     var merged = mergeResult.merged;
 
+    // Protect captureMode — NEVER change it from remote sync
+    var localCaptureMode = IS.report.meta?.captureMode;
+
     // 1. Apply merged data to IS.report
     Object.keys(INTERVIEW_SECTIONS).forEach(function(key) {
         if (merged[key] !== undefined) {
             IS.report[key] = merged[key];
         }
     });
+
+    // Restore captureMode — never let remote sync change the interview mode
+    if (localCaptureMode && IS.report.meta) {
+        IS.report.meta.captureMode = localCaptureMode;
+    }
 
     // 2. Update base snapshot
     window._syncBase = JSON.parse(JSON.stringify(IS.report));

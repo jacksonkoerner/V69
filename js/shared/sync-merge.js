@@ -91,8 +91,14 @@
 
             if (!rItem) {
                 if (bItem) {
-                    // Was in base, gone from remote → remote deleted; keep local (local wins)
-                    merged.push(lItem);
+                    // Was in base, gone from remote → remote deleted it
+                    var localModified = !deepEqual(bItem, lItem);
+                    if (localModified) {
+                        // Local modified it AND remote deleted it → conflict; keep local
+                        merged.push(lItem);
+                        conflicts.push({ id: id, type: 'delete-vs-edit', local: lItem });
+                    }
+                    // else: local didn't modify → honor remote deletion (skip)
                 } else {
                     // New in local → keep
                     merged.push(lItem);
