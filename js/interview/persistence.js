@@ -501,6 +501,7 @@ function applyInterviewMerge(mergeResult) {
                 break;
             case 'photos':
                 if (typeof renderSection === 'function') renderSection('photos');
+                if (typeof renderMinimalPhotos === 'function') renderMinimalPhotos();
                 needsPreviewUpdate = true;
                 needsProgressUpdate = true;
                 break;
