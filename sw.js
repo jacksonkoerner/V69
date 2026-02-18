@@ -5,7 +5,7 @@
 // The canonical version lives in version.json at the project root.
 // Update version.json first, then mirror the value here.
 
-const CACHE_VERSION = 'v6.9.22';
+const CACHE_VERSION = 'v6.9.23';
 const CACHE_NAME = `fieldvoice-pro-${CACHE_VERSION}`;
 
 // Files to cache for offline use
@@ -29,7 +29,7 @@ const STATIC_ASSETS = [
     './js/indexeddb-utils.js',
     './js/data-layer.js',
     './js/supabase-utils.js',
-    './js/supabase-retry.js',
+    // supabase-retry is in js/shared/
     './js/ui-utils.js',
     './js/pwa-utils.js',
     './js/report-rules.js',
@@ -39,6 +39,13 @@ const STATIC_ASSETS = [
     './js/shared/delete-report.js',
     './js/shared/ai-assistant.js',
     './js/shared/realtime-sync.js',
+    './js/shared/broadcast.js',
+    './js/shared/cloud-photos.js',
+    './js/shared/console-capture.js',
+    './js/shared/data-store.js',
+    './js/shared/pull-to-refresh.js',
+    './js/shared/supabase-retry.js',
+    './js/shared/sync-merge.js',
     // Index (dashboard) modules
     './js/index/report-cards.js',
     './js/index/report-creation.js',
@@ -94,6 +101,8 @@ const STATIC_ASSETS = [
     './js/tools/qrscanner.js',
     './js/tools/slope.js',
     './js/tools/timer.js',
+    './js/tools/photo-measure.js',
+    './js/tools/scan-viewer.js',
     // Page modules (single-file subfolders)
     './js/archives/main.js',
     './js/permissions/main.js',
