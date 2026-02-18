@@ -381,181 +381,6 @@ let localSaveTimeout = null;
 let _interviewBackupDirty = false;
 let _interviewBackupTimer = null;
 
-// Step 2: Sync metadata for cross-device conflict detection
-var _reportIdForRev = new URLSearchParams(window.location.search).get('reportId') || 'unknown';
-let _syncRevision = parseInt(sessionStorage.getItem('fvp_sync_rev_' + _reportIdForRev) || '0');
-const _syncSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-
-// Expose session ID and revision for broadcast layer
-if (!window.syncEngine) window.syncEngine = {};
-window.syncEngine.getSessionId = function() { return _syncSessionId; };
-window.syncEngine.getRevision = function() { return _syncRevision; };
-
-// Section definitions for interview page merge engine
-var INTERVIEW_SECTIONS = {
-    'overview': { type: 'object' },
-    'safety': { type: 'object' },
-    'toggleStates': { type: 'object' },
-    'freeform_checklist': { type: 'object' },
-    'meta': { type: 'object', protectedFields: ['captureMode', 'createdAt', 'status'] },
-    'reporter': { type: 'object' },
-    'entries': { type: 'array', idField: 'id' },
-    'activities': { type: 'array', idField: 'contractorId' },
-    'operations': { type: 'array', idField: 'contractorId' },
-    'equipmentRows': { type: 'array', idField: 'id' },
-    'freeform_entries': { type: 'array', idField: 'id' },
-    'photos': { type: 'photos' },
-    'generalIssues': { type: 'scalar' },
-    'qaqcNotes': { type: 'scalar' },
-    'contractorCommunications': { type: 'scalar' },
-    'visitorsRemarks': { type: 'scalar' },
-    'additionalNotes': { type: 'scalar' },
-    'equipment': { type: 'scalar' }
-};
-window.syncEngine.INTERVIEW_SECTIONS = INTERVIEW_SECTIONS;
-
-/**
- * Initialize the base snapshot for three-way merge.
- * Call AFTER IS.report is fully populated.
- */
-function initSyncBase() {
-    try {
-        window._syncBase = JSON.parse(JSON.stringify(IS.report));
-        console.log('[SYNC] Base snapshot initialized');
-    } catch (e) {
-        console.warn('[SYNC] Failed to init base snapshot:', e);
-        window._syncBase = {};
-    }
-}
-window.initSyncBase = initSyncBase;
-
-/**
- * Apply merge results to IS.report, update IDB, selectively re-render.
- */
-var _lastSyncToastAt = 0;
-function applyInterviewMerge(mergeResult) {
-    if (!mergeResult || !mergeResult.sectionsUpdated || mergeResult.sectionsUpdated.length === 0) return;
-
-    var merged = mergeResult.merged;
-
-    // 1. Apply merged data to IS.report
-    Object.keys(INTERVIEW_SECTIONS).forEach(function(key) {
-        if (merged[key] !== undefined) {
-            IS.report[key] = merged[key];
-        }
-    });
-
-    // 2. Update base snapshot
-    window._syncBase = JSON.parse(JSON.stringify(IS.report));
-
-    // 3. Selective UI re-render
-    var needsPreviewUpdate = false;
-    var needsProgressUpdate = false;
-
-    mergeResult.sectionsUpdated.forEach(function(section) {
-        switch (section) {
-            case 'overview':
-                var siteInput = document.getElementById('site-conditions-input');
-                if (!siteInput || document.activeElement !== siteInput) {
-                    if (typeof updateWeatherDisplay === 'function') updateWeatherDisplay();
-                }
-                needsPreviewUpdate = true;
-                break;
-            case 'entries':
-                if (typeof renderSection === 'function') {
-                    ['issues', 'safety', 'communications', 'qaqc', 'visitors'].forEach(function(s) {
-                        var input = document.getElementById(s + '-input');
-                        if (!input || document.activeElement !== input) {
-                            renderSection(s);
-                        }
-                    });
-                    renderSection('activities');
-                }
-                needsPreviewUpdate = true;
-                needsProgressUpdate = true;
-                break;
-            case 'activities':
-                if (typeof renderSection === 'function') {
-                    if (!document.querySelector('textarea[id^="work-input-"]:focus')) {
-                        renderSection('activities');
-                    }
-                }
-                needsPreviewUpdate = true;
-                break;
-            case 'operations':
-                if (typeof renderSection === 'function') {
-                    if (!document.querySelector('.personnel-count-input:focus')) {
-                        renderSection('personnel');
-                    }
-                }
-                needsPreviewUpdate = true;
-                break;
-            case 'toggleStates':
-                if (typeof renderSection === 'function') {
-                    ['communications', 'qaqc', 'visitors', 'personnel'].forEach(function(s) {
-                        renderSection(s);
-                    });
-                }
-                needsPreviewUpdate = true;
-                needsProgressUpdate = true;
-                break;
-            case 'photos':
-                if (typeof renderSection === 'function') renderSection('photos');
-                if (typeof renderMinimalPhotos === 'function') renderMinimalPhotos();
-                needsPreviewUpdate = true;
-                needsProgressUpdate = true;
-                break;
-            case 'safety':
-                if (typeof renderSection === 'function') {
-                    var safetyInput = document.getElementById('safety-input');
-                    if (!safetyInput || document.activeElement !== safetyInput) {
-                        renderSection('safety');
-                    }
-                }
-                needsPreviewUpdate = true;
-                break;
-            case 'equipmentRows':
-            case 'equipment':
-                if (typeof renderSection === 'function') renderSection('equipment');
-                needsPreviewUpdate = true;
-                break;
-            case 'freeform_entries':
-                if (typeof renderFreeformEntries === 'function') {
-                    if (!document.querySelector('.freeform-entry-textarea:focus')) {
-                        renderFreeformEntries();
-                    }
-                }
-                needsPreviewUpdate = true;
-                break;
-            case 'meta':
-                needsProgressUpdate = true;
-                break;
-        }
-    });
-
-    if (needsPreviewUpdate && typeof updateAllPreviews === 'function') updateAllPreviews();
-    if (needsProgressUpdate && typeof updateProgress === 'function') updateProgress();
-
-    // 4. Save to IDB (silent, no re-broadcast)
-    var wasDirty = _interviewBackupDirty;
-    saveToLocalStorage();
-    _interviewBackupDirty = wasDirty;
-
-    // 5. Toast (rate-limited)
-    var now = Date.now();
-    if (now - _lastSyncToastAt > 5000) {
-        _lastSyncToastAt = now;
-        var msg = '📡 Updated from another device';
-        if (mergeResult.conflicts && mergeResult.conflicts.length > 0) {
-            msg = '⚡ Sync conflict — your edits kept';
-        }
-        if (typeof showToast === 'function') showToast(msg, 'info');
-    }
-
-    console.log('[SYNC] Interview merge applied, sections:', mergeResult.sectionsUpdated);
-}
-window.applyInterviewMerge = applyInterviewMerge;
-
 // Step 3: Outbound queue — track pending backups that survived a page kill
 // Uses localStorage flags so they persist even if iOS kills the WebView mid-flush.
 // Key pattern: fvp_backup_stale_{reportId} = timestamp of last local save
@@ -697,9 +522,7 @@ function _buildCanonicalPageStateFromDraft(draftData, reportId) {
             };
         }),
         _sync: draftData._sync || {
-            device_id: typeof getDeviceId === 'function' ? getDeviceId() : 'unknown',
-            session_id: _syncSessionId,
-            revision: 0
+            device_id: typeof getDeviceId === 'function' ? getDeviceId() : 'unknown'
         },
         savedAt: draftData.savedAt || draftData.lastSaved || new Date().toISOString()
     };
@@ -894,10 +717,6 @@ initGuidedAutoSave('safety-input', 'safety');
 }
 
 function saveReport() {
-// Increment revision for conflict detection (Step 2: sync metadata)
-_syncRevision++;
-sessionStorage.setItem('fvp_sync_rev_' + _reportIdForRev, _syncRevision);
-
 // Update local UI immediately
 updateAllPreviews();
 updateProgress();
@@ -961,11 +780,8 @@ photos: (IS.report.photos || []).map(function(p) {
         fileName: p.fileName
     };
 }),
-// Step 2: Sync metadata for cross-device conflict detection
 _sync: {
-    device_id: typeof getDeviceId === 'function' ? getDeviceId() : 'unknown',
-    session_id: _syncSessionId,
-    revision: _syncRevision
+    device_id: typeof getDeviceId === 'function' ? getDeviceId() : 'unknown'
 },
 savedAt: new Date().toISOString()
 };
@@ -995,10 +811,6 @@ supabaseRetry(function() {
     console.log('[BACKUP] Interview backup saved');
     // Step 3: Cloud is now in sync — clear the stale flag
     _clearBackupStale(reportId);
-    // Live sync: notify other devices
-    if (window.syncEngine && window.syncEngine.broadcastSyncUpdate) {
-        window.syncEngine.broadcastSyncUpdate(reportId, ['entries', 'activities', 'operations', 'weather', 'photos', 'toggleStates'], 'quick-interview');
-    }
 }).catch(function(err) {
     console.error('[BACKUP] Interview backup failed after retries:', err.message);
     // Re-dirty so next save cycle retries the upload

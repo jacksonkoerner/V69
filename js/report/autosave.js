@@ -10,37 +10,6 @@
 
 var RS = window.reportState;
 
-// Live sync: session ID and revision for broadcast layer
-var _reportSyncSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-var _reportSyncRevision = 0;
-if (!window.syncEngine) window.syncEngine = {};
-window.syncEngine.getSessionId = function() { return _reportSyncSessionId; };
-window.syncEngine.getRevision = function() { return _reportSyncRevision; };
-
-// Section definitions for report page merge engine
-var REPORT_SECTIONS = {
-    'userEdits': { type: 'object' }
-};
-window.syncEngine.REPORT_SECTIONS = REPORT_SECTIONS;
-
-/**
- * Initialize the base snapshot for three-way merge on report page.
- */
-function initReportSyncBase() {
-    try {
-        if (typeof _lastAppliedRevision !== 'undefined') _lastAppliedRevision = -1;
-        if (typeof _lastMergeAt !== 'undefined') _lastMergeAt = null;
-        window._syncBase = {
-            userEdits: JSON.parse(JSON.stringify(RS.userEdits || {}))
-        };
-        console.log('[SYNC] Report base snapshot initialized');
-    } catch (e) {
-        console.warn('[SYNC] Failed to init report base snapshot:', e);
-        window._syncBase = { userEdits: {} };
-    }
-}
-window.initReportSyncBase = initReportSyncBase;
-
 /**
  * Deferred field update queue — apply when field loses focus.
  */
@@ -61,134 +30,6 @@ function _deferFieldUpdate(fieldId, value) {
         el._syncBlurListener = true;
     }
 }
-
-/**
- * Apply remote merge results to report page.
- */
-function applyReportMerge(remoteData) {
-    if (!remoteData) return;
-
-    var remoteUserEdits = remoteData.user_edits || {};
-    var baseEdits = (window._syncBase && window._syncBase.userEdits) || {};
-
-    var mergeResult = window.syncMergeUtils
-        ? window.syncMergeUtils.mergeObjects(baseEdits, RS.userEdits, remoteUserEdits)
-        : { merged: RS.userEdits, conflicts: [] };
-
-    if (window.syncMergeUtils && window.syncMergeUtils.deepEqual(RS.userEdits, mergeResult.merged)) {
-        console.log('[SYNC] Report merge: no changes needed');
-        return;
-    }
-
-    // Determine which keys changed
-    var changedKeys = [];
-    var newEdits = mergeResult.merged;
-    Object.keys(newEdits).forEach(function(key) {
-        if (!window.syncMergeUtils.deepEqual(RS.userEdits[key], newEdits[key])) {
-            changedKeys.push(key);
-        }
-    });
-
-    // Apply merged userEdits
-    RS.userEdits = mergeResult.merged;
-    RS.report.userEdits = RS.userEdits;
-
-    // Update base snapshot
-    window._syncBase = { userEdits: JSON.parse(JSON.stringify(RS.userEdits)) };
-
-    // Update AI-generated content if remote has newer
-    if (remoteData.ai_generated && window.syncMergeUtils &&
-        !window.syncMergeUtils.deepEqual(RS.report.aiGenerated, remoteData.ai_generated)) {
-        RS.report.aiGenerated = remoteData.ai_generated;
-    }
-
-    // Selectively update DOM fields
-    var hasContractorChanges = false;
-    var hasPersonnelChanges = false;
-
-    // Field path → DOM ID mapping (mirrors setupAutoSave)
-    var pathToFieldId = {
-        'overview.projectName': 'projectName',
-        'overview.noabProjectNo': 'noabProjectNo',
-        'overview.cnoSolicitationNo': 'cnoSolicitationNo',
-        'overview.location': 'projectLocation',
-        'overview.date': 'reportDate',
-        'overview.contractDay': 'contractDay',
-        'overview.weatherDays': 'weatherDaysCount',
-        'overview.engineer': 'engineer',
-        'overview.contractor': 'contractor',
-        'overview.startTime': 'startTime',
-        'overview.endTime': 'endTime',
-        'overview.completedBy': 'completedBy',
-        'overview.weather.highTemp': 'weatherHigh',
-        'overview.weather.lowTemp': 'weatherLow',
-        'overview.weather.precipitation': 'weatherPrecip',
-        'overview.weather.generalCondition': 'weatherCondition',
-        'overview.weather.jobSiteCondition': 'weatherJobSite',
-        'overview.weather.adverseConditions': 'weatherAdverse',
-        'issues': 'issuesText',
-        'qaqc': 'qaqcText',
-        'safety.notes': 'safetyText',
-        'guidedNotes.workSummary': 'generalWorkSummary',
-        'communications': 'communicationsText',
-        'visitors': 'visitorsText',
-        'signature.name': 'signatureName',
-        'signature.title': 'signatureTitle',
-        'signature.company': 'signatureCompany'
-    };
-
-    changedKeys.forEach(function(key) {
-        if (key.indexOf('activity_') === 0) {
-            hasContractorChanges = true;
-            return;
-        }
-        if (key.indexOf('operations_') === 0) {
-            hasPersonnelChanges = true;
-            return;
-        }
-
-        var fieldId = pathToFieldId[key] || key;
-        var el = document.getElementById(fieldId);
-        if (!el) return;
-
-        if (document.activeElement === el) {
-            _deferFieldUpdate(fieldId, newEdits[key]);
-        } else {
-            el.value = newEdits[key];
-            el.classList.add('sync-flash');
-            setTimeout(function() { el.classList.remove('sync-flash'); }, 1500);
-        }
-    });
-
-    // Re-render dynamic sections if needed
-    if (hasContractorChanges && typeof renderWorkSummary === 'function') {
-        if (!document.querySelector('.contractor-narrative:focus')) {
-            renderWorkSummary();
-        }
-    }
-    if (hasPersonnelChanges && typeof renderPersonnelTable === 'function') {
-        if (!document.querySelector('.personnel-input:focus')) {
-            renderPersonnelTable();
-        }
-    }
-
-    if (typeof markUserEditedFields === 'function') markUserEditedFields();
-
-    // Save to IDB silently (no re-broadcast)
-    var wasDirty = _reportBackupDirty;
-    saveReportToLocalStorage();
-    _reportBackupDirty = wasDirty;
-
-    // Toast (rate-limited)
-    var now = Date.now();
-    if (!window._lastReportSyncToast || now - window._lastReportSyncToast > 5000) {
-        window._lastReportSyncToast = now;
-        if (typeof showToast === 'function') showToast('📡 Updated from another device', 'info');
-    }
-
-    console.log('[SYNC] Report merge applied, changed keys:', changedKeys);
-}
-window.applyReportMerge = applyReportMerge;
 
 // Backup timer state
 var _reportBackupDirty = false;
@@ -310,7 +151,6 @@ function scheduleSave() {
 }
 
 async function saveReport() {
-    _reportSyncRevision++;
     // Save to localStorage (primary storage for report.html)
     saveReportToLocalStorage();
     showSaveIndicator();
@@ -346,12 +186,6 @@ function flushReportBackup() {
     }, 3, 'AUTOSAVE:report_data')
     .then(function() {
         console.log('[AUTOSAVE] report_data synced');
-        // Live sync: notify other devices
-        if (window.syncEngine && window.syncEngine.broadcastSyncUpdate) {
-            var changedSections = Object.keys(RS.userEdits || {}).length > 0 ? ['userEdits'] : [];
-            window.syncEngine.broadcastSyncUpdate(_autosaveReportId, changedSections, 'report');
-        }
-        window._syncBase = { userEdits: JSON.parse(JSON.stringify(RS.userEdits)) };
     })
     .catch(function(err) {
         console.warn('[AUTOSAVE] report_data sync failed after retries:', err.message);
@@ -483,7 +317,6 @@ function saveNow() {
         clearTimeout(RS.saveTimeout);
         RS.saveTimeout = null;
     }
-    _reportSyncRevision++;
     saveReportToLocalStorage();
     showSaveIndicator();
     markReportBackupDirty();

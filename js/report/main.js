@@ -93,9 +93,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Setup auto-save listeners
         setupAutoSave();
 
-        // Initialize sync base snapshot for three-way merge
-        if (typeof initReportSyncBase === 'function') initReportSyncBase();
-
         // Start Realtime subscriptions for multi-device sync
         if (typeof initRealtimeSync === 'function') initRealtimeSync();
 

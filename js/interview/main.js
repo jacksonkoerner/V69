@@ -205,9 +205,6 @@ console.log('[INIT] Found local draft, restoring...');
 restoreFromLocalStorage(localDraft);
 }
 
-// Initialize sync base snapshot for three-way merge (must be after all restore)
-if (typeof initSyncBase === 'function') initSyncBase();
-
 // Sprint 1 fix: Load project from the REPORT's project_id, not ACTIVE_PROJECT_ID.
 // Sprint 5: Removed ACTIVE_PROJECT_ID fallback — project_id comes from URL or report data.
 updateLoadingStatus('Loading project data...');
