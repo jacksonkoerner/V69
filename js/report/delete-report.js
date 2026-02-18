@@ -38,11 +38,15 @@ async function executeDeleteReport() {
     var result = await deleteReportFull(_reportId);
     if (result.success) {
         console.log('[DELETE] Full delete complete');
+        window.location.href = 'index.html';
     } else {
         console.warn('[DELETE] Delete had errors:', result.errors);
+        if (typeof showToast === 'function') {
+            showToast('Delete failed. Please try again.', 'error');
+        } else {
+            alert('Delete failed. Please try again.');
+        }
     }
-
-    window.location.href = 'index.html';
 }
 
 // Expose to window for HTML onclick handlers

@@ -168,9 +168,12 @@ async function deleteReportFull(reportId) {
             var updateResult = await supabaseClient
                 .from('reports')
                 .update({ status: 'deleted' })
-                .eq('id', reportId);
+                .eq('id', reportId)
+                .select('id');
             if (updateResult.error) {
                 errors.push('soft-delete: ' + updateResult.error.message);
+            } else if (!Array.isArray(updateResult.data) || updateResult.data.length === 0) {
+                errors.push('soft-delete: no report row updated for ' + reportId);
             }
         } catch (e) {
             errors.push('soft-delete: ' + e.message);

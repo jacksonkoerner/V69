@@ -116,6 +116,9 @@ function cleanupRealtimeSync() {
 
 var _lastMergeAt = null;  // Timestamp of last successful merge (staleness guard)
 var _fetchMergePending = false;  // Prevents overlapping fetches
+var _fetchMergeQueued = false;   // Coalesces one extra fetch while one is in-flight
+var _queuedFetchPayload = null;
+var _lastAppliedRevision = -1;
 
 function _handleSyncBroadcast(payload) {
     // 1. Self-filter
@@ -142,9 +145,18 @@ function _handleSyncBroadcast(payload) {
         return;
     }
 
-    // 3. Prevent overlapping fetches
+    // Skip stale broadcast revisions (older than most recently applied).
+    var incomingRevision = typeof payload.revision === 'number' ? payload.revision : 0;
+    if (incomingRevision > 0 && incomingRevision < _lastAppliedRevision) {
+        console.log('[SYNC-BC] Ignoring stale broadcast revision', incomingRevision, '<', _lastAppliedRevision);
+        return;
+    }
+
+    // 3. Prevent overlapping fetches, but queue one rerun.
     if (_fetchMergePending) {
-        console.log('[SYNC-BC] Fetch already pending, skipping');
+        _fetchMergeQueued = true;
+        _queuedFetchPayload = payload;
+        console.log('[SYNC-BC] Fetch already pending, queued one follow-up fetch');
         return;
     }
     _fetchMergePending = true;
@@ -154,15 +166,23 @@ function _handleSyncBroadcast(payload) {
     console.log('[SYNC-BC] Scheduling fetch in', delay, 'ms for', reportId);
 
     setTimeout(function() {
-        _fetchAndMerge(reportId, payload.sections_changed, isInterview)
-            .finally(function() { _fetchMergePending = false; });
+        _fetchAndMerge(reportId, payload.sections_changed, isInterview, incomingRevision)
+            .finally(function() {
+                _fetchMergePending = false;
+                if (_fetchMergeQueued) {
+                    var queuedPayload = _queuedFetchPayload || payload;
+                    _fetchMergeQueued = false;
+                    _queuedFetchPayload = null;
+                    _handleSyncBroadcast(queuedPayload);
+                }
+            });
     }, delay);
 }
 
 /**
  * Fetch latest data from Supabase and invoke merge.
  */
-function _fetchAndMerge(reportId, sectionsHint, isInterview) {
+function _fetchAndMerge(reportId, sectionsHint, isInterview, incomingRevision) {
     if (typeof supabaseClient === 'undefined' || !supabaseClient || !navigator.onLine) {
         return Promise.resolve();
     }
@@ -195,6 +215,9 @@ function _fetchAndMerge(reportId, sectionsHint, isInterview) {
             return;
         }
         _lastMergeAt = remoteUpdatedAt;
+        if (typeof incomingRevision === 'number') {
+            _lastAppliedRevision = Math.max(_lastAppliedRevision, incomingRevision);
+        }
 
         console.log('[SYNC-BC] Fetched remote data, updated_at:', remoteUpdatedAt);
 
@@ -286,8 +309,13 @@ function _handleReportChange(payload) {
             if (window.fvpBroadcast && window.fvpBroadcast.send) {
                 window.fvpBroadcast.send({ type: 'report-deleted', id: report.id });
             }
+            if (Array.isArray(window.currentReportsCache)) {
+                window.currentReportsCache = window.currentReportsCache.filter(function(r) {
+                    return r && r.id !== report.id;
+                });
+            }
             if (typeof window.renderReportCards === 'function') {
-                window.renderReportCards();
+                window.renderReportCards(window.currentReportsCache);
             }
             return;
         }

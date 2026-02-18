@@ -290,6 +290,35 @@ var _dashboardRefreshing = false; // debounce flag
 var _lastRefreshTime = 0;         // cooldown timestamp (ms)
 var _lastRefreshSource = '';      // last refresh source (for cooldown scoping)
 var _REFRESH_COOLDOWN = 2000;     // minimum ms between refreshes
+var _pendingRefresh = false;      // coalesced rerun requested
+var _pendingRefreshSource = '';
+var _pendingRefreshBypass = false;
+var _pendingRefreshTimer = null;
+
+function _isBypassRefreshSource(source) {
+    var s = String(source || '').toLowerCase();
+    return s === '__pending_rerun__' || s.indexOf('broadcast') !== -1 || s.indexOf('delete') !== -1;
+}
+
+function _queuePendingRefresh(source, bypassCooldown) {
+    _pendingRefresh = true;
+    if (source) _pendingRefreshSource = source;
+    _pendingRefreshBypass = _pendingRefreshBypass || !!bypassCooldown;
+
+    if (_dashboardRefreshing || _pendingRefreshTimer) return;
+
+    var waitMs = Math.max(0, _REFRESH_COOLDOWN - (Date.now() - _lastRefreshTime));
+    _pendingRefreshTimer = setTimeout(function() {
+        _pendingRefreshTimer = null;
+        if (!_pendingRefresh) return;
+        var rerunBypass = _pendingRefreshBypass;
+        var rerunSource = _pendingRefreshSource || 'pending-rerun';
+        _pendingRefresh = false;
+        _pendingRefreshBypass = false;
+        _pendingRefreshSource = '';
+        refreshDashboard(rerunBypass ? '__pending_rerun__' : rerunSource);
+    }, waitMs);
+}
 
 /**
  * Race a promise against a timeout. Returns the promise result if it resolves
@@ -345,18 +374,27 @@ async function loadReportsFromIDB() {
  * @param {string} source - caller label for logging
  */
 async function refreshDashboard(source) {
+    var bypassCooldown = _isBypassRefreshSource(source);
+
     // Skip if already running
     if (_dashboardRefreshing) {
-        console.log('[INDEX] refreshDashboard already running, skipping (' + source + ')');
+        console.log('[INDEX] refreshDashboard already running, queueing rerun (' + source + ')');
+        _queuePendingRefresh(source, bypassCooldown);
         return;
     }
 
     // Cooldown: skip if we just refreshed < 2s ago (prevents triple-fire from
     // pageshow + visibilitychange + focus which all fire on tab return)
     var now = Date.now();
-    if (source !== 'DOMContentLoaded' && (now - _lastRefreshTime) < _REFRESH_COOLDOWN) {
-        console.log('[INDEX] refreshDashboard cooldown, skipping (' + source + ', ' + (now - _lastRefreshTime) + 'ms since last)');
+    if (!bypassCooldown && source !== 'DOMContentLoaded' && (now - _lastRefreshTime) < _REFRESH_COOLDOWN) {
+        console.log('[INDEX] refreshDashboard cooldown, queueing rerun (' + source + ', ' + (now - _lastRefreshTime) + 'ms since last)');
+        _queuePendingRefresh(source, false);
         return;
+    }
+
+    if (_pendingRefreshTimer) {
+        clearTimeout(_pendingRefreshTimer);
+        _pendingRefreshTimer = null;
     }
 
     _dashboardRefreshing = true;
@@ -474,12 +512,12 @@ async function refreshDashboard(source) {
         // the blocklist only needs recent entries (last 24h) to prevent race conditions
         // during active deletion. Old entries just cause phantom removals on other devices.
         try {
-            var rawBlocklist = localStorage.getItem('fvp_deleted_reports');
+            var rawBlocklist = localStorage.getItem(STORAGE_KEYS.DELETED_REPORT_IDS);
             if (rawBlocklist) {
                 var parsedBlocklist = JSON.parse(rawBlocklist);
                 if (Array.isArray(parsedBlocklist) && parsedBlocklist.length > 20) {
                     // Trim to last 20 entries max
-                    localStorage.setItem('fvp_deleted_reports', JSON.stringify(parsedBlocklist.slice(-20)));
+                    localStorage.setItem(STORAGE_KEYS.DELETED_REPORT_IDS, JSON.stringify(parsedBlocklist.slice(-20)));
                 }
             }
         } catch (e) { /* ignore */ }
@@ -502,12 +540,20 @@ async function refreshDashboard(source) {
         _renderFromLocalStorage();
     } finally {
         _dashboardRefreshing = false;
+        if (_pendingRefresh) {
+            var rerunBypass = _pendingRefreshBypass;
+            var rerunSource = _pendingRefreshSource || 'pending-rerun';
+            _pendingRefresh = false;
+            _pendingRefreshBypass = false;
+            _pendingRefreshSource = '';
+            refreshDashboard(rerunBypass ? '__pending_rerun__' : rerunSource);
+        }
     }
 }
 
 /**
- * Emergency render from localStorage only.
- * Used as a last resort when all async data loading fails.
+ * Fast localStorage pre-render.
+ * Gives immediate paint while async refresh continues.
  */
 function _renderFromLocalStorage() {
     try {
@@ -519,9 +565,9 @@ function _renderFromLocalStorage() {
         }
         renderReportCards(window.currentReportsCache);
         updateReportStatus();
-        console.log('[INDEX] Emergency localStorage render complete');
+        console.log('[INDEX] Fast localStorage pre-render complete');
     } catch (e) {
-        console.error('[INDEX] Emergency render also failed:', e);
+        console.error('[INDEX] Fast localStorage pre-render failed:', e);
     }
 }
 

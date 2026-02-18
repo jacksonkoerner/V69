@@ -47,13 +47,16 @@ async function confirmCancelReport() {
         if (!IS.currentReportId) throw new Error('No report ID — cannot cancel');
 
         var _reportId = IS.currentReportId;
-        await deleteReportFull(_reportId);
+        var deleteResult = await deleteReportFull(_reportId);
+        if (!deleteResult || !deleteResult.success) {
+            throw new Error((deleteResult && deleteResult.errors && deleteResult.errors.join('; ')) || 'Delete failed');
+        }
 
         // Reset local state
         IS.currentReportId = null;
         IS.report = {};
 
-        // Navigate to home IMMEDIATELY — Supabase cleanup runs in background
+        // Navigate to home only after full delete success.
         window.location.href = 'index.html';
 
     } catch (error) {
@@ -599,12 +602,19 @@ async function drainPendingBackups() {
                 continue;
             }
 
+            // Convert draftData into canonical interview_backup.page_state schema.
+            var pageState = _buildCanonicalPageStateFromDraft(draftData, reportId);
+            if (!pageState) {
+                console.warn('[DRAIN] Skipping backup flush for', reportId, ': invalid draft payload');
+                continue;
+            }
+
             // Flush to Supabase
             var result = await supabaseClient
                 .from('interview_backup')
                 .upsert({
                     report_id: reportId,
-                    page_state: draftData,
+                    page_state: pageState,
                     org_id: orgId || null,
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'report_id' });
@@ -619,6 +629,76 @@ async function drainPendingBackups() {
             console.warn('[DRAIN] Error draining backup for', reportId, ':', e.message);
         }
     }
+}
+
+function _buildCanonicalPageStateFromDraft(draftData, reportId) {
+    if (!draftData || typeof draftData !== 'object') return null;
+
+    // Already canonical enough for interview_backup.
+    if (draftData._sync && (draftData.fieldNotes || draftData.guidedNotes || draftData.captureMode)) {
+        return draftData;
+    }
+
+    // If this is the active report and current in-memory state is available, use canonical builder.
+    if (typeof buildInterviewPageState === 'function' && IS && IS.currentReportId === reportId && IS.report) {
+        return buildInterviewPageState();
+    }
+
+    var safetySource = draftData.safety || {};
+    var overview = Object.assign({}, draftData.overview || {});
+    if (draftData.weather && !overview.weather) overview.weather = draftData.weather;
+
+    return {
+        captureMode: draftData.captureMode || (draftData.meta && draftData.meta.captureMode) || 'guided',
+        freeform_entries: Array.isArray(draftData.freeform_entries) ? draftData.freeform_entries : [],
+        freeform_checklist: draftData.freeform_checklist || {},
+        fieldNotes: Object.assign({}, draftData.fieldNotes || {}, {
+            freeformNotes: draftData.freeformNotes || (draftData.fieldNotes && draftData.fieldNotes.freeformNotes) || ''
+        }),
+        guidedNotes: Object.assign({}, draftData.guidedNotes || {}, {
+            workSummary: draftData.workSummary || (draftData.guidedNotes && draftData.guidedNotes.workSummary) || ''
+        }),
+        activities: Array.isArray(draftData.activities) ? draftData.activities : [],
+        operations: Array.isArray(draftData.operations) ? draftData.operations : [],
+        equipment: Array.isArray(draftData.equipment) ? draftData.equipment : [],
+        equipmentRows: Array.isArray(draftData.equipmentRows) ? draftData.equipmentRows : [],
+        overview: overview,
+        safety: Object.assign({}, safetySource, {
+            noIncidents: draftData.safetyNoIncidents !== undefined ? draftData.safetyNoIncidents : !!safetySource.noIncidents,
+            hasIncidents: draftData.safetyHasIncidents !== undefined ? draftData.safetyHasIncidents : !!safetySource.hasIncidents,
+            notes: Array.isArray(draftData.safetyNotes) ? draftData.safetyNotes : (Array.isArray(safetySource.notes) ? safetySource.notes : [])
+        }),
+        generalIssues: Array.isArray(draftData.generalIssues) ? draftData.generalIssues : (Array.isArray(draftData.issuesNotes) ? draftData.issuesNotes : []),
+        qaqcNotes: Array.isArray(draftData.qaqcNotes) ? draftData.qaqcNotes : [],
+        contractorCommunications: draftData.contractorCommunications || draftData.communications || '',
+        visitorsRemarks: draftData.visitorsRemarks || '',
+        additionalNotes: draftData.additionalNotes || '',
+        toggleStates: draftData.toggleStates || {},
+        entries: Array.isArray(draftData.entries) ? draftData.entries : [],
+        meta: {
+            naMarked: (draftData.meta && draftData.meta.naMarked) || {},
+            createdAt: draftData.meta && draftData.meta.createdAt,
+            version: (draftData.meta && draftData.meta.version) || 2,
+            status: (draftData.meta && draftData.meta.status) || 'draft'
+        },
+        reporter: draftData.reporter || {},
+        photos: (draftData.photos || []).map(function(p) {
+            return {
+                id: p.id,
+                storagePath: p.storagePath || '',
+                url: p.url || '',
+                caption: p.caption || '',
+                timestamp: p.timestamp,
+                fileName: p.fileName
+            };
+        }),
+        _sync: draftData._sync || {
+            device_id: typeof getDeviceId === 'function' ? getDeviceId() : 'unknown',
+            session_id: _syncSessionId,
+            revision: 0
+        },
+        savedAt: draftData.savedAt || draftData.lastSaved || new Date().toISOString()
+    };
 }
 
 // Track active auto-save sessions to prevent duplicates

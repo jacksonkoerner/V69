@@ -575,7 +575,7 @@ async function executeDeleteReport(reportId, overlay) {
     try {
         console.log('[SWIPE-DELETE] Deleting report:', reportId);
 
-        // Close modal and animate card removal IMMEDIATELY
+        // Close modal and animate card removal immediately
         overlay.remove();
 
         const wrapper = document.querySelector(`.swipe-card-wrapper[data-report-id="${reportId}"]`);
@@ -583,34 +583,36 @@ async function executeDeleteReport(reportId, overlay) {
             wrapper.style.maxHeight = wrapper.offsetHeight + 'px';
             wrapper.offsetHeight; // force reflow
             wrapper.classList.add('removing');
-            setTimeout(() => {
-                wrapper.remove();
-                renderReportCards();
-                updateReportStatus();
-            }, 350);
-        } else {
-            renderReportCards();
-            updateReportStatus();
+            await new Promise(function(resolve) {
+                setTimeout(function() {
+                    wrapper.remove();
+                    resolve();
+                }, 350);
+            });
         }
 
         // Delegate full cleanup to shared implementation (blocklist, localStorage, IDB, Supabase)
-        deleteReportFull(reportId).then(function(result) {
-            if (result.success) {
-                console.log('[SWIPE-DELETE] Full delete complete:', reportId);
+        var result = await deleteReportFull(reportId);
+        if (result.success) {
+            console.log('[SWIPE-DELETE] Full delete complete:', reportId);
+        } else {
+            console.warn('[SWIPE-DELETE] Delete had errors:', result.errors);
+            if (typeof showToast === 'function') {
+                showToast('Delete may be incomplete. Please refresh and retry.', 'error');
             } else {
-                console.warn('[SWIPE-DELETE] Delete had errors:', result.errors);
+                alert('Delete may be incomplete. Please refresh and retry.');
             }
-            // Update the in-memory cache so re-renders don't show the deleted report
-            if (window.currentReportsCache) {
-                window.currentReportsCache = window.currentReportsCache.filter(function(r) {
-                    return r.id !== reportId;
-                });
-            }
-            renderReportCards(window.currentReportsCache);
-            updateReportStatus();
-        }).catch(function(err) {
-            console.error('[SWIPE-DELETE] deleteReportFull failed:', err);
-        });
+        }
+
+        // Prune in-memory cache BEFORE rendering so deleted reports cannot reappear.
+        if (Array.isArray(window.currentReportsCache)) {
+            window.currentReportsCache = window.currentReportsCache.filter(function(r) {
+                return r && r.id !== reportId;
+            });
+        }
+
+        renderReportCards(window.currentReportsCache);
+        updateReportStatus();
     } catch (e) {
         console.error('[SWIPE-DELETE] Error:', e);
         btn.disabled = false;

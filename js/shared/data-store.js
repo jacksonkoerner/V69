@@ -635,8 +635,13 @@
                             // Process cloud reports: add/update local
                             // Supabase is the source of truth — if it's there, show it.
                             // Deletion should remove from Supabase, not just blocklist locally.
+                            var blockedCloudIds = {};
                             for (var cid in cloudMap) {
                                 var cloud = cloudMap[cid];
+                                if (typeof isDeletedReport === 'function' && isDeletedReport(cid)) {
+                                    blockedCloudIds[cid] = true;
+                                    continue;
+                                }
                                 var local = localMap.get(cid);
 
                                 if (!local) {
@@ -679,7 +684,7 @@
 
                             // Check local reports not in cloud → remove
                             localMap.forEach(function(value, key) {
-                                if (!cloudMap[key]) {
+                                if (!cloudMap[key] || blockedCloudIds[key]) {
                                     removed++;
                                     // Don't add to finalReports (effectively removes it)
                                 } else if (!finalReports[key]) {
