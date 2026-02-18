@@ -58,6 +58,12 @@
                     window.drainPendingBackups();
                 }
             } catch (e) {}
+
+            try {
+                if (typeof flushReportBackup === 'function') {
+                    flushReportBackup();
+                }
+            } catch (e) {}
         }
 
         function runManualRefresh() {

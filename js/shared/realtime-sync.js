@@ -284,6 +284,54 @@ function _broadcastSyncUpdate(reportId, sectionsChanged, page) {
 
 // --- Change handlers ---
 
+/**
+ * When a report transitions to 'refined' on another device, fetch the latest
+ * report_data from Supabase, cache it locally, then navigate to the refined view.
+ */
+function _refreshCurrentReportAfterRefined(reportId, isInterviewPage) {
+    function switchToRefinedView() {
+        if (isInterviewPage) {
+            window.location.href = 'report.html?reportId=' + encodeURIComponent(reportId);
+        } else {
+            window.location.reload();
+        }
+    }
+
+    if (!navigator.onLine || typeof supabaseClient === 'undefined' || !supabaseClient) {
+        switchToRefinedView();
+        return;
+    }
+
+    supabaseClient
+        .from('report_data')
+        .select('*')
+        .eq('report_id', reportId)
+        .maybeSingle()
+        .then(function(result) {
+            if (result.error || !result.data) return;
+            var cloud = result.data;
+            if (window.dataStore && typeof window.dataStore.getReportData === 'function' && typeof window.dataStore.saveReportData === 'function') {
+                return window.dataStore.getReportData(reportId).catch(function() { return null; }).then(function(existing) {
+                    var merged = existing || {};
+                    merged.aiGenerated = cloud.ai_generated || merged.aiGenerated || null;
+                    merged.originalInput = cloud.original_input || merged.originalInput || null;
+                    merged.userEdits = cloud.user_edits || {};
+                    merged.captureMode = cloud.capture_mode || merged.captureMode || null;
+                    merged.status = cloud.status || 'refined';
+                    merged.createdAt = cloud.created_at || merged.createdAt || new Date().toISOString();
+                    merged.lastSaved = cloud.updated_at || new Date().toISOString();
+                    return window.dataStore.saveReportData(reportId, merged);
+                });
+            }
+        })
+        .catch(function(err) {
+            console.warn('[REALTIME] Failed to fetch refined report_data before reload:', err);
+        })
+        .finally(function() {
+            setTimeout(switchToRefinedView, 150);
+        });
+}
+
 function _handleReportChange(payload) {
     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
         var report = payload.new;
@@ -321,13 +369,28 @@ function _handleReportChange(payload) {
         }
 
         // SYN-02 (Sprint 15): Skip realtime overwrites for the report currently being edited.
-        // If user is on quick-interview.html or report.html editing this specific report,
-        // a realtime event could reset local state (status, dates, etc.) mid-edit.
+        // Exception: if status transitions to 'refined', fetch latest content and switch view.
         var path = window.location.pathname;
-        if (path.indexOf('quick-interview.html') !== -1 || path.indexOf('report.html') !== -1) {
+        var isInterviewPage = path.indexOf('quick-interview.html') !== -1;
+        var isReportPage = path.indexOf('report.html') !== -1;
+        if (isInterviewPage || isReportPage) {
             var urlParams = new URLSearchParams(window.location.search);
             var editingReportId = urlParams.get('reportId');
             if (editingReportId && editingReportId === report.id) {
+                var previousStatus = payload.old && payload.old.status;
+                var transitionedToRefined = payload.eventType === 'UPDATE' &&
+                    report.status === 'refined' &&
+                    previousStatus !== 'refined';
+
+                if (transitionedToRefined) {
+                    console.log('[REALTIME] Active report transitioned to refined:', report.id);
+                    if (typeof showToast === 'function') {
+                        showToast('Refined version is ready. Loading latest report...', 'info');
+                    }
+                    _refreshCurrentReportAfterRefined(report.id, isInterviewPage);
+                    return;
+                }
+
                 console.log('[REALTIME] Skipping update for actively-edited report:', report.id);
                 return;
             }

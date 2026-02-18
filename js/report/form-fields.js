@@ -374,15 +374,14 @@ function setupContractorListeners() {
             el.classList.add('user-edited');
             scheduleSave();
         });
-        // Immediate save on blur (safety net)
+        // Immediate save on blur (safety net — uses shared save path for cloud sync)
         el.addEventListener('blur', function() {
             if (RS.saveTimeout) {
                 clearTimeout(RS.saveTimeout);
                 RS.saveTimeout = null;
             }
             updateContractorActivity(el.dataset.contractorId);
-            saveReportToLocalStorage();
-            showSaveIndicator();
+            scheduleSave();
         });
     });
 
@@ -398,8 +397,7 @@ function setupContractorListeners() {
                 RS.saveTimeout = null;
             }
             updateContractorActivity(el.dataset.contractorId);
-            saveReportToLocalStorage();
-            showSaveIndicator();
+            scheduleSave();
         });
     });
 
@@ -415,8 +413,7 @@ function setupContractorListeners() {
                 RS.saveTimeout = null;
             }
             updateContractorActivity(el.dataset.contractorId);
-            saveReportToLocalStorage();
-            showSaveIndicator();
+            scheduleSave();
         });
     });
 }

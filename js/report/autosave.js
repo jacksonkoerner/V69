@@ -246,15 +246,13 @@ function setupAutoSave() {
             scheduleSave();
         });
 
-        // Safety net: blur cancels pending debounce and saves immediately
+                // Safety net: blur uses shared save path (local + cloud dirty mark)
         field.addEventListener('blur', function() {
             if (RS.saveTimeout) {
                 clearTimeout(RS.saveTimeout);
                 RS.saveTimeout = null;
             }
-            // Save immediately on blur
-            saveReportToLocalStorage();
-            showSaveIndicator();
+            scheduleSave();
         });
     });
 
@@ -293,14 +291,13 @@ function setupAutoSave() {
             scheduleSave();
         });
 
-        // Safety net: blur saves immediately
+                // Safety net: blur uses shared save path (local + cloud dirty mark)
         generalSummary.addEventListener('blur', function() {
             if (RS.saveTimeout) {
                 clearTimeout(RS.saveTimeout);
                 RS.saveTimeout = null;
             }
-            saveReportToLocalStorage();
-            showSaveIndicator();
+            scheduleSave();
         });
     }
 }
@@ -477,4 +474,21 @@ function showSaveIndicator() {
 }
 
 // ============ EXPOSE TO WINDOW ============
+function saveNow() {
+    if (RS.saveTimeout) {
+        clearTimeout(RS.saveTimeout);
+        RS.saveTimeout = null;
+    }
+    _reportSyncRevision++;
+    saveReportToLocalStorage();
+    showSaveIndicator();
+    markReportBackupDirty();
+    if (_reportBackupTimer) {
+        clearTimeout(_reportBackupTimer);
+        _reportBackupTimer = null;
+    }
+    flushReportBackup();
+}
+
 window.saveReport = saveReport;
+window.saveNow = saveNow;
