@@ -187,7 +187,7 @@ function saveToLocalStorage() {
     } catch (e) {
         console.error('[LOCAL] Failed to save draft:', e);
         if (IS.currentReportId && window.dataStore) {
-            window.dataStore.saveDraftData(IS.currentReportId, data).catch(function() {});
+            window.dataStore.saveDraftData(IS.currentReportId, data).catch(function(e) { console.warn('[LOCAL] IDB fallback draft save failed:', e); });
         }
     }
 }
@@ -560,10 +560,10 @@ window.applyInterviewMerge = applyInterviewMerge;
 // Uses localStorage flags so they persist even if iOS kills the WebView mid-flush.
 // Key pattern: fvp_backup_stale_{reportId} = timestamp of last local save
 function _markBackupStale(reportId) {
-    try { localStorage.setItem('fvp_backup_stale_' + reportId, Date.now().toString()); } catch (e) {}
+    try { localStorage.setItem('fvp_backup_stale_' + reportId, Date.now().toString()); } catch (e) { console.warn('[SYNC] Failed to mark backup stale:', e); }
 }
 function _clearBackupStale(reportId) {
-    try { localStorage.removeItem('fvp_backup_stale_' + reportId); } catch (e) {}
+    try { localStorage.removeItem('fvp_backup_stale_' + reportId); } catch (e) { console.warn('[SYNC] Failed to clear backup stale:', e); }
 }
 function _getStaleBackupReportIds() {
     var ids = [];
@@ -574,7 +574,7 @@ function _getStaleBackupReportIds() {
                 ids.push(key.replace('fvp_backup_stale_', ''));
             }
         }
-    } catch (e) {}
+    } catch (e) { console.warn('[SYNC] Failed to read stale backup IDs:', e); }
     return ids;
 }
 

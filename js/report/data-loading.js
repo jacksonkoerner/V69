@@ -195,7 +195,7 @@ async function loadReport() {
                     reportData.originalInput = { photos: cloudPhotos };
                 }
                 if (window.dataStore && typeof window.dataStore.saveReportData === 'function') {
-                    window.dataStore.saveReportData(reportIdParam, reportData).catch(function() {});
+                    window.dataStore.saveReportData(reportIdParam, reportData).catch(function(e) { console.warn('[LOAD] IDB photo cache-back failed:', e); });
                 }
             }
         } catch (photoErr) {

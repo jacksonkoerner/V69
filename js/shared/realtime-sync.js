@@ -304,7 +304,7 @@ function _handleReportChange(payload) {
                     window.dataStore.deleteReportData ? window.dataStore.deleteReportData(report.id) : Promise.resolve(),
                     window.dataStore.deleteDraftData ? window.dataStore.deleteDraftData(report.id) : Promise.resolve(),
                     window.dataStore.deletePhotosByReportId ? window.dataStore.deletePhotosByReportId(report.id) : Promise.resolve()
-                ]).catch(function() {});
+                ]).catch(function(e) { console.warn('[REALTIME] Soft-delete cleanup failed:', e); });
             }
             if (window.fvpBroadcast && window.fvpBroadcast.send) {
                 window.fvpBroadcast.send({ type: 'report-deleted', id: report.id });
@@ -362,7 +362,7 @@ function _handleReportChange(payload) {
                     window.dataStore.deleteReportData ? window.dataStore.deleteReportData(deletedId) : Promise.resolve(),
                     window.dataStore.deleteDraftData ? window.dataStore.deleteDraftData(deletedId) : Promise.resolve(),
                     window.dataStore.deletePhotosByReportId ? window.dataStore.deletePhotosByReportId(deletedId) : Promise.resolve()
-                ]).catch(function() {});
+                ]).catch(function(e) { console.warn('[REALTIME] Hard-delete cleanup failed:', e); });
             }
             if (window.fvpBroadcast && window.fvpBroadcast.send) {
                 window.fvpBroadcast.send({ type: 'report-deleted', id: deletedId });
@@ -428,7 +428,7 @@ function _handleReportDataChange(payload) {
     if (payload.eventType === 'DELETE') {
         var deletedReportId = payload.old && payload.old.report_id;
         if (deletedReportId && window.dataStore && typeof window.dataStore.deleteReportData === 'function') {
-            window.dataStore.deleteReportData(deletedReportId).catch(function() {});
+            window.dataStore.deleteReportData(deletedReportId).catch(function(e) { console.warn('[REALTIME] Report data delete failed:', e); });
         }
     }
 }
