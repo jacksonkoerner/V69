@@ -45,11 +45,15 @@
 3. **Timeouts firing on EVERY page load** — All Promise.race timeouts fire even though data loads fine. The timeout promises resolve AFTER the actual data, meaning the data loads but the timeout warning also fires. Needs investigation — Jackson wants to consult ChatGPT on this.
 4. **www/ directory not in git** — .gitignored, must manually rsync before `cap sync`
 
-### Pending Sub-Agent Work
-- **Label:** `soft-delete-fix`
-- **Changes:** 3 files (delete-report.js, data-store.js, cloud-recovery.js verification)
-- **Status:** Running, will report back
-- **MUST review with Jackson before committing/pushing**
+### Completed Sub-Agent Work (committed as 5cb0f0c)
+- Soft delete implemented in delete-report.js
+- User isolation + status filter in data-store.js syncReportsFromCloud()
+- cloud-recovery.js verified — already excludes deleted
+
+### Still Broken: Deletion UI Flow
+- Soft delete IS updating Supabase (4 reports now show status='deleted')
+- But Jackson reports deletion "not working" from the UI
+- **NEXT SESSION MUST:** Check debug_logs for delete-related errors, trace the full delete flow from button tap → deleteReportFull() → Supabase update, and verify the dashboard re-renders after deletion
 
 ---
 
