@@ -624,6 +624,8 @@ savedAt: new Date().toISOString()
 
 function flushInterviewBackup() {
 if (!_interviewBackupDirty || !IS.currentReportId) return;
+
+// Mark as in-flight (not dirty) — will re-dirty on failure
 _interviewBackupDirty = false;
 
 const pageState = buildInterviewPageState();
@@ -644,6 +646,8 @@ supabaseRetry(function() {
     console.log('[BACKUP] Interview backup saved');
 }).catch(function(err) {
     console.warn('[BACKUP] Interview backup failed after retries:', err.message);
+    // Re-dirty so next save cycle retries the upload
+    _interviewBackupDirty = true;
 });
 }
 // ============================================================
@@ -679,10 +683,10 @@ async function getReport() {
             return report;
         }
 
-        // 2. Try IndexedDB
-        if (window.idb && window.idb.getDraftDataIDB) {
+        // 2. Try IndexedDB (via dataStore — standardized API)
+        if (window.dataStore && window.dataStore.getDraftData) {
             try {
-                var idbData = await window.idb.getDraftDataIDB(urlReportId);
+                var idbData = await window.dataStore.getDraftData(urlReportId);
                 if (idbData) {
                     console.log('[getReport] Restored from IndexedDB');
                     var report = createFreshReport();
