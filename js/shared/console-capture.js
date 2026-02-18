@@ -62,10 +62,10 @@
 
     function _flush() {
         if (_buffer.length === 0) return;
-        if (typeof window.supabaseClient === 'undefined' || !window.supabaseClient) return;
+        if (typeof supabaseClient === 'undefined' || !supabaseClient) return;
 
         var batch = _buffer.splice(0, BATCH_SIZE);
-        window.supabaseClient
+        supabaseClient
             .from('debug_logs')
             .insert(batch)
             .then(function(result) {
