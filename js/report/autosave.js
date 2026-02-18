@@ -28,6 +28,8 @@ window.syncEngine.REPORT_SECTIONS = REPORT_SECTIONS;
  */
 function initReportSyncBase() {
     try {
+        if (typeof _lastAppliedRevision !== 'undefined') _lastAppliedRevision = -1;
+        if (typeof _lastMergeAt !== 'undefined') _lastMergeAt = null;
         window._syncBase = {
             userEdits: JSON.parse(JSON.stringify(RS.userEdits || {}))
         };
@@ -107,6 +109,9 @@ function applyReportMerge(remoteData) {
     // Field path → DOM ID mapping (mirrors setupAutoSave)
     var pathToFieldId = {
         'overview.projectName': 'projectName',
+        'overview.noabProjectNo': 'noabProjectNo',
+        'overview.cnoSolicitationNo': 'cnoSolicitationNo',
+        'overview.location': 'projectLocation',
         'overview.date': 'reportDate',
         'overview.contractDay': 'contractDay',
         'overview.weatherDays': 'weatherDaysCount',
@@ -124,6 +129,7 @@ function applyReportMerge(remoteData) {
         'issues': 'issuesText',
         'qaqc': 'qaqcText',
         'safety.notes': 'safetyText',
+        'guidedNotes.workSummary': 'generalWorkSummary',
         'communications': 'communicationsText',
         'visitors': 'visitorsText',
         'signature.name': 'signatureName',
@@ -348,6 +354,7 @@ function flushReportBackup() {
             var changedSections = Object.keys(RS.userEdits || {}).length > 0 ? ['userEdits'] : [];
             window.syncEngine.broadcastSyncUpdate(_autosaveReportId, changedSections, 'report');
         }
+        window._syncBase = { userEdits: JSON.parse(JSON.stringify(RS.userEdits)) };
     })
     .catch(function(err) {
         console.warn('[AUTOSAVE] report_data sync failed after retries:', err.message);
