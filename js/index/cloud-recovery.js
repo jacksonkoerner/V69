@@ -29,7 +29,7 @@ function recoverCloudDrafts() {
 
     supabaseClient
         .from('reports')
-        .select('id, project_id, report_date, status, created_at, updated_at')
+        .select('id, project_id, report_date, status, created_at, updated_at, dashboard_dismissed_at')
         .eq('user_id', userId)
         .in('status', ['draft', 'pending_refine', 'refined', 'ready_to_submit'])
         .then(async ({ data, error }) => {
@@ -83,9 +83,11 @@ function recoverCloudDrafts() {
                     project_id: row.project_id,
                     project_name: projectName,
                     reportDate: row.report_date,
+                    report_date: row.report_date,
                     status: row.status || 'draft',
                     created_at: row.created_at,
-                    updated_at: row.updated_at
+                    updated_at: row.updated_at,
+                    dashboard_dismissed_at: row.dashboard_dismissed_at || null
                 };
 
                 // Restore _draft_data if we had local edits

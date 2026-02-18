@@ -20,6 +20,9 @@ function renderReportCards(reportsInput) {
     // Filter out soft-deleted reports (belt-and-suspenders with cloud sync filter)
     const activeReports = allReports.filter(r => r.status !== 'deleted');
 
+    // Filter out dashboard-dismissed reports (submitted reports the user has archived from view)
+    const visibleReports = activeReports.filter(r => !r.dashboard_dismissed_at);
+
     // Get ALL projects (from cache or localStorage)
     const projectsMap = getStorageItem(STORAGE_KEYS.PROJECTS) || {};
     const allProjects = getProjects().length > 0
@@ -30,7 +33,7 @@ function renderReportCards(reportsInput) {
     const reportsByProject = {};
     const orphanReports = []; // reports with unknown project_id
 
-    activeReports.forEach(r => {
+    visibleReports.forEach(r => {
         if (r.project_id) {
             if (!reportsByProject[r.project_id]) reportsByProject[r.project_id] = [];
             reportsByProject[r.project_id].push(r);
@@ -74,7 +77,7 @@ function renderReportCards(reportsInput) {
     if (orphanReports.length > 0) unknownProjectReports.push(...orphanReports);
 
     // If no projects and no reports, show empty state
-    if (allProjects.length === 0 && activeReports.length === 0) {
+    if (allProjects.length === 0 && visibleReports.length === 0) {
         container.innerHTML = `
             <div class="bg-white border-2 border-dashed border-slate-300 p-8 text-center">
                 <div class="w-16 h-16 bg-slate-100 border-2 border-slate-200 flex items-center justify-center mx-auto mb-4">
@@ -508,26 +511,44 @@ function confirmDeleteReport(reportId) {
     const existing = document.getElementById('deleteConfirmOverlay');
     if (existing) existing.remove();
 
+    const report = Array.isArray(window.currentReportsCache)
+        ? window.currentReportsCache.find(function(r) { return r && r.id === reportId; })
+        : null;
+    const isSubmitted = !!(report && report.status === 'submitted');
+
+    const titleText = isSubmitted ? 'Dismiss this submitted report?' : 'Delete this report?';
+    const detailText = isSubmitted
+        ? 'This hides it from Dashboard. You can still find it in Archives.'
+        : 'This cannot be undone.';
+    const iconWrapClass = isSubmitted ? 'bg-dot-blue/10' : 'bg-red-100';
+    const iconClass = isSubmitted ? 'fa-eye-slash text-dot-blue' : 'fa-trash text-red-500';
+    const confirmBtnClass = isSubmitted
+        ? 'bg-dot-blue text-white hover:bg-blue-700'
+        : 'bg-red-500 text-white hover:bg-red-600';
+    const confirmLabel = isSubmitted
+        ? '<i class="fas fa-eye-slash mr-1"></i> Dismiss'
+        : '<i class="fas fa-trash mr-1"></i> Delete';
+
     const overlay = document.createElement('div');
     overlay.id = 'deleteConfirmOverlay';
     overlay.className = 'delete-confirm-overlay';
     overlay.innerHTML = `
         <div class="delete-confirm-modal">
             <div class="flex items-center gap-3 mb-4">
-                <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
-                    <i class="fas fa-trash text-red-500"></i>
+                <div class="w-10 h-10 ${iconWrapClass} rounded-full flex items-center justify-center shrink-0">
+                    <i class="fas ${iconClass}"></i>
                 </div>
                 <div>
-                    <h3 class="font-bold text-slate-800">Delete this report?</h3>
-                    <p class="text-sm text-slate-500">This cannot be undone.</p>
+                    <h3 class="font-bold text-slate-800">${titleText}</h3>
+                    <p class="text-sm text-slate-500">${detailText}</p>
                 </div>
             </div>
             <div class="flex gap-3">
                 <button id="deleteConfirmCancel" class="flex-1 px-4 py-3 border border-slate-300 text-slate-700 font-bold uppercase text-sm hover:bg-slate-50 transition-colors">
                     Cancel
                 </button>
-                <button id="deleteConfirmOk" class="flex-1 px-4 py-3 bg-red-500 text-white font-bold uppercase text-sm hover:bg-red-600 transition-colors">
-                    <i class="fas fa-trash mr-1"></i> Delete
+                <button id="deleteConfirmOk" class="flex-1 px-4 py-3 ${confirmBtnClass} font-bold uppercase text-sm transition-colors">
+                    ${confirmLabel}
                 </button>
             </div>
         </div>
@@ -538,7 +559,6 @@ function confirmDeleteReport(reportId) {
     // Cancel
     document.getElementById('deleteConfirmCancel').onclick = () => {
         overlay.remove();
-        // Reset the swiped card
         const wrapper = document.querySelector(`.swipe-card-wrapper[data-report-id="${reportId}"]`);
         if (wrapper) {
             const content = wrapper.querySelector('.swipe-card-content');
@@ -558,8 +578,115 @@ function confirmDeleteReport(reportId) {
         }
     };
 
-    // Confirm delete
-    document.getElementById('deleteConfirmOk').onclick = () => executeDeleteReport(reportId, overlay);
+    // Confirm action — dismiss for submitted, delete for everything else
+    document.getElementById('deleteConfirmOk').onclick = () => {
+        if (isSubmitted) {
+            executeDismissReport(reportId, overlay);
+        } else {
+            executeDeleteReport(reportId, overlay);
+        }
+    };
+}
+
+/**
+ * Dismiss a submitted report from the dashboard (soft-hide, not delete).
+ * Sets dashboard_dismissed_at in Supabase + local IDB.
+ */
+async function dismissReport(reportId, options) {
+    options = options || {};
+    if (!reportId) return { success: false, error: new Error('Missing reportId') };
+
+    var dismissedAt = options.dismissedAt || new Date().toISOString();
+    var cloudError = null;
+
+    // Update Supabase
+    if (!options.skipCloud && navigator.onLine && typeof supabaseClient !== 'undefined' && supabaseClient) {
+        try {
+            var query = supabaseClient
+                .from('reports')
+                .update({
+                    dashboard_dismissed_at: dismissedAt,
+                    updated_at: dismissedAt
+                })
+                .eq('id', reportId);
+
+            if (typeof getStorageItem === 'function' && typeof STORAGE_KEYS !== 'undefined' && STORAGE_KEYS.USER_ID) {
+                var userId = getStorageItem(STORAGE_KEYS.USER_ID);
+                if (userId) query = query.eq('user_id', userId);
+            }
+
+            var cloudResult = await query;
+            if (cloudResult && cloudResult.error) throw cloudResult.error;
+        } catch (err) {
+            cloudError = err;
+            console.warn('[REPORT-DISMISS] Cloud update failed:', err);
+        }
+    }
+
+    // Update local IDB
+    var cached = null;
+    if (Array.isArray(window.currentReportsCache)) {
+        for (var i = 0; i < window.currentReportsCache.length; i++) {
+            var r = window.currentReportsCache[i];
+            if (r && r.id === reportId) { cached = r; break; }
+        }
+    }
+
+    if (window.dataStore && typeof window.dataStore.getReport === 'function' && typeof window.dataStore.saveReport === 'function') {
+        try {
+            var existing = await window.dataStore.getReport(reportId);
+            var localReport = Object.assign({}, existing || cached || { id: reportId }, {
+                dashboard_dismissed_at: dismissedAt,
+                updated_at: dismissedAt
+            });
+            await window.dataStore.saveReport(localReport);
+        } catch (e) {
+            console.warn('[REPORT-DISMISS] Local IDB update failed:', e);
+        }
+    }
+
+    // Update in-memory cache
+    if (Array.isArray(window.currentReportsCache)) {
+        window.currentReportsCache = window.currentReportsCache.map(function(r) {
+            if (!r || r.id !== reportId) return r;
+            return Object.assign({}, r, { dashboard_dismissed_at: dismissedAt, updated_at: dismissedAt });
+        });
+    }
+
+    if (!options.suppressRender) {
+        renderReportCards(window.currentReportsCache);
+        if (typeof updateReportStatus === 'function') updateReportStatus();
+    }
+
+    if (!options.suppressToast && typeof showToast === 'function') {
+        showToast('Report filed. Find it in Archives.', 'success');
+    }
+
+    return { success: true, dismissedAt: dismissedAt, cloudSynced: !cloudError, cloudError: cloudError };
+}
+
+/**
+ * Execute dismiss flow from the swipe/confirm modal
+ */
+async function executeDismissReport(reportId, overlay) {
+    const btn = document.getElementById('deleteConfirmOk');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Dismissing...';
+    }
+
+    try {
+        overlay.remove();
+        await dismissReport(reportId);
+    } catch (e) {
+        console.error('[SWIPE-DISMISS] Error:', e);
+        if (typeof showToast === 'function') showToast('Failed to dismiss report. Please try again.', 'error');
+        const wrapper = document.querySelector(`.swipe-card-wrapper[data-report-id="${reportId}"]`);
+        if (wrapper) {
+            const content = wrapper.querySelector('.swipe-card-content');
+            if (content) content.classList.remove('swiped');
+        }
+    }
 }
 
 /**
@@ -651,3 +778,4 @@ window.updateReportCardStatus = updateReportCardStatus;
 
 // Expose to window for onclick handlers
 window.confirmDeleteReport = confirmDeleteReport;
+window.dismissReport = dismissReport;

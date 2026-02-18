@@ -14,6 +14,7 @@
 // Shared state — use var so other files can access via window.*
 var projectsCache = [];
 window.currentReportsCache = window.currentReportsCache || [];
+var _autoDismissSubmittedTimer = null;
 
 function getProjects() {
     return projectsCache;
@@ -136,9 +137,48 @@ async function dismissSubmittedBanner() {
     updateReportStatus();
 }
 
+async function autoDismissSubmittedReportsFromToday() {
+    const todaySubmitted = getReportsByUrgency(window.currentReportsCache).todaySubmitted
+        .filter(function(report) { return report && !report.dashboard_dismissed_at; });
+
+    if (todaySubmitted.length === 0) return 0;
+
+    const dismissedAt = new Date().toISOString();
+    let dismissedCount = 0;
+
+    for (const report of todaySubmitted) {
+        if (!report || !report.id) continue;
+
+        if (typeof window.dismissReport === 'function') {
+            const result = await window.dismissReport(report.id, {
+                dismissedAt: dismissedAt,
+                suppressRender: true,
+                suppressToast: true
+            });
+            if (result && result.success) dismissedCount++;
+        }
+    }
+
+    if (dismissedCount > 0) {
+        const banner = document.getElementById('submittedBanner');
+        if (banner) banner.classList.add('hidden');
+        sessionStorage.setItem(STORAGE_KEYS.SUBMITTED_BANNER_DISMISSED, 'true');
+
+        renderReportCards(window.currentReportsCache);
+        updateReportStatus();
+
+        if (typeof showToast === 'function') {
+            showToast('Report filed. Find it in Archives.', 'success', 2200);
+        }
+    }
+
+    return dismissedCount;
+}
+
 // ============ INIT ============
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[INDEX] DOMContentLoaded fired at', new Date().toISOString());
+    let shouldAutoDismissSubmitted = false;
 
     // Initialize PWA features (moved from inline script in index.html)
     if (typeof initPWA === 'function') {
@@ -152,6 +192,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check for submit success redirect param
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('submitted') === 'true') {
+        shouldAutoDismissSubmitted = true;
+
         // Remove the URL param so it doesn't persist on refresh
         const cleanUrl = window.location.pathname;
         window.history.replaceState({}, '', cleanUrl);
@@ -270,9 +312,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Show submitted banner if there are submitted reports today and not dismissed this session
         const bannerDismissedThisSession = sessionStorage.getItem(STORAGE_KEYS.SUBMITTED_BANNER_DISMISSED) === 'true';
-        const todaySubmitted = getReportsByUrgency(window.currentReportsCache).todaySubmitted;
+        const todaySubmitted = getReportsByUrgency(window.currentReportsCache).todaySubmitted
+            .filter(function(report) { return report && !report.dashboard_dismissed_at; });
         if (todaySubmitted.length > 0 && !bannerDismissedThisSession) {
             document.getElementById('submittedBanner').classList.remove('hidden');
+        }
+
+        // Auto-dismiss submitted reports 3 seconds after arriving from submit flow
+        if (shouldAutoDismissSubmitted) {
+            if (_autoDismissSubmittedTimer) clearTimeout(_autoDismissSubmittedTimer);
+            _autoDismissSubmittedTimer = setTimeout(function() {
+                autoDismissSubmittedReportsFromToday().catch(function(err) {
+                    console.warn('[INDEX] Auto-dismiss submitted reports failed:', err);
+                });
+            }, 3000);
         }
     } catch (err) {
         console.error('Failed to initialize post-refresh tasks:', err);

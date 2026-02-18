@@ -609,7 +609,7 @@
 
             return supabaseClient
                 .from('reports')
-                .select('id,status,project_id,report_date,created_at,updated_at,submitted_at')
+                .select('id,status,project_id,report_date,created_at,updated_at,submitted_at,dashboard_dismissed_at')
                 .eq('user_id', userId)
                 .neq('status', 'deleted')
                 .then(function(result) {
@@ -654,7 +654,8 @@
                                         report_date: cloud.report_date,
                                         created_at: cloud.created_at,
                                         updated_at: cloud.updated_at,
-                                        submitted_at: cloud.submitted_at
+                                        submitted_at: cloud.submitted_at,
+                                        dashboard_dismissed_at: cloud.dashboard_dismissed_at || null
                                     };
                                     added++;
                                 } else {
@@ -672,7 +673,8 @@
                                             date: cloud.report_date,
                                             report_date: cloud.report_date,
                                             updated_at: cloud.updated_at,
-                                            submitted_at: cloud.submitted_at
+                                            submitted_at: cloud.submitted_at,
+                                            dashboard_dismissed_at: cloud.dashboard_dismissed_at || null
                                         });
                                         updated++;
                                     } else {

@@ -333,8 +333,14 @@ function _refreshCurrentReportAfterRefined(reportId, isInterviewPage) {
 }
 
 function _handleReportChange(payload) {
+    var reportDismissedNow = false;
+
     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
         var report = payload.new;
+        reportDismissedNow = payload.eventType === 'UPDATE' &&
+            report &&
+            report.dashboard_dismissed_at &&
+            !(payload.old && payload.old.dashboard_dismissed_at);
 
         // Skip reports on the deleted blocklist (prevents resurrection during cascade)
         if (typeof isDeletedReport === 'function' && isDeletedReport(report.id)) {
@@ -366,6 +372,40 @@ function _handleReportChange(payload) {
                 window.renderReportCards(window.currentReportsCache);
             }
             return;
+        }
+
+        // Update in-memory cache immediately so dashboard re-renders are accurate
+        if (Array.isArray(window.currentReportsCache) && report && report.id) {
+            var _replaced = false;
+            window.currentReportsCache = window.currentReportsCache.map(function(r) {
+                if (!r || r.id !== report.id) return r;
+                _replaced = true;
+                return Object.assign({}, r, {
+                    project_id: report.project_id,
+                    status: report.status,
+                    report_date: report.report_date,
+                    reportDate: report.report_date,
+                    updated_at: report.updated_at || r.updated_at,
+                    submitted_at: report.submitted_at || r.submitted_at || null,
+                    dashboard_dismissed_at: Object.prototype.hasOwnProperty.call(report, 'dashboard_dismissed_at')
+                        ? report.dashboard_dismissed_at
+                        : r.dashboard_dismissed_at
+                });
+            });
+
+            if (!_replaced) {
+                window.currentReportsCache.push({
+                    id: report.id,
+                    project_id: report.project_id,
+                    status: report.status,
+                    report_date: report.report_date,
+                    reportDate: report.report_date,
+                    created_at: report.created_at,
+                    updated_at: report.updated_at || Date.now(),
+                    submitted_at: report.submitted_at || null,
+                    dashboard_dismissed_at: report.dashboard_dismissed_at || null
+                });
+            }
         }
 
         // SYN-02 (Sprint 15): Skip realtime overwrites for the report currently being edited.
@@ -404,7 +444,11 @@ function _handleReportChange(payload) {
                 merged.status = report.status;
                 merged.reportDate = report.report_date;
                 merged.report_date = report.report_date;
-                merged.updated_at = Date.now();
+                merged.updated_at = report.updated_at || Date.now();
+                merged.submitted_at = report.submitted_at || merged.submitted_at || null;
+                if (Object.prototype.hasOwnProperty.call(report, 'dashboard_dismissed_at')) {
+                    merged.dashboard_dismissed_at = report.dashboard_dismissed_at;
+                }
                 return window.dataStore.saveReport(merged);
             }).then(function() {
                 if (window.fvpBroadcast && window.fvpBroadcast.send) {
@@ -433,6 +477,13 @@ function _handleReportChange(payload) {
         }
     }
     // Refresh Dashboard UI if available
+    // If a report was just dismissed, do a full re-render (card needs to disappear)
+    if (reportDismissedNow && typeof window.renderReportCards === 'function') {
+        window.renderReportCards(window.currentReportsCache);
+        if (typeof window.updateReportStatus === 'function') window.updateReportStatus();
+        return;
+    }
+
     if (typeof window.updateReportCardStatus === 'function' && payload.new) {
         window.updateReportCardStatus(payload.new.id, payload.new);
     } else if (typeof window.renderReportCards === 'function') {
