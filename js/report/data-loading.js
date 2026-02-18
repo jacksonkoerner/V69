@@ -66,8 +66,13 @@ async function loadReport() {
         console.log('[LOAD-DEBUG] reportData.captureMode:', reportData.captureMode);
     }
 
-    // Sprint 4: If not in IDB, try Supabase report_data table
-    if (!reportData && navigator.onLine) {
+    // Sprint 4+: If not in IDB, OR if IDB entry has null content (poisoned by Realtime
+    // payload truncation — Supabase strips JSONB >64 bytes from Realtime payloads),
+    // fetch full data from Supabase report_data table via REST API.
+    var _needsCloudFetch = !reportData ||
+        (!reportData.aiGenerated && !reportData.originalInput);
+
+    if (_needsCloudFetch && navigator.onLine) {
         try {
             console.log('[LOAD] IDB miss — trying Supabase report_data...');
             var rdResult = await supabaseClient
@@ -108,7 +113,11 @@ async function loadReport() {
                         console.warn('[LOAD] IDB cache-back failed:', idbErr);
                     });
                 }
-                showToast('Report recovered from cloud', 'success');
+                if (!reportData) {
+                    showToast('Report recovered from cloud', 'success');
+                } else {
+                    console.log('[LOAD] Refreshed report content from cloud (IDB had null content)');
+                }
             }
         } catch (err) {
             console.error('[LOAD] Supabase recovery failed:', err);

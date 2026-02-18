@@ -186,21 +186,54 @@ function _handleReportDataChange(payload) {
     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
         var data = payload.new;
 
-        // Client-side guard: only process report_data for reports we own.
-        // This prevents cross-tenant data from being written to local storage
-        // even if RLS is misconfigured. Belt-and-suspenders with server RLS.
-        var reportData = {
-            aiGenerated: data.ai_generated,
-            originalInput: data.original_input,
-            userEdits: data.user_edits || {},
-            captureMode: data.capture_mode,
-            status: data.status,
-            lastSaved: data.updated_at
-        };
-        if (window.dataStore && typeof window.dataStore.saveReportData === 'function') {
-            window.dataStore.saveReportData(data.report_id, reportData).catch(function(err) {
-                console.warn('[REALTIME] Failed to persist report_data update:', err);
-            });
+        console.log('[REALTIME] Report data change:', payload.eventType);
+
+        // SYN-02: Skip if user is currently editing this report on report.html
+        var path = window.location.pathname;
+        if (path.indexOf('report.html') !== -1 || path.indexOf('quick-interview.html') !== -1) {
+            var urlParams = new URLSearchParams(window.location.search);
+            var editingReportId = urlParams.get('reportId');
+            if (editingReportId && editingReportId === data.report_id) {
+                console.log('[REALTIME] Skipping report_data update for actively-edited report:', data.report_id);
+                return;
+            }
+        }
+
+        // ONLY update lightweight metadata fields that Realtime reliably includes.
+        // DO NOT write ai_generated or original_input from Realtime payloads —
+        // Supabase Realtime has a 1MB payload limit and strips columns >64 bytes.
+        // These large JSONB fields will always be null/missing in the payload.
+        // Full content is fetched on-demand by loadReport() via REST API.
+        if (window.dataStore && typeof window.dataStore.getReportData === 'function') {
+            window.dataStore.getReportData(data.report_id)
+                .then(function(existing) {
+                    if (!existing) return; // Don't create entries from Realtime — let loadReport() handle first fetch
+
+                    // Only update fields that are safe (small, reliably included in payload)
+                    if (data.status) existing.status = data.status;
+                    if (data.capture_mode) existing.captureMode = data.capture_mode;
+                    if (data.user_edits && typeof data.user_edits === 'object' && Object.keys(data.user_edits).length > 0) {
+                        existing.userEdits = data.user_edits;
+                    }
+                    existing.lastSaved = data.updated_at;
+
+                    return window.dataStore.saveReportData(data.report_id, existing);
+                })
+                .catch(function(err) {
+                    console.warn('[REALTIME] report_data merge failed:', err);
+                });
+        }
+
+        // Notify other tabs that report data changed (notification only, no data)
+        if (window.fvpBroadcast && window.fvpBroadcast.send) {
+            window.fvpBroadcast.send({ type: 'report-data-updated', id: data.report_id });
+        }
+    }
+
+    if (payload.eventType === 'DELETE') {
+        var deletedReportId = payload.old && payload.old.report_id;
+        if (deletedReportId && window.dataStore && typeof window.dataStore.deleteReportData === 'function') {
+            window.dataStore.deleteReportData(deletedReportId).catch(function() {});
         }
     }
 }
