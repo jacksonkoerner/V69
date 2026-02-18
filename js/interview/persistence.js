@@ -376,6 +376,10 @@ let localSaveTimeout = null;
 let _interviewBackupDirty = false;
 let _interviewBackupTimer = null;
 
+// Step 2: Sync metadata for cross-device conflict detection
+let _syncRevision = 0;  // Monotonic counter, increments on every saveReport()
+const _syncSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+
 // Track active auto-save sessions to prevent duplicates
 var guidedAutoSaveSessions = {};
 
@@ -565,6 +569,9 @@ initGuidedAutoSave('safety-input', 'safety');
 }
 
 function saveReport() {
+// Increment revision for conflict detection (Step 2: sync metadata)
+_syncRevision++;
+
 // Update local UI immediately
 updateAllPreviews();
 updateProgress();
@@ -618,6 +625,12 @@ reporter: IS.report.reporter || {},
 photos: (IS.report.photos || []).map(function(p) {
     return { id: p.id, storagePath: p.storagePath || '', url: p.url || '', caption: p.caption || '', timestamp: p.timestamp, fileName: p.fileName };
 }),
+// Step 2: Sync metadata for cross-device conflict detection
+_sync: {
+    device_id: typeof getDeviceId === 'function' ? getDeviceId() : 'unknown',
+    session_id: _syncSessionId,
+    revision: _syncRevision
+},
 savedAt: new Date().toISOString()
 };
 }
