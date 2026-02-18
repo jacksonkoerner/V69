@@ -32,18 +32,17 @@ async function fetchCloudPhotos(reportId) {
             return [];
         }
 
-        // SEC-04: Use signed URLs instead of public URLs for security
-        // NOTE: Signed URLs expire after 1 hour. If photos are cached (IndexedDB/localStorage)
-        // with signed URLs, they may go stale and fail to load. Future consideration: implement
-        // a URL refresh mechanism or re-sign URLs on demand when displaying photos.
+        // SEC-04: Always generate a fresh signed URL from storage_path.
+        // storage_path is the durable source of truth; photo_url may contain stale signed URLs.
         return Promise.all(result.data.map(async function(row) {
-            // Generate signed URL from storage_path if photo_url is missing or is a blob URL
-            var url = row.photo_url || '';
-            if ((!url || url.startsWith('blob:')) && row.storage_path) {
+            var url = '';
+            if (row.storage_path) {
                 var urlResult = await supabaseClient.storage
                     .from('report-photos')
                     .createSignedUrl(row.storage_path, 3600); // 1 hour expiry
                 url = urlResult.data?.signedUrl || '';
+            } else {
+                url = row.photo_url || '';
             }
 
             // Parse taken_at into date/time strings
@@ -106,13 +105,16 @@ async function fetchCloudPhotosBatch(reportIds) {
             var row = result.data[i];
             if (!photoMap[row.report_id]) photoMap[row.report_id] = [];
 
-            // SEC-04: Use signed URL instead of public URL
-            var url = row.photo_url || '';
-            if ((!url || url.startsWith('blob:')) && row.storage_path) {
+            // SEC-04: Always generate a fresh signed URL from storage_path.
+            // storage_path is the durable source of truth; photo_url may contain stale signed URLs.
+            var url = '';
+            if (row.storage_path) {
                 var urlResult = await supabaseClient.storage
                     .from('report-photos')
                     .createSignedUrl(row.storage_path, 3600); // 1 hour expiry
                 url = urlResult.data?.signedUrl || '';
+            } else {
+                url = row.photo_url || '';
             }
 
             var dateStr = '--';

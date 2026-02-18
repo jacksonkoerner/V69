@@ -870,13 +870,40 @@ function handlePhotoLoad(index) {
 }
 
 /**
- * Handle photo load error - show error state
+ * Handle photo load error - attempt re-sign from storage_path before showing error
  */
-function handlePhotoError(index) {
+async function handlePhotoError(index) {
     var container = document.getElementById('photo-container-' + index);
     var loading = document.getElementById('photo-loading-' + index);
+    var img = document.getElementById('photo-img-' + index);
 
     if (!container) return;
+
+    var photo = (RS && RS.report && RS.report.photos) ? RS.report.photos[index] : null;
+    var storagePath = photo && photo.storagePath;
+    var alreadyRetried = img && img.dataset && img.dataset.resignRetried === 'true';
+    var client = (typeof supabaseClient !== 'undefined' && supabaseClient)
+        ? supabaseClient
+        : (typeof window !== 'undefined' ? window.supabaseClient : null);
+
+    // Retry once with a fresh signed URL if possible
+    if (img && !alreadyRetried && storagePath && client && client.storage) {
+        img.dataset.resignRetried = 'true';
+
+        try {
+            var signResult = await client
+                .storage
+                .from('report-photos')
+                .createSignedUrl(storagePath, 3600);
+
+            if (!signResult.error && signResult.data && signResult.data.signedUrl) {
+                img.src = signResult.data.signedUrl;
+                return; // Give the photo a second chance to load
+            }
+        } catch (err) {
+            console.warn('[PHOTOS] Failed to re-sign photo URL:', err);
+        }
+    }
 
     // Hide loading spinner
     if (loading) loading.style.display = 'none';

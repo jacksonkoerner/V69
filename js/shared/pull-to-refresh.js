@@ -43,4 +43,76 @@
             indicator.style.height = '0';
         }
     }, { passive: true });
+
+    // Desktop/laptop manual refresh button (hover-capable devices)
+    if (window.matchMedia && window.matchMedia('(hover: hover)').matches) {
+        function flushPendingBackups() {
+            try {
+                if (window.debugCapture && typeof window.debugCapture.flush === 'function') {
+                    window.debugCapture.flush();
+                }
+            } catch (e) {}
+
+            try {
+                if (typeof window.drainPendingBackups === 'function') {
+                    window.drainPendingBackups();
+                }
+            } catch (e) {}
+        }
+
+        function runManualRefresh() {
+            flushPendingBackups();
+            if (typeof window.manualRefresh === 'function') {
+                window.manualRefresh();
+            } else {
+                location.reload();
+            }
+        }
+
+        function injectDesktopRefreshButton() {
+            if (document.getElementById('desktopRefreshButton')) return;
+
+            var btn = document.createElement('button');
+            btn.id = 'desktopRefreshButton';
+            btn.type = 'button';
+            btn.setAttribute('aria-label', 'Refresh page');
+            btn.innerHTML = '<i class="fas fa-sync-alt" aria-hidden="true"></i>';
+            btn.style.cssText = [
+                'position:fixed',
+                'top:12px',
+                'right:12px',
+                'width:40px',
+                'height:40px',
+                'border:none',
+                'border-radius:9999px',
+                'background:#334155',
+                'color:#fb923c',
+                'display:flex',
+                'align-items:center',
+                'justify-content:center',
+                'cursor:pointer',
+                'z-index:9998',
+                'box-shadow:0 6px 16px rgba(0,0,0,0.35)',
+                'transition:transform 0.15s ease'
+            ].join(';');
+
+            btn.addEventListener('mouseenter', function() {
+                btn.style.transform = 'scale(1.1)';
+            });
+
+            btn.addEventListener('mouseleave', function() {
+                btn.style.transform = 'scale(1)';
+            });
+
+            btn.addEventListener('click', runManualRefresh);
+
+            document.body.appendChild(btn);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', injectDesktopRefreshButton);
+        } else {
+            injectDesktopRefreshButton();
+        }
+    }
 })();

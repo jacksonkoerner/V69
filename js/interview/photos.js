@@ -199,14 +199,14 @@ async function backgroundUploadPhoto(photoObj, dataUrl) {
                 taken_at: photoObj.timestamp || new Date().toISOString(),
                 created_at: new Date().toISOString()
             }, { onConflict: 'id' }).then(function(r) {
-                if (r.error) console.warn('[PHOTO] photos table upsert failed:', r.error.message);
+                if (r.error) console.error('[PHOTO] photos table upsert failed:', r.error.message);
                 else console.log('[PHOTO] photos table metadata saved:', photoObj.id);
             });
         }
         saveReport();
         console.log('[PHOTO] Background upload complete:', photoObj.id);
     } catch (err) {
-        console.warn('[PHOTO] Background upload failed:', err);
+        console.error('[PHOTO] Background upload failed:', err);
         photoObj.uploadStatus = 'failed';
         updatePhotoUploadIndicator(photoObj.id, 'failed');
         // base64 is preserved in IndexedDB — will retry at FINISH via uploadPendingPhotos()

@@ -199,7 +199,7 @@ async function loadReport() {
                 }
             }
         } catch (photoErr) {
-            console.warn('[LOAD] Cloud photo rehydration failed:', photoErr);
+            console.error('[LOAD] Cloud photo rehydration failed:', photoErr);
         }
     }
 

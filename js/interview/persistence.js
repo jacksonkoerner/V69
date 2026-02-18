@@ -621,13 +621,13 @@ async function drainPendingBackups() {
                 }, { onConflict: 'report_id' });
 
             if (result.error) {
-                console.warn('[DRAIN] Failed to flush backup for', reportId, ':', result.error.message);
+                console.error('[DRAIN] Failed to flush backup for', reportId, ':', result.error.message);
             } else {
                 _clearBackupStale(reportId);
                 console.log('[DRAIN] Successfully flushed pending backup for', reportId);
             }
         } catch (e) {
-            console.warn('[DRAIN] Error draining backup for', reportId, ':', e.message);
+            console.error('[DRAIN] Error draining backup for', reportId, ':', e.message);
         }
     }
 }
@@ -987,7 +987,7 @@ supabaseRetry(function() {
         window.syncEngine.broadcastSyncUpdate(reportId, ['entries', 'activities', 'operations', 'weather', 'photos', 'toggleStates'], 'quick-interview');
     }
 }).catch(function(err) {
-    console.warn('[BACKUP] Interview backup failed after retries:', err.message);
+    console.error('[BACKUP] Interview backup failed after retries:', err.message);
     // Re-dirty so next save cycle retries the upload
     _interviewBackupDirty = true;
 });
