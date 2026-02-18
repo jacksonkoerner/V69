@@ -184,6 +184,25 @@ async function backgroundUploadPhoto(photoObj, dataUrl) {
         }
 
         updatePhotoUploadIndicator(photoObj.id, 'uploaded');
+        // Upsert photo metadata to photos table for cross-device visibility
+        if (IS.currentReportId) {
+            supabaseClient.from('photos').upsert({
+                id: photoObj.id,
+                report_id: IS.currentReportId,
+                org_id: localStorage.getItem(STORAGE_KEYS.ORG_ID) || null,
+                storage_path: result.storagePath,
+                photo_url: result.publicUrl,
+                caption: photoObj.caption || '',
+                filename: photoObj.fileName || null,
+                location_lat: photoObj.gps?.lat || null,
+                location_lng: photoObj.gps?.lng || null,
+                taken_at: photoObj.timestamp || new Date().toISOString(),
+                created_at: new Date().toISOString()
+            }, { onConflict: 'id' }).then(function(r) {
+                if (r.error) console.warn('[PHOTO] photos table upsert failed:', r.error.message);
+                else console.log('[PHOTO] photos table metadata saved:', photoObj.id);
+            });
+        }
         saveReport();
         console.log('[PHOTO] Background upload complete:', photoObj.id);
     } catch (err) {
