@@ -106,6 +106,27 @@ function _handleReportChange(payload) {
             return;
         }
 
+        // Soft-delete: if cloud status is 'deleted', remove locally instead of saving
+        if (report.status === 'deleted') {
+            console.log('[REALTIME] Report marked deleted in cloud, removing locally:', report.id);
+            if (typeof addToDeletedBlocklist === 'function') addToDeletedBlocklist(report.id);
+            if (window.dataStore) {
+                Promise.allSettled([
+                    window.dataStore.deleteReport ? window.dataStore.deleteReport(report.id) : Promise.resolve(),
+                    window.dataStore.deleteReportData ? window.dataStore.deleteReportData(report.id) : Promise.resolve(),
+                    window.dataStore.deleteDraftData ? window.dataStore.deleteDraftData(report.id) : Promise.resolve(),
+                    window.dataStore.deletePhotosByReportId ? window.dataStore.deletePhotosByReportId(report.id) : Promise.resolve()
+                ]).catch(function() {});
+            }
+            if (window.fvpBroadcast && window.fvpBroadcast.send) {
+                window.fvpBroadcast.send({ type: 'report-deleted', id: report.id });
+            }
+            if (typeof window.renderReportCards === 'function') {
+                window.renderReportCards();
+            }
+            return;
+        }
+
         // SYN-02 (Sprint 15): Skip realtime overwrites for the report currently being edited.
         // If user is on quick-interview.html or report.html editing this specific report,
         // a realtime event could reset local state (status, dates, etc.) mid-edit.

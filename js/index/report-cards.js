@@ -17,6 +17,9 @@ function renderReportCards(reportsInput) {
         ? reportsInput
         : (Array.isArray(window.currentReportsCache) ? window.currentReportsCache : []);
 
+    // Filter out soft-deleted reports (belt-and-suspenders with cloud sync filter)
+    const activeReports = allReports.filter(r => r.status !== 'deleted');
+
     // Get ALL projects (from cache or localStorage)
     const projectsMap = getStorageItem(STORAGE_KEYS.PROJECTS) || {};
     const allProjects = getProjects().length > 0
@@ -27,7 +30,7 @@ function renderReportCards(reportsInput) {
     const reportsByProject = {};
     const orphanReports = []; // reports with unknown project_id
 
-    allReports.forEach(r => {
+    activeReports.forEach(r => {
         if (r.project_id) {
             if (!reportsByProject[r.project_id]) reportsByProject[r.project_id] = [];
             reportsByProject[r.project_id].push(r);
@@ -71,7 +74,7 @@ function renderReportCards(reportsInput) {
     if (orphanReports.length > 0) unknownProjectReports.push(...orphanReports);
 
     // If no projects and no reports, show empty state
-    if (allProjects.length === 0 && allReports.length === 0) {
+    if (allProjects.length === 0 && activeReports.length === 0) {
         container.innerHTML = `
             <div class="bg-white border-2 border-dashed border-slate-300 p-8 text-center">
                 <div class="w-16 h-16 bg-slate-100 border-2 border-slate-200 flex items-center justify-center mx-auto mb-4">
@@ -597,6 +600,14 @@ async function executeDeleteReport(reportId, overlay) {
             } else {
                 console.warn('[SWIPE-DELETE] Delete had errors:', result.errors);
             }
+            // Update the in-memory cache so re-renders don't show the deleted report
+            if (window.currentReportsCache) {
+                window.currentReportsCache = window.currentReportsCache.filter(function(r) {
+                    return r.id !== reportId;
+                });
+            }
+            renderReportCards(window.currentReportsCache);
+            updateReportStatus();
         }).catch(function(err) {
             console.error('[SWIPE-DELETE] deleteReportFull failed:', err);
         });
