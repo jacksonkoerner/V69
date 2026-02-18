@@ -27,7 +27,8 @@
      * For each key: if local unchanged from base, take remote. If remote unchanged, keep local.
      * If both changed, local wins (active editor keeps their work).
      */
-    function mergeObjects(base, local, remote) {
+    function mergeObjects(base, local, remote, opts) {
+        var protectedFields = (opts && opts.protectedFields) || [];
         base = base || {};
         local = local || {};
         remote = remote || {};
@@ -40,6 +41,16 @@
         Object.keys(remote).forEach(function(k) { allKeys[k] = true; });
 
         Object.keys(allKeys).forEach(function(key) {
+            if (protectedFields.indexOf(key) !== -1) {
+                // Protected: always preserve local value
+                if (local.hasOwnProperty(key)) {
+                    merged[key] = deepClone(local[key]);
+                } else if (base.hasOwnProperty(key)) {
+                    merged[key] = deepClone(base[key]);
+                }
+                return;
+            }
+
             var bVal = base[key];
             var lVal = local[key];
             var rVal = remote[key];
@@ -62,9 +73,21 @@
     }
 
     /**
+     * Per-section tombstone tracking for deletion resurrection prevention.
+     */
+    var _syncTombstones = {}; // { sectionKey: Set }
+
+    function getTombstones(sectionKey) {
+        if (!_syncTombstones[sectionKey]) {
+            _syncTombstones[sectionKey] = new Set();
+        }
+        return _syncTombstones[sectionKey];
+    }
+
+    /**
      * Three-way merge for arrays with stable IDs.
      */
-    function mergeArraysById(base, local, remote, idField) {
+    function mergeArraysById(base, local, remote, idField, sectionKey) {
         base = base || [];
         local = local || [];
         remote = remote || [];
@@ -97,8 +120,10 @@
                         // Local modified it AND remote deleted it → conflict; keep local
                         merged.push(lItem);
                         conflicts.push({ id: id, type: 'delete-vs-edit', local: lItem });
+                    } else {
+                        // Honor remote deletion — tombstone it
+                        if (sectionKey) getTombstones(sectionKey).add(id);
                     }
-                    // else: local didn't modify → honor remote deletion (skip)
                 } else {
                     // New in local → keep
                     merged.push(lItem);
@@ -110,8 +135,13 @@
                 if (!localChanged && remoteChanged) {
                     merged.push(deepClone(rItem));
                 } else if (localChanged && remoteChanged && !deepEqual(lItem, rItem)) {
-                    conflicts.push({ id: id, local: lItem, remote: rItem });
-                    merged.push(lItem); // local wins
+                    // Field-level merge within the item
+                    var itemMerge = mergeObjects(bItem || {}, lItem, rItem);
+                    merged.push(itemMerge.merged);
+                    if (itemMerge.conflicts.length > 0) {
+                        itemMerge.conflicts.forEach(function(c) { c.itemId = id; });
+                        conflicts = conflicts.concat(itemMerge.conflicts);
+                    }
                 } else {
                     merged.push(lItem);
                 }
@@ -124,11 +154,24 @@
             if (!id || seen[id]) return;
             if (baseMap[id]) {
                 // Was in base, in remote, not in local → local deleted → skip
+                getTombstones(sectionKey).add(id);  // tombstone local hard-delete
+            } else if (sectionKey && getTombstones(sectionKey).has(id)) {
+                // Previously tombstoned — skip
             } else {
                 // New from remote → add
                 merged.push(deepClone(rItem));
             }
         });
+
+        // Prune tombstones — if remote no longer has the item, deletion propagated
+        if (sectionKey) {
+            var remoteIds = new Set(remote.map(function(r) { return r[idField]; }));
+            getTombstones(sectionKey).forEach(function(tombId) {
+                if (!remoteIds.has(tombId)) {
+                    getTombstones(sectionKey).delete(tombId);
+                }
+            });
+        }
 
         return { merged: merged, conflicts: conflicts };
     }
@@ -202,9 +245,9 @@
 
             var result;
             if (def.type === 'object') {
-                result = mergeObjects(bVal, lVal, rVal);
+                result = mergeObjects(bVal, lVal, rVal, { protectedFields: def.protectedFields });
             } else if (def.type === 'array' && def.idField) {
-                result = mergeArraysById(bVal, lVal, rVal, def.idField);
+                result = mergeArraysById(bVal, lVal, rVal, def.idField, sectionKey);
             } else if (def.type === 'photos') {
                 result = { merged: mergePhotos(bVal, lVal, rVal), conflicts: [] };
             } else {
@@ -237,6 +280,8 @@
         mergeArraysById: mergeArraysById,
         mergePhotos: mergePhotos,
         deepEqual: deepEqual,
-        deepClone: deepClone
+        deepClone: deepClone,
+        getTombstones: getTombstones,
+        clearAllTombstones: function() { _syncTombstones = {}; }
     };
 })();
