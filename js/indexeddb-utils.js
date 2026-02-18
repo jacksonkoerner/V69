@@ -914,4 +914,26 @@
         clearStore
     };
 
+    // Compatibility shim: prefer dataStore when available.
+    if (typeof window !== 'undefined' && window.dataStore) {
+        window.idb.getAllCurrentReports = function() {
+            return window.dataStore.getAllReports().then(function(map) {
+                var out = {};
+                map.forEach(function(value, key) { out[key] = value; });
+                return out;
+            });
+        };
+        window.idb.saveCurrentReportIDB = function(report) { return window.dataStore.saveReport(report); };
+        window.idb.deleteCurrentReportIDB = function(reportId) { return window.dataStore.deleteReport(reportId); };
+        window.idb.replaceAllCurrentReports = function(reports) { return window.dataStore.replaceAllReports(reports); };
+        window.idb.saveDraftDataIDB = function(reportId, data) { return window.dataStore.saveDraftData(reportId, data); };
+        window.idb.getDraftDataIDB = function(reportId) { return window.dataStore.getDraftData(reportId); };
+        window.idb.deleteDraftDataIDB = function(reportId) { return window.dataStore.deleteDraftData(reportId); };
+        window.idb.saveReportDataIDB = function(reportId, data) { return window.dataStore.saveReportData(reportId, data); };
+        window.idb.getReportDataIDB = function(reportId) { return window.dataStore.getReportData(reportId); };
+        window.idb.deleteReportDataIDB = function(reportId) { return window.dataStore.deleteReportData(reportId); };
+        window.idb.resetDB = function() { return window.dataStore.reset(); };
+        window.idb.closeAllIDBConnections = function() { return window.dataStore.closeAll(); };
+    }
+
 })();

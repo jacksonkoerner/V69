@@ -119,27 +119,40 @@ function _handleReportChange(payload) {
             }
         }
 
-        var reports = (typeof getStorageItem === 'function')
-            ? getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {}
-            : {};
-        reports[report.id] = {
-            ...(reports[report.id] || {}),
-            id: report.id,
-            project_id: report.project_id,
-            status: report.status,
-            reportDate: report.report_date,
-            updated_at: Date.now()
-        };
-        if (typeof setStorageItem === 'function') {
-            setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, reports);
-        }
-        if (typeof syncCurrentReportsToIDB === 'function') {
-            syncCurrentReportsToIDB();
+        if (window.dataStore && typeof window.dataStore.saveReport === 'function') {
+            window.dataStore.getReport(report.id).catch(function() { return null; }).then(function(existing) {
+                var merged = existing || {};
+                merged.id = report.id;
+                merged.project_id = report.project_id;
+                merged.status = report.status;
+                merged.reportDate = report.report_date;
+                merged.report_date = report.report_date;
+                merged.updated_at = Date.now();
+                return window.dataStore.saveReport(merged);
+            }).then(function() {
+                if (window.fvpBroadcast && window.fvpBroadcast.send) {
+                    window.fvpBroadcast.send({ type: 'report-updated', id: report.id });
+                }
+            }).catch(function(e) {
+                console.warn('[REALTIME] Failed to persist report metadata:', e);
+            });
         }
     }
     if (payload.eventType === 'DELETE') {
-        if (typeof deleteCurrentReport === 'function') {
-            deleteCurrentReport(payload.old.id);
+        var deletedId = payload.old && payload.old.id;
+        if (deletedId) {
+            if (typeof addToDeletedBlocklist === 'function') addToDeletedBlocklist(deletedId);
+            if (window.dataStore) {
+                Promise.allSettled([
+                    window.dataStore.deleteReport ? window.dataStore.deleteReport(deletedId) : Promise.resolve(),
+                    window.dataStore.deleteReportData ? window.dataStore.deleteReportData(deletedId) : Promise.resolve(),
+                    window.dataStore.deleteDraftData ? window.dataStore.deleteDraftData(deletedId) : Promise.resolve(),
+                    window.dataStore.deletePhotosByReportId ? window.dataStore.deletePhotosByReportId(deletedId) : Promise.resolve()
+                ]).catch(function() {});
+            }
+            if (window.fvpBroadcast && window.fvpBroadcast.send) {
+                window.fvpBroadcast.send({ type: 'report-deleted', id: deletedId });
+            }
         }
     }
     // Refresh Dashboard UI if available
@@ -155,14 +168,6 @@ function _handleReportDataChange(payload) {
         // Client-side guard: only process report_data for reports we own.
         // This prevents cross-tenant data from being written to local storage
         // even if RLS is misconfigured. Belt-and-suspenders with server RLS.
-        var knownReports = (typeof getStorageItem === 'function')
-            ? getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {}
-            : {};
-        if (!knownReports[data.report_id]) {
-            console.warn('[REALTIME] Ignoring report_data for unknown report:', data.report_id);
-            return;
-        }
-
         var reportData = {
             aiGenerated: data.ai_generated,
             originalInput: data.original_input,
@@ -171,8 +176,10 @@ function _handleReportDataChange(payload) {
             status: data.status,
             lastSaved: data.updated_at
         };
-        if (typeof saveReportData === 'function') {
-            saveReportData(data.report_id, reportData);
+        if (window.dataStore && typeof window.dataStore.saveReportData === 'function') {
+            window.dataStore.saveReportData(data.report_id, reportData).catch(function(err) {
+                console.warn('[REALTIME] Failed to persist report_data update:', err);
+            });
         }
     }
 }
@@ -201,6 +208,18 @@ window.addEventListener('offline', function() {
     cleanupRealtimeSync();
 });
 
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+        cleanupRealtimeSync();
+    } else if (document.visibilityState === 'visible') {
+        setTimeout(function() { initRealtimeSync(); }, 1000);
+    }
+});
+
 // Expose for use in page init scripts
 window.initRealtimeSync = initRealtimeSync;
 window.cleanupRealtimeSync = cleanupRealtimeSync;
+window.syncEngine = {
+    initRealtimeSync: initRealtimeSync,
+    cleanupRealtimeSync: cleanupRealtimeSync
+};

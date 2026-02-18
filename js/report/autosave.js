@@ -13,6 +13,7 @@ var RS = window.reportState;
 // Backup timer state
 var _reportBackupDirty = false;
 var _reportBackupTimer = null;
+var _reportSaveQueue = Promise.resolve();
 
 // ============ AUTO-SAVE ============
 function setupAutoSave() {
@@ -183,59 +184,45 @@ function saveReportToLocalStorage() {
         return;
     }
 
-    // Read current data to preserve fields we don't modify here
-    var existingData = getReportData(RS.currentReportId) || {};
+    _reportSaveQueue = _reportSaveQueue.then(function() {
+        if (!window.dataStore) return;
+        return window.dataStore.getReportData(RS.currentReportId).catch(function() { return null; }).then(function(existingData) {
+            existingData = existingData || {};
 
-    // Build the report object to save (matches spec structure)
-    var reportToSave = {
-        reportId: RS.currentReportId,
-        projectId: existingData.projectId || RS.activeProject?.id,
-        reportDate: existingData.reportDate || getReportDateStr(),
-        status: RS.report.meta?.status || existingData.status || 'refined',
+            var reportToSave = {
+                reportId: RS.currentReportId,
+                projectId: existingData.projectId || RS.activeProject?.id,
+                reportDate: existingData.reportDate || getReportDateStr(),
+                status: RS.report.meta?.status || existingData.status || 'refined',
+                aiGenerated: RS.report.aiGenerated || existingData.aiGenerated || {},
+                captureMode: RS.report.aiCaptureMode || existingData.captureMode || 'minimal',
+                originalInput: RS.report.originalInput || existingData.originalInput || {},
+                userEdits: RS.report.userEdits || {},
+                createdAt: existingData.createdAt || RS.report.meta?.createdAt || new Date().toISOString(),
+                lastSaved: new Date().toISOString()
+            };
 
-        // From n8n webhook response (preserve original)
-        aiGenerated: RS.report.aiGenerated || existingData.aiGenerated || {},
-        captureMode: RS.report.aiCaptureMode || existingData.captureMode || 'minimal',
-
-        // Original field notes (preserve original)
-        originalInput: RS.report.originalInput || existingData.originalInput || {},
-
-        // User edits - this is what we're updating
-        userEdits: RS.report.userEdits || {},
-
-        // Metadata
-        createdAt: existingData.createdAt || RS.report.meta?.createdAt || new Date().toISOString(),
-        lastSaved: new Date().toISOString()
-    };
-
-    // Use saveReportData from storage-keys.js
-    var success = saveReportData(RS.currentReportId, reportToSave);
-    if (success) {
-        console.log('[LOCAL] Report saved to localStorage:', RS.currentReportId);
-    } else {
-        console.error('[LOCAL] Failed to save report to localStorage');
-    }
-
-    // Dual-write to IndexedDB for durability
-    if (window.idb && typeof window.idb.saveReportDataIDB === 'function') {
-        window.idb.saveReportDataIDB(RS.currentReportId, reportToSave).catch(function(err) {
-            console.warn('[AUTOSAVE] IDB dual-write failed:', err.message);
+            return Promise.all([
+                window.dataStore.saveReportData(RS.currentReportId, reportToSave),
+                window.dataStore.saveReport({
+                    id: RS.currentReportId,
+                    project_id: RS.activeProject?.id || existingData.projectId || null,
+                    project_name: RS.activeProject?.projectName || null,
+                    reportDate: reportToSave.reportDate,
+                    report_date: reportToSave.reportDate,
+                    status: reportToSave.status,
+                    updated_at: Date.now()
+                })
+            ]).then(function() {
+                console.log('[LOCAL] Report saved to IDB:', RS.currentReportId);
+                if (window.fvpBroadcast && typeof window.fvpBroadcast.send === 'function') {
+                    window.fvpBroadcast.send({ type: 'report-updated', id: RS.currentReportId });
+                }
+            });
         });
-    }
-
-    // Also update current_reports status so dashboard reflects correct state
-    if (RS.currentReportId) {
-        var currentReport = getCurrentReport(RS.currentReportId);
-        if (currentReport) {
-            currentReport.status = RS.report?.meta?.status || currentReport.status;
-            currentReport.updated_at = Date.now();
-            if (typeof saveCurrentReportSync === 'function') {
-                saveCurrentReportSync(currentReport);
-            } else {
-                saveCurrentReport(currentReport);
-            }
-        }
-    }
+    }).catch(function(err) {
+        console.error('[AUTOSAVE] IDB save failed:', err && err.message ? err.message : err);
+    });
 }
 
 /**

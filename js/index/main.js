@@ -13,6 +13,7 @@
 
 // Shared state — use var so other files can access via window.*
 var projectsCache = [];
+window.currentReportsCache = window.currentReportsCache || [];
 
 function getProjects() {
     return projectsCache;
@@ -27,9 +28,11 @@ function openSettings() {
 }
 
 // ============ REPORT MAP PRUNING ============
-function pruneCurrentReports() {
-    const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS);
-    if (!reports || typeof reports !== 'object') return;
+async function pruneCurrentReports() {
+    if (!window.dataStore || typeof window.dataStore.getAllReports !== 'function') return;
+    var reportMap = await window.dataStore.getAllReports();
+    var reports = {};
+    reportMap.forEach(function(value, key) { reports[key] = value; });
 
     const now = Date.now();
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
@@ -57,10 +60,9 @@ function pruneCurrentReports() {
     }
 
     if (pruned > 0) {
-        setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, reports);
+        await window.dataStore.replaceAllReports(reports);
+        window.currentReportsCache = Object.values(reports);
         console.log(`[PRUNE] Pruned ${pruned} stale/malformed report(s) from local map`);
-        // Sync pruned state to IndexedDB
-        syncCurrentReportsToIDB();
     }
 }
 
@@ -130,7 +132,7 @@ async function dismissSubmittedBanner() {
     sessionStorage.setItem(STORAGE_KEYS.SUBMITTED_BANNER_DISMISSED, 'true');
 
     // Refresh UI
-    renderReportCards();
+    renderReportCards(window.currentReportsCache);
     updateReportStatus();
 }
 
@@ -141,6 +143,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize PWA features (moved from inline script in index.html)
     if (typeof initPWA === 'function') {
         initPWA({ onOnline: typeof updateDraftsSection === 'function' ? updateDraftsSection : function() {} });
+    }
+
+    if (window.dataStore && typeof window.dataStore.init === 'function') {
+        try { await window.dataStore.init(); } catch (e) { console.warn('[INDEX] dataStore init failed:', e); }
     }
 
     // Check for submit success redirect param
@@ -212,7 +218,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!localStorage.getItem(MIGRATION_KEY)) {
         console.log('[MIGRATION v1.13.0] Clearing stale IndexedDB projects...');
         try {
-            await window.idb.clearStore('projects');
+            if (window.dataStore && window.dataStore.clearStore) {
+                await window.dataStore.clearStore('projects');
+            }
             localStorage.setItem(MIGRATION_KEY, new Date().toISOString());
             console.log('[MIGRATION v1.13.0] IndexedDB projects cleared successfully');
         } catch (migrationErr) {
@@ -251,9 +259,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Start Realtime subscriptions for multi-device sync
         if (typeof initRealtimeSync === 'function') initRealtimeSync();
 
+        if (window.fvpBroadcast && typeof window.fvpBroadcast.listen === 'function') {
+            window.fvpBroadcast.listen(function(message) {
+                if (!message || !message.type) return;
+                if (message.type === 'report-deleted' || message.type === 'report-updated' || message.type === 'reports-recovered') {
+                    refreshDashboard('broadcast');
+                }
+            });
+        }
+
         // Show submitted banner if there are submitted reports today and not dismissed this session
         const bannerDismissedThisSession = sessionStorage.getItem(STORAGE_KEYS.SUBMITTED_BANNER_DISMISSED) === 'true';
-        const { todaySubmitted } = getReportsByUrgency();
+        const todaySubmitted = getReportsByUrgency(window.currentReportsCache).todaySubmitted;
         if (todaySubmitted.length > 0 && !bannerDismissedThisSession) {
             document.getElementById('submittedBanner').classList.remove('hidden');
         }
@@ -293,6 +310,24 @@ function withTimeout(promise, ms, fallback, label) {
             }, ms);
         })
     ]);
+}
+
+async function loadReportsFromIDB() {
+    if (!window.dataStore || typeof window.dataStore.getAllReports !== 'function') {
+        window.currentReportsCache = [];
+        return window.currentReportsCache;
+    }
+    try {
+        var map = await window.dataStore.getAllReports();
+        var reports = [];
+        map.forEach(function(value) { reports.push(value); });
+        window.currentReportsCache = reports;
+        return reports;
+    } catch (e) {
+        console.warn('[INDEX] Failed to load reports from IDB:', e);
+        window.currentReportsCache = [];
+        return window.currentReportsCache;
+    }
 }
 
 /**
@@ -335,12 +370,12 @@ async function refreshDashboard(source) {
         // Timeout: 4s total for both (was 3+4=7s serial before).
         var _localDataStart = Date.now();
 
-        var _idbHydrationPromise = withTimeout(
-            hydrateCurrentReportsFromIDB(),
-            3000, false, 'IDB hydration'
+        var _loadReportsPromise = withTimeout(
+            loadReportsFromIDB(),
+            4000, [], 'loadReportsFromIDB'
         ).catch(function(e) {
-            console.warn('[INDEX] IDB hydration failed during refresh:', e);
-            return false;
+            console.warn('[INDEX] IDB report load failed during refresh:', e);
+            return [];
         });
 
         var _loadProjectsPromise = withTimeout(
@@ -352,13 +387,13 @@ async function refreshDashboard(source) {
         });
 
         // Wait for both local operations together
-        var _localResults = await Promise.all([_idbHydrationPromise, _loadProjectsPromise]);
+        var _localResults = await Promise.all([_loadReportsPromise, _loadProjectsPromise]);
         var projects = _localResults[1] || [];
 
         console.log('[INDEX] Local data loaded in ' + (Date.now() - _localDataStart) + 'ms (' + projects.length + ' projects from IDB)');
 
         // Re-render after hydration (reports may have been updated from IDB)
-        renderReportCards();
+        renderReportCards(window.currentReportsCache);
         updateReportStatus();
 
         // ── PHASE 2: Network data — runs in parallel, auth gates cloud ──
@@ -401,12 +436,12 @@ async function refreshDashboard(source) {
         }
 
         // 4. Prune stale reports
-        pruneCurrentReports();
+        await pruneCurrentReports();
 
         // 5. Render — ALWAYS reaches here thanks to timeouts above
         console.log('[INDEX] Rendering with', projectsCache.length, 'projects,',
-            Object.keys(getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {}).length, 'reports');
-        renderReportCards();
+            window.currentReportsCache.length, 'reports');
+        renderReportCards(window.currentReportsCache);
         updateReportStatus();
 
         // 6. Recover any cloud drafts we don't have locally (fire-and-forget)
@@ -433,7 +468,7 @@ function _renderFromLocalStorage() {
                 projectsCache = Object.values(fallbackProjects);
             }
         }
-        renderReportCards();
+        renderReportCards(window.currentReportsCache);
         updateReportStatus();
         console.log('[INDEX] Emergency localStorage render complete');
     } catch (e) {
@@ -462,8 +497,8 @@ window.addEventListener('pageshow', function(event) {
     // Also trust event.persisted when it's true (some browsers set it correctly).
     var timeSinceLastRefresh = Date.now() - _lastRefreshTime;
     if (event.persisted || timeSinceLastRefresh > _REFRESH_COOLDOWN) {
-        if (window.idb && window.idb.resetDB) {
-            window.idb.resetDB();
+        if (window.dataStore && window.dataStore.reset) {
+            window.dataStore.reset();
         }
     }
 

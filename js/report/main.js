@@ -19,6 +19,9 @@ var RS = window.reportState;
 // ============ INITIALIZATION ============
 document.addEventListener('DOMContentLoaded', async function() {
     try {
+        if (window.dataStore && typeof window.dataStore.init === 'function') {
+            await window.dataStore.init();
+        }
         // Load user settings from Supabase
         RS.userSettings = await window.dataLayer.loadUserSettings();
 
@@ -29,18 +32,24 @@ document.addEventListener('DOMContentLoaded', async function() {
         var reportProjectId = null;
 
         // 1. Check loaded report data for projectId
-        var reportData = getReportData(RS.currentReportId);
+        var reportData = null;
+        if (window.dataStore && typeof window.dataStore.getReportData === 'function') {
+            reportData = await window.dataStore.getReportData(RS.currentReportId);
+        }
         if (reportData && reportData.projectId) {
             reportProjectId = reportData.projectId;
             console.log('[REPORT] Got project_id from report data:', reportProjectId);
         }
 
-        // 2. Check fvp_current_reports for project_id
+        // 2. Check IDB report metadata for project_id
         if (!reportProjectId) {
-            var storedReport = getCurrentReport(RS.currentReportId);
+            var storedReport = null;
+            if (window.dataStore && typeof window.dataStore.getReport === 'function') {
+                storedReport = await window.dataStore.getReport(RS.currentReportId);
+            }
             if (storedReport && storedReport.project_id) {
                 reportProjectId = storedReport.project_id;
-                console.log('[REPORT] Got project_id from fvp_current_reports:', reportProjectId);
+                console.log('[REPORT] Got project_id from IDB report metadata:', reportProjectId);
             }
         }
 
@@ -188,6 +197,20 @@ document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'hidden' && RS.currentReportId) {
         console.log('[HARDENING] visibilitychange → hidden, saving report...');
         saveReportToLocalStorage();
+        if (window.dataStore) {
+            window.dataStore.saveReportData(RS.currentReportId, {
+                reportId: RS.currentReportId,
+                projectId: RS.activeProject?.id || null,
+                reportDate: getReportDateStr(),
+                status: RS.report?.meta?.status || 'refined',
+                aiGenerated: RS.report?.aiGenerated || {},
+                captureMode: RS.report?.aiCaptureMode || RS.report?.meta?.captureMode || 'minimal',
+                originalInput: RS.report?.originalInput || {},
+                userEdits: RS.userEdits || {},
+                createdAt: RS.report?.meta?.createdAt || new Date().toISOString(),
+                lastSaved: new Date().toISOString()
+            }).catch(function() {});
+        }
         flushReportBackup();
     }
 });
@@ -196,7 +219,24 @@ window.addEventListener('pagehide', function(event) {
     if (RS.currentReportId) {
         console.log('[HARDENING] pagehide, saving report... (persisted:', event.persisted, ')');
         saveReportToLocalStorage();
+        if (window.dataStore) {
+            window.dataStore.saveReportData(RS.currentReportId, {
+                reportId: RS.currentReportId,
+                projectId: RS.activeProject?.id || null,
+                reportDate: getReportDateStr(),
+                status: RS.report?.meta?.status || 'refined',
+                aiGenerated: RS.report?.aiGenerated || {},
+                captureMode: RS.report?.aiCaptureMode || RS.report?.meta?.captureMode || 'minimal',
+                originalInput: RS.report?.originalInput || {},
+                userEdits: RS.userEdits || {},
+                createdAt: RS.report?.meta?.createdAt || new Date().toISOString(),
+                lastSaved: new Date().toISOString()
+            }).catch(function() {});
+        }
         flushReportBackup();
+    }
+    if (window.dataStore && typeof window.dataStore.closeAll === 'function') {
+        window.dataStore.closeAll();
     }
 });
 

@@ -5,7 +5,7 @@
 // All other report/*.js files read/write via window.reportState.*
 //
 // Uses:
-// - storage-keys.js: STORAGE_KEYS, getStorageItem, getReportData, getLocalDateString
+// - storage-keys.js: STORAGE_KEYS, getStorageItem, getLocalDateString
 // - ui-utils.js: showToast
 // ============================================================================
 
@@ -35,8 +35,7 @@ function getReportDateStr() {
 }
 
 /**
- * v6.6.2+: Load report from localStorage, with Supabase fallback
- * Primary source: fvp_report_{reportId} key in localStorage
+ * Load report from IDB, with Supabase fallback
  * Fallback: report_data table in Supabase (Sprint 4)
  */
 async function loadReport() {
@@ -55,8 +54,11 @@ async function loadReport() {
         return createFreshReport();
     }
 
-    var reportData = getReportData(reportIdParam);
-    console.log('[LOAD-DEBUG] localStorage getReportData result:', reportData ? 'EXISTS' : 'NULL');
+    var reportData = null;
+    if (window.dataStore && typeof window.dataStore.getReportData === 'function') {
+        reportData = await window.dataStore.getReportData(reportIdParam);
+    }
+    console.log('[LOAD-DEBUG] IDB getReportData result:', reportData ? 'EXISTS' : 'NULL');
     if (reportData) {
         console.log('[LOAD-DEBUG] reportData keys:', Object.keys(reportData));
         console.log('[LOAD-DEBUG] reportData.aiGenerated:', reportData.aiGenerated ? 'EXISTS (keys: ' + Object.keys(reportData.aiGenerated).join(',') + ')' : 'NULL/MISSING');
@@ -64,26 +66,10 @@ async function loadReport() {
         console.log('[LOAD-DEBUG] reportData.captureMode:', reportData.captureMode);
     }
 
-    // Check IndexedDB before going to Supabase (faster, works offline)
-    if (!reportData && window.idb && typeof window.idb.getReportDataIDB === 'function') {
-        try {
-            console.log('[LOAD] localStorage miss — trying IndexedDB...');
-            var idbData = await window.idb.getReportDataIDB(reportIdParam);
-            if (idbData) {
-                console.log('[LOAD] Recovered report data from IndexedDB');
-                reportData = idbData;
-                // Cache back to localStorage for speed
-                saveReportData(reportIdParam, reportData);
-            }
-        } catch (idbErr) {
-            console.warn('[LOAD] IndexedDB recovery failed:', idbErr);
-        }
-    }
-
-    // Sprint 4: If not in localStorage, try Supabase report_data table
+    // Sprint 4: If not in IDB, try Supabase report_data table
     if (!reportData && navigator.onLine) {
         try {
-            console.log('[LOAD] localStorage miss — trying Supabase report_data...');
+            console.log('[LOAD] IDB miss — trying Supabase report_data...');
             var rdResult = await supabaseClient
                 .from('report_data')
                 .select('*')
@@ -116,11 +102,9 @@ async function loadReport() {
                     console.warn('[LOAD] Could not fetch report_date:', metaErr);
                 }
 
-                // Cache back to localStorage for speed
-                saveReportData(reportIdParam, reportData);
-                // Also cache to IDB for durability
-                if (window.idb && typeof window.idb.saveReportDataIDB === 'function') {
-                    window.idb.saveReportDataIDB(reportIdParam, reportData).catch(function(idbErr) {
+                // Cache to IDB
+                if (window.dataStore && typeof window.dataStore.saveReportData === 'function') {
+                    window.dataStore.saveReportData(reportIdParam, reportData).catch(function(idbErr) {
                         console.warn('[LOAD] IDB cache-back failed:', idbErr);
                     });
                 }
@@ -136,8 +120,10 @@ async function loadReport() {
 
     if (!reportData) {
         // Check if the report exists but is pending_refine (interrupted AI processing)
-        var currentReports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
-        var reportMeta = currentReports[reportIdParam];
+        var reportMeta = null;
+        if (window.dataStore && typeof window.dataStore.getReport === 'function') {
+            reportMeta = await window.dataStore.getReport(reportIdParam);
+        }
         if (reportMeta && (reportMeta.status === 'pending_refine' || reportMeta.status === 'draft')) {
             console.warn('[LOAD] Report is in', reportMeta.status, 'status — redirecting to interview for re-processing');
             showToast('Report needs processing. Redirecting to interview...', 'warning');
@@ -154,6 +140,7 @@ async function loadReport() {
     console.log('[LOAD-DEBUG] === ASSEMBLING REPORT OBJECT ===');
 
     RS.currentReportId = reportIdParam;
+    setStorageItem(STORAGE_KEYS.ACTIVE_REPORT_ID, reportIdParam);
 
     var loadedReport = createFreshReport();
 
@@ -198,7 +185,9 @@ async function loadReport() {
                 } else {
                     reportData.originalInput = { photos: cloudPhotos };
                 }
-                saveReportData(reportIdParam, reportData);
+                if (window.dataStore && typeof window.dataStore.saveReportData === 'function') {
+                    window.dataStore.saveReportData(reportIdParam, reportData).catch(function() {});
+                }
             }
         } catch (photoErr) {
             console.warn('[LOAD] Cloud photo rehydration failed:', photoErr);

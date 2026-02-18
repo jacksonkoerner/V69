@@ -135,30 +135,27 @@ async function deleteReportFull(reportId) {
         errors.push('blocklist: ' + e.message);
     }
 
-    // 2. localStorage cleanup (instant)
     try {
-        if (typeof deleteReportData === 'function') deleteReportData(reportId);
+        if (typeof getStorageItem === 'function' && typeof removeStorageItem === 'function') {
+            var activeId = getStorageItem(STORAGE_KEYS.ACTIVE_REPORT_ID);
+            if (activeId === reportId) removeStorageItem(STORAGE_KEYS.ACTIVE_REPORT_ID);
+        }
     } catch (e) {
-        errors.push('deleteReportData: ' + e.message);
-    }
-    try {
-        if (typeof deleteCurrentReport === 'function') deleteCurrentReport(reportId);
-    } catch (e) {
-        errors.push('deleteCurrentReport: ' + e.message);
+        errors.push('active-report-pointer: ' + e.message);
     }
 
-    // 3. IDB cleanup (non-blocking, best-effort via Promise.allSettled)
-    if (window.idb) {
+    // 2. IDB cleanup (non-blocking, best-effort via Promise.allSettled)
+    if (window.dataStore) {
         try {
             await Promise.allSettled([
-                typeof window.idb.deleteCurrentReportIDB === 'function'
-                    ? window.idb.deleteCurrentReportIDB(reportId).catch(function() {}) : Promise.resolve(),
-                typeof window.idb.deletePhotosByReportId === 'function'
-                    ? window.idb.deletePhotosByReportId(reportId).catch(function() {}) : Promise.resolve(),
-                typeof window.idb.deleteDraftDataIDB === 'function'
-                    ? window.idb.deleteDraftDataIDB(reportId).catch(function() {}) : Promise.resolve(),
-                typeof window.idb.deleteReportDataIDB === 'function'
-                    ? window.idb.deleteReportDataIDB(reportId).catch(function() {}) : Promise.resolve()
+                typeof window.dataStore.deleteReport === 'function'
+                    ? window.dataStore.deleteReport(reportId).catch(function() {}) : Promise.resolve(),
+                typeof window.dataStore.deletePhotosByReportId === 'function'
+                    ? window.dataStore.deletePhotosByReportId(reportId).catch(function() {}) : Promise.resolve(),
+                typeof window.dataStore.deleteDraftData === 'function'
+                    ? window.dataStore.deleteDraftData(reportId).catch(function() {}) : Promise.resolve(),
+                typeof window.dataStore.deleteReportData === 'function'
+                    ? window.dataStore.deleteReportData(reportId).catch(function() {}) : Promise.resolve()
             ]);
         } catch (e) {
             errors.push('IDB cleanup: ' + e.message);
@@ -175,6 +172,10 @@ async function deleteReportFull(reportId) {
         } catch (e) {
             errors.push('cascade: ' + e.message);
         }
+    }
+
+    if (window.fvpBroadcast && typeof window.fvpBroadcast.send === 'function') {
+        window.fvpBroadcast.send({ type: 'report-deleted', id: reportId });
     }
 
     return { success: errors.length === 0, errors: errors };

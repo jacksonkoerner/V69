@@ -129,7 +129,10 @@ async function uploadPDFToStorage(pdf) {
  * Ensure report exists in reports table (foreign key requirement)
  */
 async function ensureReportExists() {
-    var reportData = getReportData(RS.currentReportId) || {};
+    var reportData = {};
+    if (window.dataStore && typeof window.dataStore.getReportData === 'function') {
+        reportData = await window.dataStore.getReportData(RS.currentReportId) || {};
+    }
     var reportDate = formVal('reportDate') || getReportDateStr();
 
     var reportRow = {
@@ -192,37 +195,44 @@ async function updateReportStatus(status) {
     RS.report.meta.submitted = true;
     RS.report.meta.submittedAt = submittedAt;
     RS.report.meta.status = 'submitted';
+
+    if (window.dataStore && typeof window.dataStore.getReport === 'function' && typeof window.dataStore.saveReport === 'function') {
+        var existingReport = await window.dataStore.getReport(RS.currentReportId);
+        existingReport = existingReport || { id: RS.currentReportId };
+        existingReport.status = status;
+        existingReport.submitted_at = submittedAt;
+        existingReport.updated_at = Date.now();
+        existingReport.project_id = existingReport.project_id || RS.activeProject?.id || null;
+        existingReport.project_name = existingReport.project_name || RS.activeProject?.projectName || '';
+        existingReport.reportDate = existingReport.reportDate || formVal('reportDate') || getReportDateStr();
+        existingReport.report_date = existingReport.reportDate;
+        await window.dataStore.saveReport(existingReport);
+    }
 }
 
 /**
  * Clean up local storage after successful submit
  */
 async function cleanupLocalStorage() {
-    deleteReportData(RS.currentReportId);
-
-    // Clean up IndexedDB report data too
-    if (window.idb && typeof window.idb.deleteReportDataIDB === 'function') {
-        window.idb.deleteReportDataIDB(RS.currentReportId).catch(function(e) {
-            console.warn('[SUBMIT] Could not clean IndexedDB report data:', e);
+    if (window.dataStore && typeof window.dataStore.deleteReportData === 'function') {
+        await window.dataStore.deleteReportData(RS.currentReportId).catch(function(e) {
+            console.warn('[SUBMIT] Could not clean IDB report data:', e);
         });
     }
 
-    // v6.9: Keep entry in fvp_current_reports with submitted status + timestamp
-    // Dashboard will show it for 24hrs, then pruning removes it
-    var currentReports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
-    if (currentReports[RS.currentReportId]) {
-        currentReports[RS.currentReportId].status = 'submitted';
-        currentReports[RS.currentReportId].submitted_at = new Date().toISOString();
-        currentReports[RS.currentReportId].updated_at = Date.now();
+    if (window.dataStore && typeof window.dataStore.getReport === 'function' && typeof window.dataStore.saveReport === 'function') {
+        var existingReport = await window.dataStore.getReport(RS.currentReportId);
+        if (existingReport) {
+            existingReport.status = 'submitted';
+            existingReport.submitted_at = new Date().toISOString();
+            existingReport.updated_at = Date.now();
+            await window.dataStore.saveReport(existingReport);
+        }
     }
-    setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, currentReports);
 
-    // Sync updated current_reports to IndexedDB
-    syncCurrentReportsToIDB();
-
-    if (window.idb && typeof window.idb.deletePhotosByReportId === 'function') {
+    if (window.dataStore && typeof window.dataStore.deletePhotosByReportId === 'function') {
         try {
-            await window.idb.deletePhotosByReportId(RS.currentReportId);
+            await window.dataStore.deletePhotosByReportId(RS.currentReportId);
         } catch (e) {
             console.warn('[SUBMIT] Could not clean IndexedDB photos:', e);
         }

@@ -355,17 +355,9 @@ async function finishReportFlow(options) {
             lastSaved: new Date().toISOString()
         };
 
-        const saveSuccess = saveReportData(IS.currentReportId, reportDataPackage);
-        if (saveSuccess) {
-            console.log('[LOCAL] Complete report package saved to localStorage:', IS.currentReportId);
-        } else {
-            console.warn('[LOCAL] Failed to save report package to localStorage');
-        }
-
-        // Save to IndexedDB (durable, survives iOS localStorage eviction)
-        if (window.idb && typeof window.idb.saveReportDataIDB === 'function') {
+        if (window.dataStore && typeof window.dataStore.saveReportData === 'function') {
             try {
-                await window.idb.saveReportDataIDB(IS.currentReportId, reportDataPackage);
+                await window.dataStore.saveReportData(IS.currentReportId, reportDataPackage);
                 console.log('[LOCAL] Report data saved to IndexedDB:', IS.currentReportId);
             } catch (idbErr) {
                 console.warn('[LOCAL] IndexedDB save failed (non-blocking):', idbErr.message);
@@ -404,24 +396,31 @@ async function finishReportFlow(options) {
         }
 
 
-        // v6.9: Use saveCurrentReport helper (sets updated_at, validates)
-        // Must await — saveCurrentReport is async (queued saves, Sprint 15 SEC-08)
-        await saveCurrentReport({
-            id: IS.currentReportId,
-            project_id: IS.activeProject?.id,
-            project_name: IS.activeProject?.projectName || '',
-            date: todayStr,
-            report_date: todayStr,
-            status: 'refined',
-            created_at: IS.report.meta?.createdAt ? new Date(IS.report.meta.createdAt).getTime() : Date.now()
-        });
-        console.log('[LOCAL] Updated fvp_current_reports with refined status:', IS.currentReportId);
+        // Persist refined metadata in IDB currentReports store
+        if (window.dataStore && typeof window.dataStore.saveReport === 'function') {
+            await window.dataStore.saveReport({
+                id: IS.currentReportId,
+                project_id: IS.activeProject?.id,
+                project_name: IS.activeProject?.projectName || '',
+                date: todayStr,
+                reportDate: todayStr,
+                report_date: todayStr,
+                status: 'refined',
+                created_at: IS.report.meta?.createdAt ? new Date(IS.report.meta.createdAt).getTime() : Date.now()
+            });
+            console.log('[LOCAL] Updated IDB report metadata with refined status:', IS.currentReportId);
+        }
 
         // Verify report data was saved before redirecting
-        const verifyData = getReportData(IS.currentReportId);
+        var verifyData = null;
+        if (window.dataStore && typeof window.dataStore.getReportData === 'function') {
+            verifyData = await window.dataStore.getReportData(IS.currentReportId);
+        }
         if (!verifyData) {
             console.error('[FINISH] Report data verification failed — re-saving...');
-            saveReportData(IS.currentReportId, reportDataPackage);
+            if (window.dataStore && typeof window.dataStore.saveReportData === 'function') {
+                window.dataStore.saveReportData(IS.currentReportId, reportDataPackage).catch(function() {});
+            }
         }
 
         // === Show success and redirect ===
@@ -433,8 +432,8 @@ async function finishReportFlow(options) {
         // Close IDB connections before navigating — prevents iOS Safari
         // from blocking the v7 upgrade on report.html (bfcache keeps old
         // connection alive and BLOCKS the new page's onupgradeneeded).
-        if (window.idb && typeof window.idb.closeAllIDBConnections === 'function') {
-            window.idb.closeAllIDBConnections();
+        if (window.dataStore && typeof window.dataStore.closeAll === 'function') {
+            window.dataStore.closeAll();
         }
 
         // Navigate to report with date and reportId parameters

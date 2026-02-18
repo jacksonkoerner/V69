@@ -47,22 +47,7 @@ async function confirmCancelReport() {
         if (!IS.currentReportId) throw new Error('No report ID — cannot cancel');
 
         var _reportId = IS.currentReportId;
-
-        // 1. BLOCKLIST FIRST — prevents cloud recovery/realtime from resurrecting
-        if (typeof addToDeletedBlocklist === 'function') addToDeletedBlocklist(_reportId);
-
-        // 2. Delete from localStorage FIRST (instant cleanup)
-        deleteCurrentReport(_reportId);
-        deleteReportData(_reportId);
-
-        // 3. Delete from IndexedDB
-        if (window.idb) {
-            try { await window.idb.deleteCurrentReportIDB(_reportId); } catch(e) { /* ok */ }
-            try { await window.idb.deletePhotosByReportId(_reportId); } catch(e) { /* ok */ }
-            try { await window.idb.deleteDraftDataIDB(_reportId); } catch(e) { /* ok */ }
-        }
-
-        // Sprint 15 (OFF-02): sync queue removed — no queue items to clear
+        await deleteReportFull(_reportId);
 
         // Reset local state
         IS.currentReportId = null;
@@ -87,8 +72,8 @@ async function confirmCancelReport() {
 }
 
 // ============ LOCALSTORAGE DRAFT MANAGEMENT ============
-// v6: Use STORAGE_KEYS from storage-keys.js for all localStorage operations
-// Draft storage uses STORAGE_KEYS.CURRENT_REPORTS via getCurrentReport()/saveCurrentReport()
+// v6: Use STORAGE_KEYS from storage-keys.js for pointer/flag localStorage operations
+// Draft content and report metadata are persisted in IndexedDB via dataStore.
 
 /**
  * Save all form data to localStorage
@@ -192,25 +177,19 @@ function saveToLocalStorage() {
             // Store the full draft data in a nested object for compatibility
             _draft_data: data
         };
-        // Use synchronous save to survive iOS pagehide (async queue may not complete)
-        if (typeof saveCurrentReportSync === 'function') {
-            saveCurrentReportSync(reportData);
-        } else {
-            saveCurrentReport(reportData);
-        }
-        console.log('[LOCAL] Draft saved to localStorage (sync emergency path)');
-
-        // Sprint 11: Write-through draft data to IndexedDB for durability
-        if (window.idb && window.idb.saveDraftDataIDB) {
-            window.idb.saveDraftDataIDB(IS.currentReportId, data).catch(function(e) {
-                console.warn('[LOCAL] IDB draft write-through failed:', e);
+        if (window.dataStore) {
+            window.dataStore.saveReport(reportData).catch(function(e) {
+                console.warn('[LOCAL] IDB report metadata save failed:', e);
+            });
+            window.dataStore.saveDraftData(IS.currentReportId, data).catch(function(e) {
+                console.warn('[LOCAL] IDB draft save failed:', e);
             });
         }
+        console.log('[LOCAL] Draft saved to IDB');
     } catch (e) {
-        console.error('[LOCAL] Failed to save to localStorage:', e);
-        // If localStorage is full, try IDB as fallback
-        if (IS.currentReportId && window.idb && window.idb.saveDraftDataIDB) {
-            window.idb.saveDraftDataIDB(IS.currentReportId, data).catch(function() {});
+        console.error('[LOCAL] Failed to save draft:', e);
+        if (IS.currentReportId && window.dataStore) {
+            window.dataStore.saveDraftData(IS.currentReportId, data).catch(function() {});
         }
     }
 }
@@ -221,23 +200,7 @@ function saveToLocalStorage() {
  */
 function loadFromLocalStorage() {
     if (!IS.currentReportId) return null;
-
-    try {
-        // v6.9: UUID-only lookup — no draft key fallback
-        const storedReport = getCurrentReport(IS.currentReportId);
-        if (!storedReport) return null;
-
-        // Extract draft data from stored report
-        const data = storedReport._draft_data;
-        if (!data) return null;
-
-        console.log('[LOCAL] Found valid draft from', data.lastSaved);
-        return data;
-    } catch (e) {
-        console.error('[LOCAL] Failed to parse stored draft:', e);
-        deleteCurrentReport(IS.currentReportId);
-        return null;
-    }
+    return null;
 }
 
 /**
@@ -247,26 +210,12 @@ function loadFromLocalStorage() {
  */
 async function loadDraftFromIDB() {
     if (!IS.currentReportId) return null;
-    if (!window.idb || !window.idb.getDraftDataIDB) return null;
+    if (!window.dataStore || !window.dataStore.getDraftData) return null;
 
     try {
-        const idbData = await window.idb.getDraftDataIDB(IS.currentReportId);
+        const idbData = await window.dataStore.getDraftData(IS.currentReportId);
         if (idbData) {
             console.log('[LOCAL] Found draft in IndexedDB, saved at:', idbData.lastSaved || idbData._idbSavedAt);
-            // Re-cache to localStorage for fast sync reads
-            const reportProjectId = idbData.projectId || IS.activeProject?.id;
-            const reportData = {
-                id: IS.currentReportId,
-                project_id: reportProjectId,
-                project_name: IS.activeProject?.projectName || '',
-                reportDate: idbData.reportDate || getTodayDateString(),
-                status: idbData.meta?.status || 'draft',
-                capture_mode: idbData.captureMode,
-                created_at: idbData.meta?.createdAt || Date.now(),
-                _draft_data: idbData
-            };
-            saveCurrentReport(reportData);
-            console.log('[LOCAL] Re-cached IDB draft to localStorage');
             return idbData;
         }
     } catch (e) {
@@ -394,36 +343,34 @@ function clearLocalStorageDraft() {
         return;
     }
 
-    // v6.9: UUID-only — delete by currentReportId
-    deleteCurrentReport(IS.currentReportId);
-
-    // Sprint 11: Also clean up IndexedDB draft data
-    if (window.idb && window.idb.deleteDraftDataIDB) {
-        window.idb.deleteDraftDataIDB(IS.currentReportId).catch(function(e) {
+    if (window.dataStore && window.dataStore.deleteDraftData) {
+        window.dataStore.deleteDraftData(IS.currentReportId).catch(function(e) {
             console.warn('[LOCAL] IDB draft cleanup failed:', e);
         });
     }
 
-    console.log('[LOCAL] Draft cleared from localStorage + IndexedDB');
+    console.log('[LOCAL] Draft cleared from IDB');
 }
 
 // v6.9: Update localStorage report to 'refined' status — UUID-only
 function updateLocalReportToRefined() {
     if (!IS.currentReportId) throw new Error('Cannot update to refined: no report ID');
-
-    const existingReport = getCurrentReport(IS.currentReportId) || {};
-
-    saveCurrentReport({
-        ...existingReport,
-        id: IS.currentReportId,
-        project_id: IS.activeProject?.id,
-        project_name: IS.activeProject?.projectName || '',
-        reportDate: getTodayDateString(),
-        status: 'refined',
-        created_at: existingReport.created_at || IS.report.meta?.createdAt || new Date().toISOString()
+    if (!window.dataStore) return;
+    window.dataStore.getReport(IS.currentReportId).then(function(existingReport) {
+        existingReport = existingReport || {};
+        return window.dataStore.saveReport({
+            ...existingReport,
+            id: IS.currentReportId,
+            project_id: IS.activeProject?.id,
+            project_name: IS.activeProject?.projectName || '',
+            reportDate: getTodayDateString(),
+            report_date: getTodayDateString(),
+            status: 'refined',
+            created_at: existingReport.created_at || IS.report.meta?.createdAt || new Date().toISOString()
+        });
+    }).catch(function(e) {
+        console.warn('[LOCAL] Failed to update report status:', e);
     });
-
-    console.log('[LOCAL] Report updated to refined status in localStorage');
 }
 
 

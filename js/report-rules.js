@@ -9,7 +9,7 @@
  */
 
 // Dependencies from storage-keys.js (loaded before this file)
-// Uses globals: STORAGE_KEYS, getStorageItem, getCurrentReport
+// Uses globals: STORAGE_KEYS, getStorageItem
 
 // ============================================================================
 // CONSTANTS
@@ -84,6 +84,21 @@ const STATUS_FLOW = [
   REPORT_STATUS.SUBMITTED
 ];
 
+function _getReportsArray(reportsInput) {
+  if (Array.isArray(reportsInput)) return reportsInput;
+  if (Array.isArray(window.currentReportsCache)) return window.currentReportsCache;
+  return [];
+}
+
+function _getReportById(reportId, reportsInput) {
+  if (!reportId) return null;
+  var reports = _getReportsArray(reportsInput);
+  for (var i = 0; i < reports.length; i++) {
+    if (reports[i] && reports[i].id === reportId) return reports[i];
+  }
+  return null;
+}
+
 // ============================================================================
 // DATE/TIME HELPERS
 // ============================================================================
@@ -141,17 +156,17 @@ function isReportLate(report) {
  *   - CONTINUE_EXISTING: Has in-progress report for today (allowed, but should continue it)
  *   - null: Can start fresh
  */
-function canStartNewReport(projectId) {
+function canStartNewReport(projectId, reportsInput) {
   if (!projectId) {
     console.warn('canStartNewReport: No projectId provided');
     return { allowed: false, reason: 'NO_PROJECT_ID', blockingReportId: null };
   }
 
-  const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
+  const reports = _getReportsArray(reportsInput);
   const today = getTodayDateString();
 
   // Find all reports for this project
-  const projectReports = Object.values(reports).filter(r => r.project_id === projectId);
+  const projectReports = reports.filter(function(r) { return r.project_id === projectId; });
 
   // v6.6.17: Removed ALREADY_SUBMITTED_TODAY check
   // Users can now create multiple reports per project per day
@@ -249,8 +264,8 @@ async function ensureFreshProjectsCache(maxAgeMinutes) {
  *   - todayReadyToSubmit: Today, status = ready_to_submit (final review stage) - sorted newest first
  *   - todaySubmitted: Today, status = submitted (done) - sorted newest first
  */
-function getReportsByUrgency() {
-  const reports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
+function getReportsByUrgency(reportsInput) {
+  const reports = _getReportsArray(reportsInput);
   const today = getTodayDateString();
 
   const result = {
@@ -261,7 +276,7 @@ function getReportsByUrgency() {
     todaySubmitted: []
   };
 
-  for (const report of Object.values(reports)) {
+  for (const report of reports) {
     if (report.reportDate < today && report.status !== REPORT_STATUS.SUBMITTED) {
       // Late reports (previous days, not submitted)
       result.late.push(report);
@@ -304,7 +319,7 @@ function getReportsByUrgency() {
  * @returns {{allowed: boolean, reason: string|null}}
  */
 function canTransitionStatus(reportId, targetStatus) {
-  const report = getCurrentReport(reportId);
+  const report = _getReportById(reportId);
 
   if (!report) {
     console.warn('canTransitionStatus: Report not found:', reportId);
@@ -370,7 +385,7 @@ function getNextValidStatus(currentStatus) {
  * @returns {boolean} True if status is 'draft' or 'refined'
  */
 function isReportEditable(reportId) {
-  const report = getCurrentReport(reportId);
+  const report = _getReportById(reportId);
 
   if (!report) {
     console.warn('isReportEditable: Report not found:', reportId);
@@ -388,7 +403,7 @@ function isReportEditable(reportId) {
  * @returns {boolean} True only if status is 'draft'
  */
 function canReturnToNotes(reportId) {
-  const report = getCurrentReport(reportId);
+  const report = _getReportById(reportId);
 
   if (!report) {
     console.warn('canReturnToNotes: Report not found:', reportId);
@@ -412,7 +427,7 @@ function canReturnToNotes(reportId) {
  * @returns {{allowed: boolean, currentValue: boolean|null}}
  */
 function canChangeToggle(reportId, section) {
-  const report = getCurrentReport(reportId);
+  const report = _getReportById(reportId);
 
   if (!report) {
     console.warn('canChangeToggle: Report not found:', reportId);
@@ -439,7 +454,7 @@ function canChangeToggle(reportId, section) {
  * @returns {boolean|null} Toggle state: true, false, or null if not yet selected
  */
 function getSectionToggleState(reportId, section) {
-  const report = getCurrentReport(reportId);
+  const report = _getReportById(reportId);
 
   if (!report) {
     console.warn('getSectionToggleState: Report not found:', reportId);
@@ -464,7 +479,7 @@ function getSectionToggleState(reportId, section) {
  * @returns {{allowed: boolean, reason: string|null, dataWillMigrate: boolean}}
  */
 function canSwitchCaptureMode(reportId) {
-  const report = getCurrentReport(reportId);
+  const report = _getReportById(reportId);
 
   if (!report) {
     console.warn('canSwitchCaptureMode: Report not found:', reportId);
@@ -508,7 +523,7 @@ function canSwitchCaptureMode(reportId) {
  * @returns {{valid: boolean, errors: string[]}}
  */
 function validateReportForAI(reportId) {
-  const report = getCurrentReport(reportId);
+  const report = _getReportById(reportId);
   const errors = [];
 
   if (!report) {
@@ -563,7 +578,7 @@ function validateReportForAI(reportId) {
  * @returns {{valid: boolean, errors: string[]}}
  */
 function validateReportForSubmit(reportId) {
-  const report = getCurrentReport(reportId);
+  const report = _getReportById(reportId);
   const errors = [];
 
   if (!report) {

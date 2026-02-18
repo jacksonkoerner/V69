@@ -21,12 +21,18 @@ function recoverCloudDrafts() {
     const userId = getStorageItem(STORAGE_KEYS.USER_ID);
     if (!userId) return;
 
+    if (!window.dataStore) return;
+
+    window.dataStore.getAllReports().then(function(reportMap) {
+    var localReports = {};
+    reportMap.forEach(function(value, key) { localReports[key] = value; });
+
     supabaseClient
         .from('reports')
         .select('id, project_id, report_date, status, created_at, updated_at')
         .eq('user_id', userId)
         .in('status', ['draft', 'pending_refine', 'refined', 'ready_to_submit'])
-        .then(({ data, error }) => {
+        .then(async ({ data, error }) => {
             if (error) {
                 console.error('[RECOVERY] Failed to query cloud drafts:', error);
                 return;
@@ -36,7 +42,6 @@ function recoverCloudDrafts() {
                 return;
             }
 
-            const localReports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
             const projectsMap = getStorageItem(STORAGE_KEYS.PROJECTS) || {};
             let recovered = 0;
 
@@ -92,15 +97,14 @@ function recoverCloudDrafts() {
             }
 
             if (recovered > 0) {
-                setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, localReports);
+                await window.dataStore.replaceAllReports(localReports);
+                window.currentReportsCache = Object.values(localReports);
                 console.log(`[RECOVERY] Recovered ${recovered} draft(s) from cloud`);
-                // Sync to IndexedDB after recovery
-                syncCurrentReportsToIDB();
-                renderReportCards();
+                renderReportCards(window.currentReportsCache);
 
                 // Sprint 4: Also cache report_data for recovered reports
                 // so clicking the card loads data without another Supabase round-trip
-                const recoveredIds = Object.keys(localReports).filter(id => !getReportData(id));
+                const recoveredIds = Object.keys(localReports);
                 if (recoveredIds.length > 0) {
                     supabaseClient
                         .from('report_data')
@@ -119,7 +123,9 @@ function recoverCloudDrafts() {
                                     lastSaved: rd.updated_at,
                                     reportDate: localReports[rd.report_id]?.reportDate || null
                                 };
-                                saveReportData(rd.report_id, localData);
+                                if (window.dataStore && window.dataStore.saveReportData) {
+                                    window.dataStore.saveReportData(rd.report_id, localData).catch(function() {});
+                                }
                                 console.log('[RECOVERY] Cached report_data for:', rd.report_id);
                             }
                         })
@@ -142,7 +148,7 @@ function recoverCloudDrafts() {
                 var allRecoveredIds = data.map(function(r) { return r.id; });
                 if (allRecoveredIds.length > 0 && typeof fetchCloudPhotosBatch === 'function') {
                     fetchCloudPhotosBatch(allRecoveredIds)
-                        .then(function(photoMap) {
+                        .then(async function(photoMap) {
                             if (!photoMap || Object.keys(photoMap).length === 0) return;
 
                             // Inject photos into report_data in localStorage
@@ -151,21 +157,26 @@ function recoverCloudDrafts() {
                                 if (!photos || photos.length === 0) continue;
 
                                 // Update originalInput.photos in cached report data
-                                var reportData = getReportData(reportId);
+                                var reportData = null;
+                                if (window.dataStore && window.dataStore.getReportData) {
+                                    reportData = await window.dataStore.getReportData(reportId);
+                                }
                                 if (reportData) {
                                     if (!reportData.originalInput) reportData.originalInput = {};
                                     if (!reportData.originalInput.photos || reportData.originalInput.photos.length === 0) {
                                         reportData.originalInput.photos = photos;
-                                        saveReportData(reportId, reportData);
+                                        if (window.dataStore && window.dataStore.saveReportData) {
+                                            window.dataStore.saveReportData(reportId, reportData).catch(function() {});
+                                        }
                                         console.log('[RECOVERY] Rehydrated ' + photos.length + ' photo(s) for:', reportId);
                                     }
                                 }
 
                                 // Also update _draft_data if it exists
-                                var currentReports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
-                                if (currentReports[reportId] && currentReports[reportId]._draft_data) {
-                                    currentReports[reportId]._draft_data.photos = photos;
-                                    setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, currentReports);
+                                var currentReport = await window.dataStore.getReport(reportId);
+                                if (currentReport && currentReport._draft_data) {
+                                    currentReport._draft_data.photos = photos;
+                                    window.dataStore.saveReport(currentReport).catch(function() {});
                                 }
                             }
                         })
@@ -173,11 +184,17 @@ function recoverCloudDrafts() {
                             console.warn('[RECOVERY] Photo rehydration failed:', err);
                         });
                 }
+                if (window.fvpBroadcast && typeof window.fvpBroadcast.send === 'function') {
+                    window.fvpBroadcast.send({ type: 'reports-recovered', ids: Object.keys(localReports) });
+                }
             } else {
                 console.log('[RECOVERY] All cloud drafts already in localStorage');
             }
         })
         .catch(err => console.error('[RECOVERY] Cloud draft recovery error:', err));
+    }).catch(function(err) {
+        console.warn('[RECOVERY] Failed to load local reports from IDB:', err);
+    });
 }
 
 /**
@@ -200,10 +217,14 @@ function cacheInterviewBackups(reportIds, localReports) {
         .from('interview_backup')
         .select('report_id, page_state, updated_at')
         .in('report_id', needsCache)
-        .then(function(result) {
+        .then(async function(result) {
             if (result.error || !result.data || result.data.length === 0) return;
 
-            var currentReports = getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {};
+            var currentReports = {};
+            if (window.dataStore && window.dataStore.getAllReports) {
+                var reportMap = await window.dataStore.getAllReports();
+                reportMap.forEach(function(value, key) { currentReports[key] = value; });
+            }
 
             for (var i = 0; i < result.data.length; i++) {
                 var backup = result.data[i];
@@ -243,7 +264,9 @@ function cacheInterviewBackups(reportIds, localReports) {
                 console.log('[RECOVERY] Cached interview_backup for:', backup.report_id);
             }
 
-            setStorageItem(STORAGE_KEYS.CURRENT_REPORTS, currentReports);
+            if (window.dataStore && window.dataStore.replaceAllReports) {
+                window.dataStore.replaceAllReports(currentReports).catch(function() {});
+            }
         })
         .catch(function(err) {
             console.warn('[RECOVERY] interview_backup cache failed:', err);

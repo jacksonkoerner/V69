@@ -8,12 +8,14 @@
 // - index/main.js: projectsCache (via getProjects), getActiveProjectFromCache
 // ============================================================================
 
-function renderReportCards() {
+function renderReportCards(reportsInput) {
     const container = document.getElementById('reportCardsSection');
     if (!container) return;
 
-    // Get ALL reports from localStorage
-    const allReports = Object.values(getStorageItem(STORAGE_KEYS.CURRENT_REPORTS) || {});
+    // Get ALL reports (preferred: passed from caller)
+    const allReports = Array.isArray(reportsInput)
+        ? reportsInput
+        : (Array.isArray(window.currentReportsCache) ? window.currentReportsCache : []);
 
     // Get ALL projects (from cache or localStorage)
     const projectsMap = getStorageItem(STORAGE_KEYS.PROJECTS) || {};
@@ -608,4 +610,3 @@ async function executeDeleteReport(reportId, overlay) {
 
 // Expose to window for onclick handlers
 window.confirmDeleteReport = confirmDeleteReport;
-

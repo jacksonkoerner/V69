@@ -154,6 +154,9 @@ window.location.href = 'index.html';
 });
 
 try {
+if (window.dataStore && typeof window.dataStore.init === 'function') {
+await window.dataStore.init();
+}
 // STATE PROTECTION: Check if report is already refined BEFORE any other initialization
 // This must run first to redirect users away from editing refined reports
 updateLoadingStatus('Checking report state...');
@@ -182,6 +185,7 @@ if (!IS.currentReportId) {
 IS.currentReportId = generateId();
 console.warn('[QUICK-INTERVIEW] No reportId in URL — generated fallback:', IS.currentReportId);
 }
+setStorageItem(STORAGE_KEYS.ACTIVE_REPORT_ID, IS.currentReportId);
 
 // Sprint 11: getReport() now handles the full recovery chain:
 // localStorage → IndexedDB → Supabase interview_backup → create fresh
@@ -215,10 +219,13 @@ console.log('[INIT] Got project_id from URL:', reportProjectId);
 
 // 2. Check the localStorage draft for project_id (for in-progress reports)
 if (!reportProjectId) {
-const storedReport = getCurrentReport(IS.currentReportId);
+let storedReport = null;
+if (window.dataStore && typeof window.dataStore.getReport === 'function') {
+storedReport = await window.dataStore.getReport(IS.currentReportId);
+}
 if (storedReport && storedReport.project_id) {
 reportProjectId = storedReport.project_id;
-console.log('[INIT] Got project_id from fvp_current_reports:', reportProjectId);
+console.log('[INIT] Got project_id from IDB report metadata:', reportProjectId);
 }
 }
 
@@ -310,8 +317,7 @@ console.log('[HARDENING] pagehide, saving... (persisted:', event.persisted, ')')
 saveToLocalStorage();
 flushInterviewBackup();
 }
-// Close IDB connections so the next page's upgrade isn't blocked (iOS bfcache)
-if (window.idb && typeof window.idb.closeAllIDBConnections === 'function') {
-window.idb.closeAllIDBConnections();
+if (window.dataStore && typeof window.dataStore.closeAll === 'function') {
+window.dataStore.closeAll();
 }
 });
