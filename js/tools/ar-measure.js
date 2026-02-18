@@ -28,6 +28,28 @@ var arMeasureState = {
 // ── Open AR Measure ──────────────────────────────────────────────────────────
 
 async function openARMeasure() {
+    // Try native ARKit plugin first (Capacitor iOS)
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+        try {
+            var result = await window.Capacitor.Plugins.ARMeasure.startMeasurement({ unit: 'ft', includeScreenshot: true });
+            if (result && result.distance) {
+                var displayText = result.distance.toFixed(2) + ' ' + result.unit;
+                if (typeof showToast === 'function') showToast('Measured: ' + displayText, 'success');
+                // Add to log automatically
+                arMeasureState.log.push({
+                    description: 'AR Measurement',
+                    meters: result.unit === 'ft' ? result.distance / 3.28084 : result.distance,
+                    display: displayText,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                try { sessionStorage.setItem('arMeasureLog', JSON.stringify(arMeasureState.log)); } catch (e) {}
+            }
+            return;
+        } catch (e) {
+            console.warn('[AR] Native ARKit plugin not available, falling back to WebXR:', e);
+        }
+    }
+
     // Lazy-load Three.js if not already loaded
     if (typeof THREE === 'undefined') {
         try {

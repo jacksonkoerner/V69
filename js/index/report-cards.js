@@ -619,5 +619,33 @@ async function executeDeleteReport(reportId, overlay) {
     }
 }
 
+/**
+ * Update a single report card's status without full re-render.
+ * Falls back to full re-render if card not found.
+ */
+function updateReportCardStatus(reportId, newData) {
+    var wrapper = document.querySelector('.swipe-card-wrapper[data-report-id="' + reportId + '"]');
+    if (!wrapper) {
+        // Card not found — might be a new report, do full re-render
+        if (typeof renderReportCards === 'function') renderReportCards();
+        return;
+    }
+
+    // Update timestamp
+    var timeEls = wrapper.querySelectorAll('.fa-pencil');
+    if (timeEls.length > 0) {
+        var timeSpan = timeEls[0].closest('span');
+        if (timeSpan) timeSpan.innerHTML = '<i class="fas fa-pencil text-[9px] mr-1"></i>Edited Just now';
+    }
+
+    // Flash the card
+    var content = wrapper.querySelector('.swipe-card-content');
+    if (content) {
+        content.classList.add('sync-flash');
+        setTimeout(function() { content.classList.remove('sync-flash'); }, 1500);
+    }
+}
+window.updateReportCardStatus = updateReportCardStatus;
+
 // Expose to window for onclick handlers
 window.confirmDeleteReport = confirmDeleteReport;

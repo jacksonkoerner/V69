@@ -152,6 +152,14 @@
             background: #16a34a;
             animation: pulse-dot 1.5s ease-out infinite;
         }
+        /* Live sync visual feedback */
+        .sync-flash {
+            animation: syncPulse 1.5s ease-out;
+        }
+        @keyframes syncPulse {
+            0% { background-color: rgba(99, 102, 241, 0.15); }
+            100% { background-color: transparent; }
+        }
     </style>
 </head>
 <body class="bg-slate-100 min-h-screen">

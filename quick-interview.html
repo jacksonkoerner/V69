@@ -28,6 +28,7 @@
     <script src="./js/shared/broadcast.js"></script>
     <script src="./js/shared/data-store.js"></script>
     <script src="./js/shared/realtime-sync.js"></script>
+    <script src="./js/shared/sync-merge.js"></script>
     <script src="./js/indexeddb-utils.js"></script>
     <script src="./js/report-rules.js"></script>
     <script src="./js/supabase-utils.js"></script>
@@ -166,6 +167,14 @@
         @keyframes proc-pulse {
             0%, 100% { transform: scale(1); opacity: 1; }
             50% { transform: scale(1.15); opacity: 0.8; }
+        }
+        /* Live sync visual feedback */
+        .sync-flash {
+            animation: syncPulse 1.5s ease-out;
+        }
+        @keyframes syncPulse {
+            0% { background-color: rgba(99, 102, 241, 0.15); }
+            100% { background-color: transparent; }
         }
     </style>
 </head>

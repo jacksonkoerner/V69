@@ -10,6 +10,7 @@
  */
 
 var _realtimeChannels = [];
+var _syncBroadcastChannel = null;  // Supabase Broadcast channel for live sync
 
 /**
  * Initialize Realtime subscriptions for the current user.
@@ -78,6 +79,22 @@ function initRealtimeSync() {
             });
         _realtimeChannels.push(projectsChannel);
     }
+
+    // --- Sync Broadcast channel (edit pages only) ---
+    var reportId = new URLSearchParams(window.location.search).get('reportId');
+    var path = window.location.pathname;
+    if (reportId && (path.indexOf('quick-interview') !== -1 || path.indexOf('report.html') !== -1)) {
+        _syncBroadcastChannel = supabaseClient
+            .channel('sync:' + reportId)
+            .on('broadcast', { event: 'sync_update' }, function(payload) {
+                console.log('[SYNC-BC] Received broadcast:', payload);
+                _handleSyncBroadcast(payload.payload);
+            })
+            .subscribe(function(status) {
+                console.log('[SYNC-BC] sync:' + reportId + ' status:', status);
+            });
+        _realtimeChannels.push(_syncBroadcastChannel);
+    }
 }
 
 /**
@@ -92,6 +109,154 @@ function cleanupRealtimeSync() {
         }
     });
     _realtimeChannels = [];
+    _syncBroadcastChannel = null;
+}
+
+// --- Sync Broadcast handlers ---
+
+var _lastMergeAt = null;  // Timestamp of last successful merge (staleness guard)
+var _fetchMergePending = false;  // Prevents overlapping fetches
+
+function _handleSyncBroadcast(payload) {
+    // 1. Self-filter
+    if (!payload || !window.syncEngine || !window.syncEngine.getSessionId) return;
+    if (payload.session_id === window.syncEngine.getSessionId()) return;
+
+    var reportId = payload.report_id;
+    var path = window.location.pathname;
+    var isInterview = path.indexOf('quick-interview') !== -1;
+    var isReport = path.indexOf('report.html') !== -1;
+    if (!isInterview && !isReport) return;
+
+    // 2. Cross-page detection (interview sees report broadcast or vice versa)
+    if (isInterview && payload.page === 'report') {
+        if (typeof showToast === 'function') {
+            showToast('⚠️ Refined report is being edited on another device', 'warning');
+        }
+        return;
+    }
+    if (isReport && payload.page === 'quick-interview') {
+        if (typeof showToast === 'function') {
+            showToast('⚠️ Draft is being edited on another device', 'warning');
+        }
+        return;
+    }
+
+    // 3. Prevent overlapping fetches
+    if (_fetchMergePending) {
+        console.log('[SYNC-BC] Fetch already pending, skipping');
+        return;
+    }
+    _fetchMergePending = true;
+
+    // 4. Delayed REST fetch with jitter (broadcast arrives before DB commit)
+    var delay = 500 + Math.floor(Math.random() * 300);
+    console.log('[SYNC-BC] Scheduling fetch in', delay, 'ms for', reportId);
+
+    setTimeout(function() {
+        _fetchAndMerge(reportId, payload.sections_changed, isInterview)
+            .finally(function() { _fetchMergePending = false; });
+    }, delay);
+}
+
+/**
+ * Fetch latest data from Supabase and invoke merge.
+ */
+function _fetchAndMerge(reportId, sectionsHint, isInterview) {
+    if (typeof supabaseClient === 'undefined' || !supabaseClient || !navigator.onLine) {
+        return Promise.resolve();
+    }
+
+    var fetchPromise;
+    if (isInterview) {
+        fetchPromise = supabaseClient
+            .from('interview_backup')
+            .select('page_state, updated_at')
+            .eq('report_id', reportId)
+            .maybeSingle();
+    } else {
+        fetchPromise = supabaseClient
+            .from('report_data')
+            .select('*')
+            .eq('report_id', reportId)
+            .maybeSingle();
+    }
+
+    return fetchPromise.then(function(result) {
+        if (!result.data || result.error) {
+            console.warn('[SYNC-BC] Fetch returned no data or error:', result.error);
+            return;
+        }
+
+        // Staleness check
+        var remoteUpdatedAt = result.data.updated_at;
+        if (_lastMergeAt && remoteUpdatedAt <= _lastMergeAt) {
+            console.log('[SYNC-BC] Remote data not newer than last merge, skipping');
+            return;
+        }
+        _lastMergeAt = remoteUpdatedAt;
+
+        console.log('[SYNC-BC] Fetched remote data, updated_at:', remoteUpdatedAt);
+
+        // Merge: wire to merge engine (Sprint 8/9)
+        if (isInterview) {
+            var remotePageState = result.data.page_state;
+            if (!remotePageState || typeof remotePageState !== 'object') return;
+            var IS = window.interviewState;
+            if (!IS || !IS.report) return;
+
+            if (typeof syncMerge === 'function' && window.syncEngine.INTERVIEW_SECTIONS) {
+                var mergeResult = syncMerge(
+                    window._syncBase || {},
+                    IS.report,
+                    remotePageState,
+                    sectionsHint,
+                    window.syncEngine.INTERVIEW_SECTIONS
+                );
+                if (mergeResult.sectionsUpdated.length > 0) {
+                    console.log('[SYNC-BC] Merge found updates in:', mergeResult.sectionsUpdated);
+                    if (typeof window.applyInterviewMerge === 'function') {
+                        window.applyInterviewMerge(mergeResult);
+                    }
+                } else {
+                    console.log('[SYNC-BC] Merge: no changes needed');
+                }
+            }
+        } else {
+            // Report page merge
+            if (typeof window.applyReportMerge === 'function') {
+                window.applyReportMerge(result.data);
+            }
+        }
+    }).catch(function(err) {
+        console.warn('[SYNC-BC] Fetch failed:', err);
+    });
+}
+
+/**
+ * Send a sync_update broadcast to the sync:{reportId} channel.
+ * Called after a successful Supabase upsert (never before).
+ */
+function _broadcastSyncUpdate(reportId, sectionsChanged, page) {
+    if (!_syncBroadcastChannel) return;
+    if (_syncBroadcastChannel.topic !== 'realtime:sync:' + reportId) return;
+
+    var payload = {
+        type: 'sync_update',
+        session_id: window.syncEngine.getSessionId ? window.syncEngine.getSessionId() : 'unknown',
+        report_id: reportId,
+        page: page || 'unknown',
+        updated_at: new Date().toISOString(),
+        sections_changed: sectionsChanged || [],
+        revision: window.syncEngine.getRevision ? window.syncEngine.getRevision() : 0
+    };
+
+    _syncBroadcastChannel.send({
+        type: 'broadcast',
+        event: 'sync_update',
+        payload: payload
+    });
+    console.log('[SYNC-BC] Broadcast sent:', payload.sections_changed);
 }
 
 // --- Change handlers ---
@@ -177,7 +342,9 @@ function _handleReportChange(payload) {
         }
     }
     // Refresh Dashboard UI if available
-    if (typeof window.renderReportCards === 'function') {
+    if (typeof window.updateReportCardStatus === 'function' && payload.new) {
+        window.updateReportCardStatus(payload.new.id, payload.new);
+    } else if (typeof window.renderReportCards === 'function') {
         window.renderReportCards();
     }
 }
@@ -252,8 +419,34 @@ window.addEventListener('beforeunload', cleanupRealtimeSync);
 
 // Re-init when coming back online
 window.addEventListener('online', function() {
-    console.log('[REALTIME] Back online — re-subscribing');
+    console.log('[REALTIME] Back online — full sync cycle');
+
+    // 1. Re-init realtime subscriptions
     initRealtimeSync();
+
+    // 2. Flush current state immediately
+    var path = window.location.pathname;
+    if (path.indexOf('quick-interview') !== -1 && typeof flushInterviewBackup === 'function') {
+        flushInterviewBackup();
+    }
+    if (path.indexOf('report.html') !== -1 && typeof flushReportBackup === 'function') {
+        flushReportBackup();
+    }
+
+    // 3. Drain any pending backups from IDB queue
+    if (typeof drainPendingBackups === 'function') drainPendingBackups();
+
+    // 4. Fetch remote state and merge (may have missed changes while offline)
+    var reportId = new URLSearchParams(window.location.search).get('reportId');
+    if (reportId) {
+        var isInterview = path.indexOf('quick-interview') !== -1;
+        var isReport = path.indexOf('report.html') !== -1;
+        if (isInterview || isReport) {
+            setTimeout(function() {
+                _fetchAndMerge(reportId, [], isInterview);
+            }, 2000);  // 2s delay: let flush complete first
+        }
+    }
 });
 
 // Tear down when going offline (channels will error anyway)
@@ -267,13 +460,47 @@ document.addEventListener('visibilitychange', function() {
         cleanupRealtimeSync();
     } else if (document.visibilityState === 'visible') {
         setTimeout(function() { initRealtimeSync(); }, 1000);
+
+        // Unconditional REST fetch on resume (iOS may have missed broadcasts)
+        var reportId = new URLSearchParams(window.location.search).get('reportId');
+        var path = window.location.pathname;
+        if (reportId) {
+            var isInterview = path.indexOf('quick-interview') !== -1;
+            var isReport = path.indexOf('report.html') !== -1;
+            if (isInterview || isReport) {
+                setTimeout(function() {
+                    _fetchAndMerge(reportId, [], isInterview);
+                }, 1500);  // 1.5s delay: let initRealtimeSync re-establish WS first
+            }
+        }
+    }
+});
+
+// bfcache restore handler
+window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+        console.log('[SYNC] Restored from bfcache — re-syncing');
+        initRealtimeSync();
+        var reportId = new URLSearchParams(window.location.search).get('reportId');
+        var path = window.location.pathname;
+        if (reportId) {
+            var isInterview = path.indexOf('quick-interview') !== -1;
+            var isReport = path.indexOf('report.html') !== -1;
+            if (isInterview || isReport) {
+                _fetchAndMerge(reportId, [], isInterview);
+            }
+        }
+        if (typeof drainPendingBackups === 'function') drainPendingBackups();
     }
 });
 
 // Expose for use in page init scripts
 window.initRealtimeSync = initRealtimeSync;
 window.cleanupRealtimeSync = cleanupRealtimeSync;
-window.syncEngine = {
+window.syncEngine = Object.assign(window.syncEngine || {}, {
     initRealtimeSync: initRealtimeSync,
-    cleanupRealtimeSync: cleanupRealtimeSync
-};
+    cleanupRealtimeSync: cleanupRealtimeSync,
+    broadcastSyncUpdate: function(reportId, sectionsChanged, page) {
+        _broadcastSyncUpdate(reportId, sectionsChanged, page);
+    }
+});
