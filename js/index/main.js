@@ -301,10 +301,14 @@ var _REFRESH_COOLDOWN = 2000;     // minimum ms between refreshes
  * @returns {Promise<*>}
  */
 function withTimeout(promise, ms, fallback, label) {
+    var timerId;
     return Promise.race([
-        promise,
+        promise.then(
+            function(v) { clearTimeout(timerId); return v; },
+            function(e) { clearTimeout(timerId); throw e; }
+        ),
         new Promise(function(resolve) {
-            setTimeout(function() {
+            timerId = setTimeout(function() {
                 console.warn('[INDEX] ' + label + ' timed out after ' + ms + 'ms, using fallback');
                 resolve(fallback);
             }, ms);

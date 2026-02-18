@@ -34,19 +34,14 @@ async function executeDeleteReport() {
     var _reportId = RS.currentReportId;
     console.log('[DELETE] Deleting report:', _reportId);
 
-    // Delegate full cleanup to shared implementation (blocklist, localStorage, IDB, Supabase)
-    // Navigate immediately — deleteReportFull runs Supabase cascade but we don't wait for it
-    deleteReportFull(_reportId).then(function(result) {
-        if (result.success) {
-            console.log('[DELETE] Full delete complete');
-        } else {
-            console.warn('[DELETE] Delete had errors:', result.errors);
-        }
-    }).catch(function(e) {
-        console.error('[DELETE] deleteReportFull failed:', e);
-    });
+    // Await full cleanup (blocklist, IDB, Supabase soft-delete) before navigating
+    var result = await deleteReportFull(_reportId);
+    if (result.success) {
+        console.log('[DELETE] Full delete complete');
+    } else {
+        console.warn('[DELETE] Delete had errors:', result.errors);
+    }
 
-    // Navigate to home IMMEDIATELY (local cleanup is synchronous within deleteReportFull)
     window.location.href = 'index.html';
 }
 

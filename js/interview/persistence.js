@@ -56,13 +56,6 @@ async function confirmCancelReport() {
         // Navigate to home IMMEDIATELY — Supabase cleanup runs in background
         window.location.href = 'index.html';
 
-        // 4. Supabase cascade in background (non-blocking)
-        if (_reportId.length === 36) {
-            deleteReportFromSupabase(_reportId).catch(function(err) {
-                console.warn('[CANCEL] Supabase cascade failed:', err);
-            });
-        }
-
     } catch (error) {
         console.error('[CANCEL] Error canceling report:', error);
         alert('Error deleting report. Please try again.');
@@ -1006,25 +999,6 @@ async function deletePhotoFromSupabase(photoId, storagePath) {
             .eq('id', photoId);
     } catch (err) {
         console.error('Failed to delete photo:', err);
-    }
-}
-
-/**
- * Delete report and all related data from Supabase
- * Wrapper around shared deleteReportCascade
- * @param {string} reportId - The report UUID to delete
- */
-async function deleteReportFromSupabase(reportId) {
-    if (!reportId || !supabaseClient) return;
-
-    console.log('[CANCEL] Deleting report from Supabase:', reportId);
-
-    const result = await deleteReportCascade(reportId);
-    if (result.success) {
-        console.log('[CANCEL] Report deleted from Supabase');
-    } else {
-        console.error('[CANCEL] Supabase deletion errors:', result.errors);
-        throw new Error('Delete cascade failed: ' + result.errors.join(', '));
     }
 }
 
