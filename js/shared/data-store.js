@@ -583,6 +583,140 @@
         getCachedArchive: getCachedArchive,
         saveCachedArchive: saveCachedArchive,
 
-        clearStore: clearStore
+        clearStore: clearStore,
+
+        /**
+         * Sync local IDB reports with Supabase cloud truth.
+         * - Reports in cloud but not local → add to IDB
+         * - Reports in local but not cloud → remove from IDB
+         * - Reports in both but cloud is newer → update IDB
+         * - Respects deleted blocklist in localStorage
+         * @returns {Promise<{added:number, updated:number, removed:number, total:number}>}
+         */
+        syncReportsFromCloud: function syncReportsFromCloud() {
+            if (typeof supabaseClient === 'undefined' || !supabaseClient) {
+                console.warn('[data-store] syncReportsFromCloud: no supabaseClient');
+                return Promise.resolve({ added: 0, updated: 0, removed: 0, total: 0 });
+            }
+
+            return supabaseClient.auth.getSession().then(function(sessionResult) {
+                var session = sessionResult && sessionResult.data && sessionResult.data.session;
+                if (!session || !session.user) {
+                    console.warn('[data-store] syncReportsFromCloud: no auth session');
+                    return { added: 0, updated: 0, removed: 0, total: 0 };
+                }
+
+                var userId = session.user.id;
+
+                // Fetch all reports for this user from Supabase
+                return supabaseClient
+                    .from('reports')
+                    .select('id,status,project_id,report_date,created_at,updated_at,submitted_at')
+                    .eq('user_id', userId)
+                    .then(function(result) {
+                        if (result.error) {
+                            console.warn('[data-store] syncReportsFromCloud query failed:', result.error.message);
+                            return { added: 0, updated: 0, removed: 0, total: 0 };
+                        }
+
+                        var cloudReports = result.data || [];
+
+                        // Build cloud map
+                        var cloudMap = {};
+                        for (var i = 0; i < cloudReports.length; i++) {
+                            cloudMap[cloudReports[i].id] = cloudReports[i];
+                        }
+
+                        // Get deleted blocklist from localStorage
+                        var blocklist = {};
+                        try {
+                            var raw = localStorage.getItem('fvp_deleted_reports');
+                            if (raw) {
+                                var parsed = JSON.parse(raw);
+                                if (Array.isArray(parsed)) {
+                                    for (var b = 0; b < parsed.length; b++) blocklist[parsed[b]] = true;
+                                } else if (typeof parsed === 'object') {
+                                    blocklist = parsed;
+                                }
+                            }
+                        } catch (e) { /* ignore */ }
+
+                        // Get current local reports from IDB
+                        return getAllReports().then(function(localMap) {
+                            var added = 0, updated = 0, removed = 0;
+                            var finalReports = {};
+
+                            // Process cloud reports: add/update local
+                            for (var cid in cloudMap) {
+                                if (blocklist[cid]) continue; // skip deleted
+                                var cloud = cloudMap[cid];
+                                var local = localMap.get(cid);
+
+                                if (!local) {
+                                    // Cloud has it, local doesn't → add
+                                    finalReports[cid] = {
+                                        id: cloud.id,
+                                        status: cloud.status,
+                                        project_id: cloud.project_id,
+                                        date: cloud.report_date,
+                                        report_date: cloud.report_date,
+                                        created_at: cloud.created_at,
+                                        updated_at: cloud.updated_at,
+                                        submitted_at: cloud.submitted_at
+                                    };
+                                    added++;
+                                } else {
+                                    // Both have it — check if cloud is newer
+                                    var cloudTime = new Date(cloud.updated_at || 0).getTime();
+                                    var localTime = typeof local.updated_at === 'number'
+                                        ? local.updated_at
+                                        : new Date(local.updated_at || 0).getTime();
+
+                                    if (cloudTime > localTime) {
+                                        // Cloud is newer → merge cloud fields into local
+                                        finalReports[cid] = Object.assign({}, local, {
+                                            status: cloud.status,
+                                            project_id: cloud.project_id,
+                                            date: cloud.report_date,
+                                            report_date: cloud.report_date,
+                                            updated_at: cloud.updated_at,
+                                            submitted_at: cloud.submitted_at
+                                        });
+                                        updated++;
+                                    } else {
+                                        // Local is same or newer — keep local
+                                        finalReports[cid] = local;
+                                    }
+                                }
+                            }
+
+                            // Check local reports not in cloud → remove
+                            localMap.forEach(function(value, key) {
+                                if (!cloudMap[key]) {
+                                    removed++;
+                                    // Don't add to finalReports (effectively removes it)
+                                } else if (!finalReports[key]) {
+                                    // Already handled above, but defensive
+                                    finalReports[key] = value;
+                                }
+                            });
+
+                            // Write reconciled set to IDB
+                            return replaceAllReports(finalReports).then(function() {
+                                var total = Object.keys(finalReports).length;
+                                if (added > 0 || updated > 0 || removed > 0) {
+                                    console.log('[data-store] Cloud sync: added=' + added +
+                                        ' updated=' + updated + ' removed=' + removed +
+                                        ' total=' + total);
+                                }
+                                return { added: added, updated: updated, removed: removed, total: total };
+                            });
+                        });
+                    });
+            }).catch(function(err) {
+                console.warn('[data-store] syncReportsFromCloud failed:', err && err.message ? err.message : err);
+                return { added: 0, updated: 0, removed: 0, total: 0 };
+            });
+        }
     };
 })();

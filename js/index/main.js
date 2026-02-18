@@ -238,7 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         var _authSession = await withTimeout(
             window.auth.ready,
-            5000, null, 'auth.ready'
+            8000, null, 'auth.ready'
         );
         if (!_authSession) {
             console.warn('[INDEX] No auth session — auth.js will redirect or session timed out');
@@ -372,7 +372,7 @@ async function refreshDashboard(source) {
 
         var _loadReportsPromise = withTimeout(
             loadReportsFromIDB(),
-            4000, [], 'loadReportsFromIDB'
+            6000, [], 'loadReportsFromIDB'
         ).catch(function(e) {
             console.warn('[INDEX] IDB report load failed during refresh:', e);
             return [];
@@ -380,7 +380,7 @@ async function refreshDashboard(source) {
 
         var _loadProjectsPromise = withTimeout(
             window.dataLayer.loadProjects(),
-            4000, [], 'loadProjects'
+            6000, [], 'loadProjects'
         ).catch(function(e) {
             console.warn('[INDEX] loadProjects failed:', e);
             return [];
@@ -411,7 +411,7 @@ async function refreshDashboard(source) {
             try {
                 var cloudProjects = await withTimeout(
                     window.dataLayer.refreshProjectsFromCloud(),
-                    8000, null, 'refreshProjectsFromCloud'
+                    12000, null, 'refreshProjectsFromCloud'
                 );
                 if (cloudProjects && cloudProjects.length > 0) {
                     projects = cloudProjects;
@@ -438,13 +438,37 @@ async function refreshDashboard(source) {
         // 4. Prune stale reports
         await pruneCurrentReports();
 
-        // 5. Render — ALWAYS reaches here thanks to timeouts above
+        // 5. Cloud report sync — reconcile IDB with Supabase truth
+        // This ensures cross-device consistency: reports created/deleted
+        // on other devices are reflected here.
+        if (navigator.onLine && window.dataStore && typeof window.dataStore.syncReportsFromCloud === 'function') {
+            try {
+                var syncResult = await withTimeout(
+                    window.dataStore.syncReportsFromCloud(),
+                    10000, null, 'syncReportsFromCloud'
+                );
+                if (syncResult && (syncResult.added > 0 || syncResult.updated > 0 || syncResult.removed > 0)) {
+                    // Re-read from IDB after sync changed things
+                    var syncedMap = await window.dataStore.getAllReports();
+                    var syncedReports = [];
+                    syncedMap.forEach(function(value) { syncedReports.push(value); });
+                    window.currentReportsCache = syncedReports;
+                    console.log('[INDEX] Reports reconciled with cloud: +' + syncResult.added +
+                        ' ~' + syncResult.updated + ' -' + syncResult.removed +
+                        ' (total: ' + syncResult.total + ')');
+                }
+            } catch (e) {
+                console.warn('[INDEX] Cloud report sync failed:', e);
+            }
+        }
+
+        // 6. Render — ALWAYS reaches here thanks to timeouts above
         console.log('[INDEX] Rendering with', projectsCache.length, 'projects,',
             window.currentReportsCache.length, 'reports');
         renderReportCards(window.currentReportsCache);
         updateReportStatus();
 
-        // 6. Recover any cloud drafts we don't have locally (fire-and-forget)
+        // 7. Recover any cloud drafts we don't have locally (fire-and-forget)
         try { recoverCloudDrafts(); } catch (e) { /* non-critical */ }
 
     } catch (err) {
