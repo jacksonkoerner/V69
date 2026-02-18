@@ -162,15 +162,18 @@ async function deleteReportFull(reportId) {
         }
     }
 
-    // 4. Supabase cascade (cloud cleanup — non-fatal if it fails)
+    // 4. Supabase soft-delete — mark status='deleted' (report persists in cloud)
     if (typeof supabaseClient !== 'undefined' && supabaseClient && reportId.length === 36) {
         try {
-            var cascadeResult = await deleteReportCascade(reportId);
-            if (!cascadeResult.success) {
-                errors = errors.concat(cascadeResult.errors.map(function(e) { return 'cascade: ' + e; }));
+            var updateResult = await supabaseClient
+                .from('reports')
+                .update({ status: 'deleted' })
+                .eq('id', reportId);
+            if (updateResult.error) {
+                errors.push('soft-delete: ' + updateResult.error.message);
             }
         } catch (e) {
-            errors.push('cascade: ' + e.message);
+            errors.push('soft-delete: ' + e.message);
         }
     }
 

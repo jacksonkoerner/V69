@@ -599,12 +599,19 @@
                 return Promise.resolve({ added: 0, updated: 0, removed: 0, total: 0 });
             }
 
-            // Query reports — RLS policy filters by auth.uid() automatically.
-            // No need to call getSession() or filter by user_id manually;
-            // the authenticated supabaseClient handles it via the JWT.
+            var userId = (typeof getStorageItem === 'function' && typeof STORAGE_KEYS !== 'undefined')
+                ? getStorageItem(STORAGE_KEYS.USER_ID)
+                : null;
+            if (!userId) {
+                console.warn('[data-store] syncReportsFromCloud: no userId');
+                return Promise.resolve({ added: 0, updated: 0, removed: 0, total: 0 });
+            }
+
             return supabaseClient
                 .from('reports')
                 .select('id,status,project_id,report_date,created_at,updated_at,submitted_at')
+                .eq('user_id', userId)
+                .neq('status', 'deleted')
                 .then(function(result) {
                         if (result.error) {
                             console.warn('[data-store] syncReportsFromCloud query failed:', result.error.message);
