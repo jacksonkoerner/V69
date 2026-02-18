@@ -119,8 +119,16 @@ var _fetchMergePending = false;  // Prevents overlapping fetches
 var _fetchMergeQueued = false;   // Coalesces one extra fetch while one is in-flight
 var _queuedFetchPayload = null;
 var _lastAppliedRevision = -1;
+var _syncStartupGraceUntil = Date.now() + 3000;  // Suppress incoming broadcasts for 3s after page load
 
 function _handleSyncBroadcast(payload) {
+    // 0. Startup grace period — suppress incoming broadcasts for first 3s to prevent
+    //    ping-pong loop when two devices open the same report simultaneously.
+    if (Date.now() < _syncStartupGraceUntil) {
+        console.log('[SYNC-BC] Ignoring broadcast during startup grace period');
+        return;
+    }
+
     // 1. Self-filter
     if (!payload || !window.syncEngine || !window.syncEngine.getSessionId) return;
     if (payload.session_id === window.syncEngine.getSessionId()) return;

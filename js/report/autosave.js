@@ -412,7 +412,8 @@ function saveReportToLocalStorage() {
 /**
  * Actually save report to Supabase
  */
-async function saveReportToSupabase() {
+async function saveReportToSupabase(options) {
+    options = options || {};
     if (RS.isSaving || !RS.activeProject) return;
     RS.isSaving = true;
 
@@ -453,9 +454,12 @@ async function saveReportToSupabase() {
 
         RS.currentReportId = reportId;
 
-        // report_data sync is handled by debounced autosave (flushReportBackup)
-        // Mark dirty so it flushes on next 5s quiet period
-        markReportBackupDirty();
+        // Only mark report_data dirty if this is a user-initiated save (not initial load).
+        // On initial load, the report_data hasn't changed — flushing it triggers a sync
+        // broadcast that causes ping-pong loops when two devices have the same report open.
+        if (!options.silent) {
+            markReportBackupDirty();
+        }
 
         console.log('[SUPABASE] Report saved successfully');
     } catch (err) {

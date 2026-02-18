@@ -352,7 +352,9 @@ function setNestedValue(obj, path, value) {
 // Save report without showing indicator (for silent updates)
 async function saveReportSilent() {
     try {
-        await saveReportToSupabase();
+        // Silent mode: don't mark report_data dirty (prevents sync broadcast loop
+        // when two devices have the same report open simultaneously)
+        await saveReportToSupabase({ silent: true });
     } catch (err) {
         console.error('Failed to save report:', err);
     }
