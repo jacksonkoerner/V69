@@ -599,27 +599,20 @@
                 return Promise.resolve({ added: 0, updated: 0, removed: 0, total: 0 });
             }
 
-            return supabaseClient.auth.getSession().then(function(sessionResult) {
-                var session = sessionResult && sessionResult.data && sessionResult.data.session;
-                if (!session || !session.user) {
-                    console.warn('[data-store] syncReportsFromCloud: no auth session');
-                    return { added: 0, updated: 0, removed: 0, total: 0 };
-                }
-
-                var userId = session.user.id;
-
-                // Fetch all reports for this user from Supabase
-                return supabaseClient
-                    .from('reports')
-                    .select('id,status,project_id,report_date,created_at,updated_at,submitted_at')
-                    .eq('user_id', userId)
-                    .then(function(result) {
+            // Query reports — RLS policy filters by auth.uid() automatically.
+            // No need to call getSession() or filter by user_id manually;
+            // the authenticated supabaseClient handles it via the JWT.
+            return supabaseClient
+                .from('reports')
+                .select('id,status,project_id,report_date,created_at,updated_at,submitted_at')
+                .then(function(result) {
                         if (result.error) {
                             console.warn('[data-store] syncReportsFromCloud query failed:', result.error.message);
                             return { added: 0, updated: 0, removed: 0, total: 0 };
                         }
 
                         var cloudReports = result.data || [];
+                        console.log('[data-store] syncReportsFromCloud: Supabase returned ' + cloudReports.length + ' reports');
 
                         // Build cloud map
                         var cloudMap = {};
@@ -699,11 +692,10 @@
                                 return { added: added, updated: updated, removed: removed, total: total };
                             });
                         });
+                    }).catch(function(err) {
+                        console.warn('[data-store] syncReportsFromCloud failed:', err && err.message ? err.message : err);
+                        return { added: 0, updated: 0, removed: 0, total: 0 };
                     });
-            }).catch(function(err) {
-                console.warn('[data-store] syncReportsFromCloud failed:', err && err.message ? err.message : err);
-                return { added: 0, updated: 0, removed: 0, total: 0 };
-            });
         }
     };
 })();
