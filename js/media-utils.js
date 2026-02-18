@@ -221,34 +221,9 @@ async function deleteLogoFromStorage(projectId) {
  * @returns {Promise<{lat: number, lng: number, accuracy: number}|null>}
  */
 async function getHighAccuracyGPS(showWeakSignalWarning = true) {
-    // Check browser's ACTUAL permission state (not just our localStorage flag)
-    // This prevents prompting if browser permission is 'prompt' or 'denied'
-    let browserPermissionState = 'prompt';
-    if (navigator.permissions) {
-        try {
-            const result = await navigator.permissions.query({ name: 'geolocation' });
-            browserPermissionState = result.state;
-            console.log(`[GPS] Browser permission state: ${browserPermissionState}`);
-        } catch (e) {
-            console.warn('[GPS] Permissions API not available:', e.message);
-        }
-    }
-
-    // If browser permission is not 'granted', use cached location instead of prompting
-    if (browserPermissionState !== 'granted') {
-        console.log('[GPS] Browser permission not granted, using cached location');
-        const cached = getCachedLocation();
-        if (cached) {
-            return {
-                lat: cached.lat,
-                lng: cached.lng,
-                accuracy: 999 // Unknown accuracy for cached location
-            };
-        }
-        return null;
-    }
-
-    // Browser permission IS granted - safe to call geolocation without prompting
+    // Always attempt fresh GPS — don't gate on Permissions API.
+    // iOS Safari reports 'prompt' even when permission will be auto-granted,
+    // causing unnecessary fallback to cached location with ±999m accuracy.
     const gpsOptions = {
         enableHighAccuracy: true,
         timeout: 15000,

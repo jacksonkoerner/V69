@@ -690,6 +690,9 @@ function _buildCanonicalPageStateFromDraft(draftData, reportId) {
                 url: p.url || '',
                 caption: p.caption || '',
                 timestamp: p.timestamp,
+                date: p.date || null,
+                time: p.time || null,
+                gps: p.gps || null,
                 fileName: p.fileName
             };
         }),
@@ -946,7 +949,17 @@ meta: {
 },
 reporter: IS.report.reporter || {},
 photos: (IS.report.photos || []).map(function(p) {
-    return { id: p.id, storagePath: p.storagePath || '', url: p.url || '', caption: p.caption || '', timestamp: p.timestamp, fileName: p.fileName };
+    return {
+        id: p.id,
+        storagePath: p.storagePath || '',
+        url: p.url || '',
+        caption: p.caption || '',
+        timestamp: p.timestamp,
+        date: p.date || null,
+        time: p.time || null,
+        gps: p.gps || null,
+        fileName: p.fileName
+    };
 }),
 // Step 2: Sync metadata for cross-device conflict detection
 _sync: {
@@ -1215,13 +1228,14 @@ async function saveReportToSupabase() {
 /**
  * Upload photo to Supabase Storage
  */
-async function uploadPhotoToSupabase(file, photoId) {
+async function uploadPhotoToSupabase(file, photoId, sourceFileName) {
     if (!IS.currentReportId) {
         // Create report first if it doesn't exist
         await saveReportToSupabase();
     }
 
-    const fileName = `${IS.currentReportId}/${photoId}_${file.name}`;
+    const resolvedSourceName = sourceFileName || file.name || `${photoId}.jpg`;
+    const fileName = `${IS.currentReportId}/${photoId}_${resolvedSourceName}`;
 
     try {
         const { data, error } = await supabaseClient.storage
@@ -1273,7 +1287,8 @@ async function uploadPendingPhotos() {
             if (photo.base64 && !photo.storagePath) {
                 showToast('Uploading photos...', 'info');
                 const blob = await dataURLtoBlob(photo.base64);
-                const { storagePath, publicUrl } = await uploadPhotoToSupabase(blob, photo.id);
+                const sourceFileName = photo.fileName || photo.name || `${photo.id}.jpg`;
+                const { storagePath, publicUrl } = await uploadPhotoToSupabase(blob, photo.id, sourceFileName);
 
                 photo.storagePath = storagePath;
                 photo.url = publicUrl;

@@ -165,7 +165,7 @@ async function backgroundUploadPhoto(photoObj, dataUrl) {
 
         const compressedBlob = await dataURLtoBlob(uploadDataUrl);
         console.log(`[PHOTO] Background uploading ${photoObj.id}...`);
-        const result = await uploadPhotoToSupabase(compressedBlob, photoObj.id);
+        const result = await uploadPhotoToSupabase(compressedBlob, photoObj.id, photoObj.fileName);
 
         // Update the metadata-only photo object in IS.report.photos
         photoObj.storagePath = result.storagePath;
