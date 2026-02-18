@@ -45,7 +45,6 @@ const STATIC_ASSETS = [
     './js/shared/data-store.js',
     './js/shared/pull-to-refresh.js',
     './js/shared/supabase-retry.js',
-    './js/shared/sync-merge.js',
     // Index (dashboard) modules
     './js/index/report-cards.js',
     './js/index/report-creation.js',
