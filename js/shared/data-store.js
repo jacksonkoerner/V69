@@ -627,28 +627,15 @@
                             cloudMap[cloudReports[i].id] = cloudReports[i];
                         }
 
-                        // Get deleted blocklist from localStorage
-                        var blocklist = {};
-                        try {
-                            var raw = localStorage.getItem('fvp_deleted_reports');
-                            if (raw) {
-                                var parsed = JSON.parse(raw);
-                                if (Array.isArray(parsed)) {
-                                    for (var b = 0; b < parsed.length; b++) blocklist[parsed[b]] = true;
-                                } else if (typeof parsed === 'object') {
-                                    blocklist = parsed;
-                                }
-                            }
-                        } catch (e) { /* ignore */ }
-
                         // Get current local reports from IDB
                         return getAllReports().then(function(localMap) {
                             var added = 0, updated = 0, removed = 0;
                             var finalReports = {};
 
                             // Process cloud reports: add/update local
+                            // Supabase is the source of truth — if it's there, show it.
+                            // Deletion should remove from Supabase, not just blocklist locally.
                             for (var cid in cloudMap) {
-                                if (blocklist[cid]) continue; // skip deleted
                                 var cloud = cloudMap[cid];
                                 var local = localMap.get(cid);
 

@@ -441,26 +441,44 @@ async function refreshDashboard(source) {
         // 5. Cloud report sync — reconcile IDB with Supabase truth
         // This ensures cross-device consistency: reports created/deleted
         // on other devices are reflected here.
+        var _cloudSyncRan = false;
         if (navigator.onLine && window.dataStore && typeof window.dataStore.syncReportsFromCloud === 'function') {
             try {
                 var syncResult = await withTimeout(
                     window.dataStore.syncReportsFromCloud(),
                     10000, null, 'syncReportsFromCloud'
                 );
-                if (syncResult && (syncResult.added > 0 || syncResult.updated > 0 || syncResult.removed > 0)) {
-                    // Re-read from IDB after sync changed things
-                    var syncedMap = await window.dataStore.getAllReports();
-                    var syncedReports = [];
-                    syncedMap.forEach(function(value) { syncedReports.push(value); });
-                    window.currentReportsCache = syncedReports;
-                    console.log('[INDEX] Reports reconciled with cloud: +' + syncResult.added +
-                        ' ~' + syncResult.updated + ' -' + syncResult.removed +
-                        ' (total: ' + syncResult.total + ')');
+                if (syncResult) {
+                    _cloudSyncRan = true;
+                    if (syncResult.added > 0 || syncResult.updated > 0 || syncResult.removed > 0) {
+                        // Re-read from IDB after sync changed things
+                        var syncedMap = await window.dataStore.getAllReports();
+                        var syncedReports = [];
+                        syncedMap.forEach(function(value) { syncedReports.push(value); });
+                        window.currentReportsCache = syncedReports;
+                        console.log('[INDEX] Reports reconciled with cloud: +' + syncResult.added +
+                            ' ~' + syncResult.updated + ' -' + syncResult.removed +
+                            ' (total: ' + syncResult.total + ')');
+                    }
                 }
             } catch (e) {
                 console.warn('[INDEX] Cloud report sync failed:', e);
             }
         }
+
+        // 5b. Clear stale deleted blocklist — now that cloud sync is the authority,
+        // the blocklist only needs recent entries (last 24h) to prevent race conditions
+        // during active deletion. Old entries just cause phantom removals on other devices.
+        try {
+            var rawBlocklist = localStorage.getItem('fvp_deleted_reports');
+            if (rawBlocklist) {
+                var parsedBlocklist = JSON.parse(rawBlocklist);
+                if (Array.isArray(parsedBlocklist) && parsedBlocklist.length > 20) {
+                    // Trim to last 20 entries max
+                    localStorage.setItem('fvp_deleted_reports', JSON.stringify(parsedBlocklist.slice(-20)));
+                }
+            }
+        } catch (e) { /* ignore */ }
 
         // 6. Render — ALWAYS reaches here thanks to timeouts above
         console.log('[INDEX] Rendering with', projectsCache.length, 'projects,',
@@ -468,8 +486,11 @@ async function refreshDashboard(source) {
         renderReportCards(window.currentReportsCache);
         updateReportStatus();
 
-        // 7. Recover any cloud drafts we don't have locally (fire-and-forget)
-        try { recoverCloudDrafts(); } catch (e) { /* non-critical */ }
+        // 7. Recover any cloud drafts we don't have locally
+        // Skip if cloud sync already ran — it handles the same job more thoroughly
+        if (!_cloudSyncRan) {
+            try { recoverCloudDrafts(); } catch (e) { /* non-critical */ }
+        }
 
     } catch (err) {
         console.error('[INDEX] refreshDashboard error:', err);
