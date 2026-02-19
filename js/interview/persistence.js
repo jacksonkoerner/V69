@@ -813,8 +813,9 @@ let isSaving = false;
 // getReportKey() removed in Task 3 — UUID-only payload
 
 /**
- * Load report — try localStorage → IDB → Supabase interview_backup → fresh
+ * Load report — IDB first, then always check Supabase interview_backup for freshness.
  * Sprint 11: Refactored to restore existing data before creating fresh.
+ * Sprint 16: Always check cloud freshness (mirrors report.html loadReport pattern).
  * Returns a populated report object if prior data exists, fresh otherwise.
  */
 async function getReport() {
@@ -822,73 +823,149 @@ async function getReport() {
 
     // If we have a reportId, try to restore existing data first
     if (urlReportId) {
-        // 1. Try localStorage (fast, sync)
-        var prevId = IS.currentReportId;
-        IS.currentReportId = urlReportId;
-        var localDraft = null;
-        IS.currentReportId = prevId;
+        var idbData = null;
 
-        if (localDraft) {
-            console.log('[getReport] Restored from localStorage');
-            var report = createFreshReport();
-            applyDraftToReport(report, localDraft);
-            return report;
-        }
-
-        // 2. Try IndexedDB (via dataStore — standardized API)
+        // 1. Try IndexedDB (fast, local)
         if (window.dataStore && window.dataStore.getDraftData) {
             try {
-                var idbData = await window.dataStore.getDraftData(urlReportId);
+                idbData = await window.dataStore.getDraftData(urlReportId);
                 if (idbData) {
-                    console.log('[getReport] Restored from IndexedDB');
-                    var report = createFreshReport();
-                    applyDraftToReport(report, idbData);
-                    return report;
+                    console.log('[getReport] Loaded IDB draft, checking cloud freshness...');
                 }
             } catch (e) {
                 console.warn('[getReport] IDB restore failed:', e);
             }
         }
 
-        // 3. Try Supabase interview_backup (cross-device)
+        // 2. Always check Supabase interview_backup for freshness (cross-device sync)
         if (navigator.onLine) {
+            var _cloudTimedOut = false;
             try {
+                var _abortController = new AbortController();
+                var _timeoutId = setTimeout(function() {
+                    _cloudTimedOut = true;
+                    _abortController.abort();
+                }, 2000); // 2s timeout — don't block on slow cellular
+
                 var result = await supabaseClient
                     .from('interview_backup')
                     .select('page_state, updated_at')
                     .eq('report_id', urlReportId)
+                    .abortSignal(_abortController.signal)
                     .maybeSingle();
 
+                clearTimeout(_timeoutId);
+
                 if (!result.error && result.data && result.data.page_state) {
-                    console.log('[getReport] Restored from Supabase interview_backup');
-                    var report = createFreshReport();
                     var ps = result.data.page_state;
-                    if (ps.captureMode) report.meta.captureMode = ps.captureMode;
-                    if (ps.meta) report.meta = Object.assign(report.meta, ps.meta);
-                    if (ps.freeform_entries) report.freeform_entries = ps.freeform_entries;
-                    if (ps.freeform_checklist) report.freeform_checklist = ps.freeform_checklist;
-                    if (ps.fieldNotes) report.fieldNotes = Object.assign(report.fieldNotes, ps.fieldNotes);
-                    if (ps.guidedNotes) report.guidedNotes = Object.assign(report.guidedNotes, ps.guidedNotes);
-                    if (ps.activities) report.activities = ps.activities;
-                    if (ps.operations) report.operations = ps.operations;
-                    if (ps.equipment) report.equipment = ps.equipment;
-                    if (ps.equipmentRows) report.equipmentRows = ps.equipmentRows;
-                    if (ps.overview) report.overview = Object.assign(report.overview, ps.overview);
-                    if (ps.safety) report.safety = Object.assign(report.safety, ps.safety);
-                    if (ps.generalIssues) report.generalIssues = ps.generalIssues;
-                    if (ps.qaqcNotes) report.qaqcNotes = ps.qaqcNotes;
-                    if (ps.contractorCommunications) report.contractorCommunications = ps.contractorCommunications;
-                    if (ps.visitorsRemarks) report.visitorsRemarks = ps.visitorsRemarks;
-                    if (ps.additionalNotes) report.additionalNotes = ps.additionalNotes;
-                    if (ps.toggleStates) report.toggleStates = ps.toggleStates;
-                    if (ps.entries) report.entries = ps.entries;
-                    if (ps.reporter) report.reporter = Object.assign(report.reporter, ps.reporter);
-                    if (ps.photos) report.photos = ps.photos;
-                    return report;
+
+                    // Compare timestamps to pick the newer source
+                    function _parseTs(ts) {
+                        if (!ts) return null;
+                        var ms = Date.parse(ts);
+                        return isNaN(ms) ? null : ms;
+                    }
+
+                    var _idbTs = idbData ? _parseTs(idbData.lastSaved || idbData.savedAt) : null;
+                    var _cloudTs = _parseTs(result.data.updated_at || ps.savedAt);
+
+                    var _cloudIsNewer = false;
+                    if (_cloudTs !== null && _idbTs === null) _cloudIsNewer = true;
+                    if (_cloudTs !== null && _idbTs !== null && _cloudTs > _idbTs) _cloudIsNewer = true;
+
+                    if (_cloudIsNewer || !idbData) {
+                        console.log('[getReport] Cloud is newer — using Supabase interview_backup');
+                        var report = createFreshReport();
+                        if (ps.captureMode) report.meta.captureMode = ps.captureMode;
+                        if (ps.meta) report.meta = Object.assign(report.meta, ps.meta);
+                        if (ps.freeform_entries) report.freeform_entries = ps.freeform_entries;
+                        if (ps.freeform_checklist) report.freeform_checklist = ps.freeform_checklist;
+                        if (ps.fieldNotes) report.fieldNotes = Object.assign(report.fieldNotes, ps.fieldNotes);
+                        if (ps.guidedNotes) report.guidedNotes = Object.assign(report.guidedNotes, ps.guidedNotes);
+                        if (ps.activities) report.activities = ps.activities;
+                        if (ps.operations) report.operations = ps.operations;
+                        if (ps.equipment) report.equipment = ps.equipment;
+                        if (ps.equipmentRows) report.equipmentRows = ps.equipmentRows;
+                        if (ps.overview) report.overview = Object.assign(report.overview, ps.overview);
+                        if (ps.safety) report.safety = Object.assign(report.safety, ps.safety);
+                        if (ps.generalIssues) report.generalIssues = ps.generalIssues;
+                        if (ps.qaqcNotes) report.qaqcNotes = ps.qaqcNotes;
+                        if (ps.contractorCommunications) report.contractorCommunications = ps.contractorCommunications;
+                        if (ps.visitorsRemarks) report.visitorsRemarks = ps.visitorsRemarks;
+                        if (ps.additionalNotes) report.additionalNotes = ps.additionalNotes;
+                        if (ps.toggleStates) report.toggleStates = ps.toggleStates;
+                        if (ps.entries) report.entries = ps.entries;
+                        if (ps.reporter) report.reporter = Object.assign(report.reporter, ps.reporter);
+                        if (ps.photos) report.photos = ps.photos;
+
+                        // Cache cloud data back to IDB so next offline load is fresh
+                        if (window.dataStore && window.dataStore.saveDraftData) {
+                            var cacheData = Object.assign({}, ps, { lastSaved: result.data.updated_at });
+                            window.dataStore.saveDraftData(urlReportId, cacheData).catch(function(e) {
+                                console.warn('[getReport] IDB cache-back failed:', e);
+                            });
+                        }
+
+                        // Rehydrate photos from cloud photos table (signed URLs)
+                        if (navigator.onLine && typeof fetchCloudPhotos === 'function') {
+                            try {
+                                var cloudPhotos = await fetchCloudPhotos(urlReportId);
+                                if (cloudPhotos && cloudPhotos.length > 0) {
+                                    report.photos = cloudPhotos;
+                                    console.log('[getReport] Rehydrated ' + cloudPhotos.length + ' photo(s) from cloud');
+                                }
+                            } catch (photoErr) {
+                                console.warn('[getReport] Cloud photo rehydration failed:', photoErr);
+                            }
+                        }
+
+                        return report;
+                    } else {
+                        console.log('[getReport] IDB is current or newer — keeping local copy');
+                    }
                 }
             } catch (e) {
-                console.warn('[getReport] Supabase interview_backup restore failed:', e);
+                if (_cloudTimedOut || (e && (e.name === 'AbortError' || String(e).indexOf('AbortError') !== -1))) {
+                    console.warn('[getReport] Cloud freshness check timed out after 2s; keeping IDB copy');
+                } else {
+                    console.warn('[getReport] Supabase interview_backup check failed:', e);
+                }
             }
+        }
+
+        // 3. Use IDB data if we have it (cloud was older, offline, or timed out)
+        if (idbData) {
+            console.log('[getReport] Using IDB draft data');
+            var report = createFreshReport();
+            applyDraftToReport(report, idbData);
+
+            // Still try to rehydrate photos from cloud even when using IDB data
+            if (navigator.onLine && typeof fetchCloudPhotos === 'function') {
+                try {
+                    var cloudPhotos = await fetchCloudPhotos(urlReportId);
+                    if (cloudPhotos && cloudPhotos.length > 0) {
+                        // Merge: keep unsynced local photos, add cloud photos not already present
+                        var localPhotoIds = (report.photos || []).reduce(function(m, p) { m[p.id] = true; return m; }, {});
+                        var newFromCloud = cloudPhotos.filter(function(cp) { return !localPhotoIds[cp.id]; });
+                        if (newFromCloud.length > 0) {
+                            report.photos = (report.photos || []).concat(newFromCloud);
+                            console.log('[getReport] Added ' + newFromCloud.length + ' cloud photo(s) not in local');
+                        }
+                        // Refresh signed URLs on existing photos that came from cloud
+                        var cloudMap = {};
+                        cloudPhotos.forEach(function(cp) { cloudMap[cp.id] = cp; });
+                        (report.photos || []).forEach(function(p) {
+                            if (cloudMap[p.id] && cloudMap[p.id].url && p.storagePath) {
+                                p.url = cloudMap[p.id].url; // Fresh signed URL
+                            }
+                        });
+                    }
+                } catch (photoErr) {
+                    console.warn('[getReport] Cloud photo rehydration failed:', photoErr);
+                }
+            }
+
+            return report;
         }
     }
 
