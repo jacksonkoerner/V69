@@ -248,6 +248,7 @@ function saveReportToLocalStorage() {
  */
 async function saveReportToSupabase(options) {
     options = options || {};
+    if (options.silent) return;
     if (RS.isSaving || !RS.activeProject) return;
     RS.isSaving = true;
 

@@ -10,6 +10,7 @@
  */
 
 var _realtimeChannels = [];
+var _refineRedirectInProgress = false;
 
 /**
  * Initialize Realtime subscriptions for the current user.
@@ -139,10 +140,16 @@ function _handleReportChange(payload) {
 
     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
         var report = payload.new;
+        var cachedReport = null;
+        if (Array.isArray(window.currentReportsCache) && report && report.id) {
+            cachedReport = window.currentReportsCache.find(function(r) {
+                return r && r.id === report.id;
+            }) || null;
+        }
         reportDismissedNow = payload.eventType === 'UPDATE' &&
             report &&
             report.dashboard_dismissed_at &&
-            !(payload.old && payload.old.dashboard_dismissed_at);
+            !(cachedReport && cachedReport.dashboard_dismissed_at);
 
         // Skip reports on the deleted blocklist (prevents resurrection during cascade)
         if (typeof isDeletedReport === 'function' && isDeletedReport(report.id)) {
@@ -220,11 +227,32 @@ function _handleReportChange(payload) {
             var editingReportId = urlParams.get('reportId');
             if (editingReportId && editingReportId === report.id) {
                 var previousStatus = payload.old && payload.old.status;
+                if (typeof previousStatus === 'undefined') {
+                    previousStatus = isReportPage &&
+                        typeof RS !== 'undefined' &&
+                        RS.report &&
+                        RS.report.meta &&
+                        RS.report.meta.status;
+                }
+                if (typeof previousStatus === 'undefined') {
+                    previousStatus = isInterviewPage &&
+                        typeof IS !== 'undefined' &&
+                        IS.report &&
+                        IS.report.meta &&
+                        IS.report.meta.status;
+                }
+                if (typeof previousStatus === 'undefined') {
+                    previousStatus = report.status;
+                }
                 var transitionedToRefined = payload.eventType === 'UPDATE' &&
                     report.status === 'refined' &&
                     previousStatus !== 'refined';
 
                 if (transitionedToRefined) {
+                    if (_refineRedirectInProgress) {
+                        return;
+                    }
+                    _refineRedirectInProgress = true;
                     console.log('[REALTIME] Active report transitioned to refined:', report.id);
                     if (typeof showToast === 'function') {
                         showToast('Refined version is ready. Loading latest report...', 'info');

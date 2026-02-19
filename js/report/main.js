@@ -76,10 +76,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (!RS.report.userEdits) RS.report.userEdits = {};
         RS.userEdits = RS.report.userEdits;
 
-        // Mark report as viewed
         if (!RS.report.meta) RS.report.meta = {};
-        RS.report.meta.reportViewed = true;
-        await saveReportSilent();
 
         // Populate all fields
         populateAllFields();
