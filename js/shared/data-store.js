@@ -684,16 +684,63 @@
                                 }
                             }
 
-                            // Check local reports not in cloud → remove
+                            // Check local reports not in cloud
+                            // CRITICAL: Never delete local-only reports — they may have
+                            // been created offline and not yet synced to Supabase.
+                            // Only remove if the user explicitly deleted it (blocklist).
+                            var _pendingUploads = [];
                             localMap.forEach(function(value, key) {
-                                if (!cloudMap[key] || blockedCloudIds[key]) {
+                                if (blockedCloudIds[key]) {
+                                    // Blocked by deletion blocklist — skip
                                     removed++;
-                                    // Don't add to finalReports (effectively removes it)
+                                } else if (!cloudMap[key]) {
+                                    // Local report not in cloud — check if user deleted it
+                                    if (typeof isDeletedReport === 'function' && isDeletedReport(key)) {
+                                        removed++;
+                                    } else {
+                                        // KEEP IT — this is likely an offline-created report
+                                        // that hasn't been pushed to Supabase yet
+                                        finalReports[key] = value;
+                                        console.log('[data-store] Preserving local-only report (not in cloud): ' + key);
+                                        _pendingUploads.push(value);
+                                    }
                                 } else if (!finalReports[key]) {
                                     // Already handled above, but defensive
                                     finalReports[key] = value;
                                 }
                             });
+
+                            // Try to push local-only reports to Supabase (fire-and-forget)
+                            if (_pendingUploads.length > 0 && navigator.onLine) {
+                                _pendingUploads.forEach(function(report) {
+                                    var row = {
+                                        id: report.id,
+                                        project_id: report.project_id || null,
+                                        user_id: userId,
+                                        device_id: (typeof getDeviceId === 'function') ? getDeviceId() : 'unknown',
+                                        report_date: report.report_date || report.date || null,
+                                        status: report.status || 'draft',
+                                        created_at: report.created_at || new Date().toISOString(),
+                                        updated_at: report.updated_at || new Date().toISOString()
+                                    };
+                                    var orgId = (typeof getStorageItem === 'function' && typeof STORAGE_KEYS !== 'undefined')
+                                        ? getStorageItem(STORAGE_KEYS.ORG_ID) : null;
+                                    if (orgId) row.org_id = orgId;
+                                    supabaseClient
+                                        .from('reports')
+                                        .upsert(row, { onConflict: 'id' })
+                                        .then(function(res) {
+                                            if (res.error) {
+                                                console.warn('[data-store] Failed to push local report to cloud:', report.id, res.error.message);
+                                            } else {
+                                                console.log('[data-store] Pushed local-only report to cloud:', report.id);
+                                            }
+                                        })
+                                        .catch(function(err) {
+                                            console.warn('[data-store] Error pushing local report:', report.id, err);
+                                        });
+                                });
+                            }
 
                             // Write reconciled set to IDB
                             return replaceAllReports(finalReports).then(function() {
