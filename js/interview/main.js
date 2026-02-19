@@ -193,7 +193,7 @@ setStorageItem(STORAGE_KEYS.ACTIVE_REPORT_ID, IS.currentReportId);
 // localStorage/IDB has data (e.g., currentReportId wasn't set yet during getReport),
 // we still recover it here.
 updateLoadingStatus('Checking for saved draft...');
-let localDraft = loadFromLocalStorage();
+let localDraft = null;
 
 // Sprint 11: If localStorage miss, try IndexedDB (survives iOS 7-day eviction)
 if (!localDraft && IS.currentReportId) {

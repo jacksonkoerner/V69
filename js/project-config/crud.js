@@ -33,26 +33,6 @@ async function saveProjectToSupabase(project) {
     }
 }
 
-async function deleteProjectFromSupabase(projectId) {
-    try {
-        // Delete the project - contractors cascade automatically
-        const { error } = await supabaseClient
-            .from('projects')
-            .delete()
-            .eq('id', projectId);
-
-        if (error) {
-            console.error('Error deleting project:', error);
-            throw new Error('Failed to delete project');
-        }
-
-        return true;
-    } catch (error) {
-        console.error('Error in deleteProjectFromSupabase:', error);
-        throw error;
-    }
-}
-
 function createNewProject() {
     currentProject = {
         id: generateId(),

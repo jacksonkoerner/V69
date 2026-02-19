@@ -193,15 +193,6 @@ function saveToLocalStorage() {
 }
 
 /**
- * Load form data from localStorage
- * Returns null if no valid draft exists for current project/date
- */
-function loadFromLocalStorage() {
-    if (!IS.currentReportId) return null;
-    return null;
-}
-
-/**
  * Sprint 11: Async fallback — load draft data from IndexedDB
  * Called when localStorage has no draft (e.g., iOS 7-day eviction)
  * @returns {Promise<Object|null>}
@@ -528,9 +519,6 @@ function _buildCanonicalPageStateFromDraft(draftData, reportId) {
     };
 }
 
-// Track active auto-save sessions to prevent duplicates
-var guidedAutoSaveSessions = {};
-
 /**
  * Initialize auto-save on typing for guided section textareas
  * Creates entry on first keystroke, updates on subsequent keystrokes
@@ -604,8 +592,6 @@ console.log('[AUTOSAVE] Guided entry saved on blur:', section, currentEntryId);
 }
 });
 
-// Store session for potential cleanup
-guidedAutoSaveSessions[textareaId] = { section, currentEntryId };
 }
 
 /**
@@ -822,7 +808,6 @@ supabaseRetry(function() {
 // ============================================================
 
 // ============ STORAGE (SUPABASE) ============
-let saveReportTimeout = null;
 let isSaving = false;
 
 // getReportKey() removed in Task 3 — UUID-only payload
@@ -840,7 +825,7 @@ async function getReport() {
         // 1. Try localStorage (fast, sync)
         var prevId = IS.currentReportId;
         IS.currentReportId = urlReportId;
-        var localDraft = loadFromLocalStorage();
+        var localDraft = null;
         IS.currentReportId = prevId;
 
         if (localDraft) {
