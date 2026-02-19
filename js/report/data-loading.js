@@ -66,61 +66,106 @@ async function loadReport() {
         console.log('[LOAD-DEBUG] reportData.captureMode:', reportData.captureMode);
     }
 
-    // Sprint 4+: If not in IDB, OR if IDB entry has null content (poisoned by Realtime
-    // payload truncation — Supabase strips JSONB >64 bytes from Realtime payloads),
-    // fetch full data from Supabase report_data table via REST API.
-    var _needsCloudFetch = !reportData ||
-        (!reportData.aiGenerated && !reportData.originalInput);
+    // Sprint 4+: IDB-first load, then always check report_data in cloud when online.
+    // Choose the newer source by timestamp; keep IDB if cloud is older/unavailable.
+    if (navigator.onLine) {
+        var _idbBeforeCloud = reportData;
+        var _cloudTimedOut = false;
 
-    if (_needsCloudFetch && navigator.onLine) {
         try {
-            console.log('[LOAD] IDB miss — trying Supabase report_data...');
+            console.log('[LOAD] Checking Supabase report_data for freshness...');
+
+            var _abortController = new AbortController();
+            var _timeoutId = setTimeout(function() {
+                _cloudTimedOut = true;
+                _abortController.abort();
+            }, 2000);
+
             var rdResult = await supabaseClient
                 .from('report_data')
                 .select('*')
                 .eq('report_id', reportIdParam)
+                .abortSignal(_abortController.signal)
                 .maybeSingle();
 
+            clearTimeout(_timeoutId);
+
             if (rdResult.data && !rdResult.error) {
-                console.log('[LOAD] Recovered report data from Supabase');
                 var d = rdResult.data;
-                reportData = {
-                    aiGenerated: d.ai_generated,
-                    originalInput: d.original_input,
-                    userEdits: d.user_edits || {},
-                    captureMode: d.capture_mode,
-                    status: d.status,
-                    createdAt: d.created_at,
-                    lastSaved: d.updated_at,
-                    reportDate: null
-                };
 
-                // Get reportDate from reports table
-                try {
-                    var metaResult = await supabaseClient
-                        .from('reports')
-                        .select('report_date')
-                        .eq('id', reportIdParam)
-                        .maybeSingle();
-                    if (metaResult.data) reportData.reportDate = metaResult.data.report_date;
-                } catch (metaErr) {
-                    console.warn('[LOAD] Could not fetch report_date:', metaErr);
+                function _parseTimeOrNull(ts) {
+                    if (!ts) return null;
+                    var ms = Date.parse(ts);
+                    return isNaN(ms) ? null : ms;
                 }
 
-                // Cache to IDB
-                if (window.dataStore && typeof window.dataStore.saveReportData === 'function') {
-                    window.dataStore.saveReportData(reportIdParam, reportData).catch(function(idbErr) {
-                        console.warn('[LOAD] IDB cache-back failed:', idbErr);
-                    });
-                }
-                if (!reportData) {
-                    showToast('Report recovered from cloud', 'success');
+                var _idbTs = _idbBeforeCloud ? _parseTimeOrNull(_idbBeforeCloud.lastSaved) : null;
+                var _cloudTs = _parseTimeOrNull(d.updated_at);
+
+                var _cloudIsNewer = false;
+                if (_cloudTs !== null && _idbTs === null) _cloudIsNewer = true;
+                if (_cloudTs !== null && _idbTs !== null && _cloudTs > _idbTs) _cloudIsNewer = true;
+
+                if (_cloudIsNewer || !_idbBeforeCloud) {
+                    console.log('[LOAD] Cloud data is newer; applying and caching to IDB');
+
+                    var _mergedAiGenerated = d.ai_generated;
+                    if (!_mergedAiGenerated && _idbBeforeCloud && _idbBeforeCloud.aiGenerated) {
+                        _mergedAiGenerated = _idbBeforeCloud.aiGenerated;
+                    }
+
+                    var _mergedOriginalInput = d.original_input;
+                    if (!_mergedOriginalInput && _idbBeforeCloud && _idbBeforeCloud.originalInput) {
+                        _mergedOriginalInput = _idbBeforeCloud.originalInput;
+                    }
+
+                    reportData = {
+                        aiGenerated: _mergedAiGenerated,
+                        originalInput: _mergedOriginalInput,
+                        userEdits: d.user_edits || {},
+                        captureMode: d.capture_mode,
+                        status: d.status,
+                        createdAt: d.created_at,
+                        lastSaved: d.updated_at,
+                        reportDate: null
+                    };
+
+                    // Get reportDate from reports table
+                    try {
+                        var metaResult = await supabaseClient
+                            .from('reports')
+                            .select('report_date')
+                            .eq('id', reportIdParam)
+                            .maybeSingle();
+                        if (metaResult.data) reportData.reportDate = metaResult.data.report_date;
+                    } catch (metaErr) {
+                        console.warn('[LOAD] Could not fetch report_date:', metaErr);
+                    }
+
+                    // Cache to IDB
+                    if (window.dataStore && typeof window.dataStore.saveReportData === 'function') {
+                        window.dataStore.saveReportData(reportIdParam, reportData).catch(function(idbErr) {
+                            console.warn('[LOAD] IDB cache-back failed:', idbErr);
+                        });
+                    }
                 } else {
-                    console.log('[LOAD] Refreshed report content from cloud (IDB had null content)');
+                    console.log('[LOAD] IDB data is current or newer; keeping local copy');
+                    reportData = _idbBeforeCloud;
                 }
+            } else if (rdResult.error) {
+                console.warn('[LOAD] Supabase report_data returned error; keeping IDB copy:', rdResult.error);
+                reportData = _idbBeforeCloud;
+            } else {
+                console.log('[LOAD] No cloud report_data row found; keeping IDB copy');
+                reportData = _idbBeforeCloud;
             }
         } catch (err) {
-            console.error('[LOAD] Supabase recovery failed:', err);
+            if (_cloudTimedOut || (err && (err.name === 'AbortError' || String(err).indexOf('AbortError') !== -1))) {
+                console.warn('[LOAD] Cloud freshness check timed out after 2s; keeping IDB copy');
+            } else {
+                console.error('[LOAD] Supabase freshness check failed:', err);
+            }
+            reportData = _idbBeforeCloud;
         }
     }
 
