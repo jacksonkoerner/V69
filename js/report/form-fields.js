@@ -243,10 +243,92 @@ function renderWorkSummary() {
         var narrative = activity?.narrative || '';
         var equipment = activity?.equipmentUsed || '';
         var crew = activity?.crew || '';
+        var crews = contractor.crews || [];
 
         var typeLabel = contractor.type === 'prime' ? 'PRIME' : 'SUB';
         var borderColor = contractor.type === 'prime' ? 'border-safety-green' : 'border-dot-blue';
         var badgeBg = contractor.type === 'prime' ? 'bg-safety-green' : 'bg-dot-blue';
+        var accentColor = contractor.type === 'prime' ? 'safety-green' : 'dot-blue';
+
+        // Build work fields content — branching on whether crews exist
+        var workFieldsContent = '';
+
+        if (crews.length === 0) {
+            // === NO CREWS: single narrative + equipment + crew text ===
+            workFieldsContent =
+                '<div class="mb-3">' +
+                    '<div class="flex items-center justify-between mb-1">' +
+                        '<label class="block text-xs font-bold text-slate-500 uppercase">Work Narrative</label>' +
+                        '<button data-refine-for="narrative_' + contractor.id + '" onclick="refineContractorNarrative(\'' + contractor.id + '\')" class="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold uppercase transition-colors rounded flex items-center gap-1">' +
+                            '<i class="fas fa-magic"></i> Refine' +
+                        '</button>' +
+                    '</div>' +
+                    '<textarea id="narrative_' + contractor.id + '" class="editable-field auto-expand w-full px-3 py-2 text-sm contractor-narrative"' +
+                        ' data-contractor-id="' + contractor.id + '"' +
+                        ' placeholder="Describe work performed by ' + contractor.name + '...">' + escapeHtml(narrative) + '</textarea>' +
+                '</div>' +
+                '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">' +
+                    '<div>' +
+                        '<label class="block text-xs font-bold text-slate-500 uppercase mb-1">Equipment Used</label>' +
+                        '<input type="text" class="editable-field w-full px-3 py-2 text-sm contractor-equipment"' +
+                            ' data-contractor-id="' + contractor.id + '"' +
+                            ' placeholder="e.g., Excavator (1), Dump Truck (2)"' +
+                            ' value="' + escapeHtml(equipment) + '">' +
+                    '</div>' +
+                    '<div>' +
+                        '<label class="block text-xs font-bold text-slate-500 uppercase mb-1">Crew</label>' +
+                        '<input type="text" class="editable-field w-full px-3 py-2 text-sm contractor-crew"' +
+                            ' data-contractor-id="' + contractor.id + '"' +
+                            ' placeholder="e.g., Foreman (1), Laborers (4)"' +
+                            ' value="' + escapeHtml(crew) + '">' +
+                    '</div>' +
+                '</div>';
+        } else {
+            // === HAS CREWS: per-crew narrative sub-cards ===
+            var crewCardsHtml = crews.map(function(crewObj) {
+                var crewActivity = getCrewActivity(contractor.id, crewObj.id);
+                var crewNarrative = crewActivity?.narrative || '';
+                var crewNoWork = crewActivity?.noWork ?? false;
+                var crewBorderColor = contractor.type === 'prime' ? 'border-l-safety-green' : 'border-l-dot-blue';
+
+                return '<div class="crew-edit-card border border-slate-200 rounded-lg overflow-hidden ' + (crewNoWork ? '' : crewBorderColor + ' border-l-4') + '"' +
+                        ' data-contractor-id="' + contractor.id + '" data-crew-id="' + crewObj.id + '">' +
+                    '<div class="p-2 bg-slate-50 flex items-center gap-2">' +
+                        '<i class="fas fa-users text-slate-400 text-xs"></i>' +
+                        '<span class="text-xs font-bold text-slate-700 uppercase flex-1">' + escapeHtml(crewObj.name) + '</span>' +
+                        '<label class="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer">' +
+                            '<input type="checkbox" class="w-3.5 h-3.5 accent-slate-600 crew-no-work-checkbox"' +
+                                ' data-contractor-id="' + contractor.id + '"' +
+                                ' data-crew-id="' + crewObj.id + '"' +
+                                (crewNoWork ? ' checked' : '') +
+                                ' onchange="toggleCrewNoWork(\'' + contractor.id + '\', \'' + crewObj.id + '\', this.checked)">' +
+                            '<span>No work</span>' +
+                        '</label>' +
+                    '</div>' +
+                    '<div class="crew-work-fields p-2 ' + (crewNoWork ? 'hidden' : '') + '"' +
+                        ' data-contractor-id="' + contractor.id + '" data-crew-id="' + crewObj.id + '">' +
+                        '<textarea id="narrative_' + contractor.id + '_crew_' + crewObj.id + '"' +
+                            ' class="editable-field auto-expand w-full px-3 py-2 text-sm crew-narrative"' +
+                            ' data-contractor-id="' + contractor.id + '"' +
+                            ' data-crew-id="' + crewObj.id + '"' +
+                            ' placeholder="Describe work performed by ' + escapeHtml(crewObj.name) + '...">' + escapeHtml(crewNarrative) + '</textarea>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+
+            workFieldsContent =
+                '<div class="space-y-2 mb-3">' +
+                    '<p class="text-[10px] text-slate-400 uppercase font-bold">' + crews.length + ' Crew' + (crews.length > 1 ? 's' : '') + '</p>' +
+                    crewCardsHtml +
+                '</div>' +
+                '<div>' +
+                    '<label class="block text-xs font-bold text-slate-500 uppercase mb-1">Equipment Used</label>' +
+                    '<input type="text" class="editable-field w-full px-3 py-2 text-sm contractor-equipment"' +
+                        ' data-contractor-id="' + contractor.id + '"' +
+                        ' placeholder="e.g., Excavator (1), Dump Truck (2)"' +
+                        ' value="' + escapeHtml(equipment) + '">' +
+                '</div>';
+        }
 
         return '<div class="contractor-card rounded ' + (noWork && !narrative ? 'no-work' : 'has-content') + '" data-contractor-id="' + contractor.id + '">' +
             '<div class="p-4">' +
@@ -265,33 +347,7 @@ function renderWorkSummary() {
                 '</label>' +
 
                 '<div class="work-fields ' + (noWork ? 'hidden' : '') + '" data-contractor-id="' + contractor.id + '">' +
-                    '<div class="mb-3">' +
-                        '<div class="flex items-center justify-between mb-1">' +
-                            '<label class="block text-xs font-bold text-slate-500 uppercase">Work Narrative</label>' +
-                            '<button data-refine-for="narrative_' + contractor.id + '" onclick="refineContractorNarrative(\'' + contractor.id + '\')" class="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold uppercase transition-colors rounded flex items-center gap-1">' +
-                                '<i class="fas fa-magic"></i> Refine' +
-                            '</button>' +
-                        '</div>' +
-                        '<textarea id="narrative_' + contractor.id + '" class="editable-field auto-expand w-full px-3 py-2 text-sm contractor-narrative"' +
-                            ' data-contractor-id="' + contractor.id + '"' +
-                            ' placeholder="Describe work performed by ' + contractor.name + '...">' + escapeHtml(narrative) + '</textarea>' +
-                    '</div>' +
-                    '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">' +
-                        '<div>' +
-                            '<label class="block text-xs font-bold text-slate-500 uppercase mb-1">Equipment Used</label>' +
-                            '<input type="text" class="editable-field w-full px-3 py-2 text-sm contractor-equipment"' +
-                                ' data-contractor-id="' + contractor.id + '"' +
-                                ' placeholder="e.g., Excavator (1), Dump Truck (2)"' +
-                                ' value="' + escapeHtml(equipment) + '">' +
-                        '</div>' +
-                        '<div>' +
-                            '<label class="block text-xs font-bold text-slate-500 uppercase mb-1">Crew</label>' +
-                            '<input type="text" class="editable-field w-full px-3 py-2 text-sm contractor-crew"' +
-                                ' data-contractor-id="' + contractor.id + '"' +
-                                ' placeholder="e.g., Foreman (1), Laborers (4)"' +
-                                ' value="' + escapeHtml(crew) + '">' +
-                        '</div>' +
-                    '</div>' +
+                    workFieldsContent +
                 '</div>' +
             '</div>' +
         '</div>';
@@ -401,7 +457,7 @@ function setupContractorListeners() {
         });
     });
 
-    // Crew inputs - auto-save on input AND blur
+    // Crew text inputs (personnel description) - auto-save on input AND blur
     document.querySelectorAll('.contractor-crew').forEach(function(el) {
         el.addEventListener('input', function() {
             updateContractorActivity(el.dataset.contractorId);
@@ -413,6 +469,23 @@ function setupContractorListeners() {
                 RS.saveTimeout = null;
             }
             updateContractorActivity(el.dataset.contractorId);
+            scheduleSave();
+        });
+    });
+
+    // v6.9: Crew narrative textareas - auto-save on input AND blur
+    document.querySelectorAll('.crew-narrative').forEach(function(el) {
+        el.addEventListener('input', function() {
+            updateCrewActivity(el.dataset.contractorId, el.dataset.crewId);
+            el.classList.add('user-edited');
+            scheduleSave();
+        });
+        el.addEventListener('blur', function() {
+            if (RS.saveTimeout) {
+                clearTimeout(RS.saveTimeout);
+                RS.saveTimeout = null;
+            }
+            updateCrewActivity(el.dataset.contractorId, el.dataset.crewId);
             scheduleSave();
         });
     });
@@ -446,6 +519,48 @@ function updateContractorActivity(contractorId) {
     if (narrative) narrative.classList.add('user-edited');
     if (equipment) equipment.classList.add('user-edited');
     if (crew) crew.classList.add('user-edited');
+
+    scheduleSave();
+}
+
+// v6.9: Toggle no-work for a specific crew within a contractor
+function toggleCrewNoWork(contractorId, crewId, isNoWork) {
+    var workFields = document.querySelector('.crew-work-fields[data-contractor-id="' + contractorId + '"][data-crew-id="' + crewId + '"]');
+    var card = document.querySelector('.crew-edit-card[data-contractor-id="' + contractorId + '"][data-crew-id="' + crewId + '"]');
+
+    if (isNoWork) {
+        if (workFields) workFields.classList.add('hidden');
+        if (card) { card.classList.remove('border-l-4'); }
+    } else {
+        if (workFields) workFields.classList.remove('hidden');
+        if (card) { card.classList.add('border-l-4'); }
+        // Focus narrative field
+        var narrative = document.getElementById('narrative_' + contractorId + '_crew_' + crewId);
+        if (narrative) setTimeout(function() { narrative.focus(); }, 100);
+    }
+
+    updateCrewActivity(contractorId, crewId);
+}
+
+// v6.9: Save crew-level activity to userEdits
+function updateCrewActivity(contractorId, crewId) {
+    var checkbox = document.querySelector('.crew-no-work-checkbox[data-contractor-id="' + contractorId + '"][data-crew-id="' + crewId + '"]');
+    var narrative = document.getElementById('narrative_' + contractorId + '_crew_' + crewId);
+
+    var crewActivity = {
+        contractorId: contractorId,
+        crewId: crewId,
+        noWork: checkbox?.checked ?? false,
+        narrative: narrative?.value?.trim() || ''
+    };
+
+    // Save to userEdits with the same key pattern used by getCrewActivity()
+    var userEditKey = 'activity_' + contractorId + '_crew_' + crewId;
+    RS.userEdits[userEditKey] = crewActivity;
+    RS.report.userEdits = RS.userEdits;
+
+    // Add visual indicator
+    if (narrative) narrative.classList.add('user-edited');
 
     scheduleSave();
 }
@@ -1000,6 +1115,7 @@ function getCrewActivity(contractorId, crewId) {
 
 // ============ EXPOSE TO WINDOW ============
 window.toggleNoWork = toggleNoWork;
+window.toggleCrewNoWork = toggleCrewNoWork;
 window.addEquipmentRow = addEquipmentRow;
 window.handlePhotoLoad = handlePhotoLoad;
 window.handlePhotoError = handlePhotoError;
