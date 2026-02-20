@@ -264,13 +264,24 @@ function populateFormWithExtractedData(data) {
     // Process contractors
     if (data.contractors && Array.isArray(data.contractors)) {
         currentProject.contractors = data.contractors.map(function(contractor) {
+            var contractorId = generateId();
+            var crews = (contractor.crews || []).map(function(crew, idx) {
+                var crewName = typeof crew === 'string' ? crew : (crew.name || '');
+                return {
+                    id: generateId(),
+                    contractorId: contractorId,
+                    name: crewName,
+                    status: 'active',
+                    sortOrder: idx
+                };
+            });
             return {
-                id: generateId(),
+                id: contractorId,
                 name: contractor.name || '',
                 abbreviation: contractor.abbreviation || generateAbbreviation(contractor.name),
                 type: contractor.type || 'subcontractor',
                 trades: contractor.trades || '',
-                crews: []
+                crews: crews
             };
         });
 
