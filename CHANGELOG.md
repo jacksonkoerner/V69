@@ -4,6 +4,28 @@ All notable changes to FieldVoice Pro. Updated with each deploy.
 
 ---
 
+## v6.9.45 — 2026-02-21
+
+### 🔒 Edge Function Auth Overhaul + Sprint 5 Testing
+Fixed critical JWT verification bug — `verify_jwt=true` in gateway was incompatible with ES256 JWT Signing Keys, blocking all authenticated Edge Function calls.
+
+#### Auth Architecture (comprehensive fix)
+- **Created** `supabase/functions/_shared/auth.ts` — shared auth middleware using `getClaims()` for local JWT verification (no Auth API round-trip, ES256-compatible)
+- **Updated** all 4 Edge Functions to use shared `validateAuth()` instead of inline `createClient` + `getUser()`
+- **Set** `verify_jwt = false` in `supabase/config.toml` — auth is now handled in-function per Supabase's current best practices
+- **Redeployed** all 4 Edge Functions
+
+#### Security Hardening
+- **405 method guard** on all 4 functions — only POST and OPTIONS allowed, everything else rejected
+- **n8n fetch timeout** (120s) via shared `fetchN8n()` helper with AbortController — prevents hanging on unresponsive n8n
+- **User identity forwarding** — all functions now send `X-User-Id` header to n8n for per-user traceability
+
+#### Sprint 5 Test Results: 24/24 passed
+- **Security tests (20/20):** No auth, anon key, garbage JWT, service role key → 401 on all 4 functions. GET method → 405 on all 4.
+- **Functional tests (4/4):** refine-text, ai-chat, process-report, extract-project — all return 200 with valid JWT and correct payloads
+
+---
+
 ## v6.9.44 — 2026-02-21
 
 ### 🧹 Sprint 6 Part 2: Dead offline retry cleanup

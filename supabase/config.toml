@@ -1,23 +1,23 @@
 [functions.refine-text]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/refine-text/deno.json"
 entrypoint = "./functions/refine-text/index.ts"
 
 [functions.ai-chat]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/ai-chat/deno.json"
 entrypoint = "./functions/ai-chat/index.ts"
 
 [functions.process-report]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/process-report/deno.json"
 entrypoint = "./functions/process-report/index.ts"
 
 [functions.extract-project]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/extract-project/deno.json"
 entrypoint = "./functions/extract-project/index.ts"
