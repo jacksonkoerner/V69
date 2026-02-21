@@ -15,3 +15,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/process-report/deno.json"
 entrypoint = "./functions/process-report/index.ts"
+
+[functions.extract-project]
+enabled = true
+verify_jwt = true
+import_map = "./functions/extract-project/deno.json"
+entrypoint = "./functions/extract-project/index.ts"

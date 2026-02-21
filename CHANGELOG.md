@@ -4,6 +4,24 @@ All notable changes to FieldVoice Pro. Updated with each deploy.
 
 ---
 
+## v6.9.42 — 2026-02-21
+
+### 🔒 Edge Function Proxy — Sprint 4: extract-project (file uploads)
+- **Deployed** `supabase/functions/extract-project/index.ts` — JWT auth + FormData proxy to n8n
+- **Frontend** `js/project-config/document-import.js` — `extractProjectData()` now routes through Edge Function with Bearer JWT
+- Handles `multipart/form-data` file forwarding (PDF/DOCX) through Deno runtime
+- Edge Function parses incoming FormData, validates documents field, re-sends to n8n
+
+### All 4 webhooks now proxied through Edge Functions
+| Webhook | Edge Function | Sprint |
+|---------|--------------|--------|
+| refine-text | ✅ `refine-text` | 1 |
+| ai-chat | ✅ `ai-chat` | 2 |
+| refine-report | ✅ `process-report` | 3 |
+| project-extractor | ✅ `extract-project` | 4 |
+
+---
+
 ## v6.9.41 — 2026-02-21
 
 ### 🔒 Edge Function Proxy — Sprint 3: process-report (critical path)

@@ -3,6 +3,7 @@
 // Shared state: selectedFiles (from main.js)
 
 var EXTRACT_WEBHOOK_URL = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-project-extractor';
+var EDGE_EXTRACT_PROJECT_URL = SUPABASE_URL + '/functions/v1/extract-project';
 
 function setupDropZone() {
     var dropZone = document.getElementById('dropZone');
@@ -136,13 +137,19 @@ async function extractProjectData() {
             formData.append('documents', file);
         });
 
+        var sessionResult = await supabaseClient.auth.getSession();
+        var accessToken = sessionResult?.data?.session?.access_token;
+        if (!accessToken) {
+            throw new Error('Not authenticated — please sign in again');
+        }
+
         var controller = new AbortController();
         var timeoutId = setTimeout(function() { controller.abort(); }, 60000); // 60s timeout
 
-        var response = await fetch(EXTRACT_WEBHOOK_URL, {
+        var response = await fetch(EDGE_EXTRACT_PROJECT_URL, {
             method: 'POST',
             headers: {
-                'X-API-Key': N8N_WEBHOOK_API_KEY
+                'Authorization': 'Bearer ' + accessToken
             },
             body: formData,
             signal: controller.signal
