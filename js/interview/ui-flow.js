@@ -243,7 +243,6 @@ step.className = 'proc-step flex items-center gap-4';
 });
 
 // Block back button / page close
-_navigationAllowed = false;
 window.addEventListener('beforeunload', _blockUnload);
 
 // Block ALL keyboard input
@@ -332,13 +331,12 @@ if (activeStep) activeStep.className = 'proc-step flex items-center gap-4 error'
  * Hide the overlay and clean up all event listeners
  */
 function hideProcessingOverlay() {
-_navigationAllowed = true;
-window.removeEventListener('beforeunload', _blockUnload);
-
 const overlay = document.getElementById('processingOverlay');
 if (!overlay) return;
 
 overlay.classList.add('hidden');
+
+window.removeEventListener('beforeunload', _blockUnload);
 document.removeEventListener('keydown', _blockKeys, true);
 overlay.removeEventListener('touchstart', _blockTouch, true);
 overlay.removeEventListener('touchmove', _blockTouch, true);
@@ -348,13 +346,8 @@ overlay.removeEventListener('mousedown', _blockTouch, true);
 overlay.removeEventListener('contextmenu', _blockTouch, true);
 }
 
-// Flag to allow navigation after processing completes (belt-and-suspenders
-// for browsers that fire beforeunload before removeEventListener propagates)
-var _navigationAllowed = false;
-
 // Private helper functions for blocking
 function _blockUnload(e) {
-if (_navigationAllowed) return;
 e.preventDefault();
 e.returnValue = 'Your report is being processed. Please wait.';
 return e.returnValue;

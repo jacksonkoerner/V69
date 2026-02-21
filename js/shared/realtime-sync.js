@@ -252,6 +252,13 @@ function _handleReportChange(payload) {
                     if (_refineRedirectInProgress) {
                         return;
                     }
+                    // Don't navigate if this page is already processing —
+                    // finish-processing.js will handle its own redirect
+                    var processingOverlay = document.getElementById('processingOverlay');
+                    if (processingOverlay && !processingOverlay.classList.contains('hidden')) {
+                        console.log('[REALTIME] Skipping refined redirect — processing overlay active');
+                        return;
+                    }
                     _refineRedirectInProgress = true;
                     console.log('[REALTIME] Active report transitioned to refined:', report.id);
                     if (typeof showToast === 'function') {
