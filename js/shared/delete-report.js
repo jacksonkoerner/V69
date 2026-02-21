@@ -170,21 +170,44 @@ async function deleteReportFull(reportId) {
         }
     }
 
-    // 4. Supabase soft-delete — mark status='deleted' (report persists in cloud)
-    if (typeof supabaseClient !== 'undefined' && supabaseClient && reportId.length === 36) {
-        try {
-            var updateResult = await supabaseClient
-                .from('reports')
-                .update({ status: 'deleted' })
-                .eq('id', reportId)
-                .select('id');
-            if (updateResult.error) {
-                errors.push('soft-delete: ' + updateResult.error.message);
-            } else if (!Array.isArray(updateResult.data) || updateResult.data.length === 0) {
-                errors.push('soft-delete: no report row updated for ' + reportId);
+    // 4. Supabase soft-delete — online: apply now, offline: queue for reconnect push
+    if (navigator.onLine) {
+        if (typeof supabaseClient !== 'undefined' && supabaseClient && reportId.length === 36) {
+            try {
+                var updateResult = await supabaseClient
+                    .from('reports')
+                    .update({ status: 'deleted' })
+                    .eq('id', reportId)
+                    .select('id');
+                if (updateResult.error) {
+                    errors.push('soft-delete: ' + updateResult.error.message);
+                } else if (!Array.isArray(updateResult.data) || updateResult.data.length === 0) {
+                    errors.push('soft-delete: no report row updated for ' + reportId);
+                }
+            } catch (e) {
+                errors.push('soft-delete: ' + e.message);
             }
+        }
+    } else if (typeof window.markReportDirty === 'function') {
+        try {
+            await window.markReportDirty(reportId, 'delete');
         } catch (e) {
-            errors.push('soft-delete: ' + e.message);
+            errors.push('queue-delete: ' + e.message);
+        }
+    } else if (window.dataStore && typeof window.dataStore.saveReport === 'function') {
+        try {
+            await window.dataStore.saveReport({
+                id: reportId,
+                status: 'deleted',
+                updated_at: new Date().toISOString(),
+                _pendingSync: {
+                    op: 'delete',
+                    dirtyAt: Date.now(),
+                    attempts: 0
+                }
+            });
+        } catch (e) {
+            errors.push('queue-delete-fallback: ' + e.message);
         }
     }
 

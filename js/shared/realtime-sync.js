@@ -17,6 +17,14 @@ var _refineRedirectInProgress = false;
  * Safe to call multiple times — removes existing channels first.
  */
 function initRealtimeSync() {
+    // Dashboard uses manual pull-to-sync flow — skip realtime subscriptions.
+    var path = (window.location && window.location.pathname ? window.location.pathname : '').toLowerCase();
+    var file = path.split('/').pop();
+    var isDashboardPath = path === '/' || file === '' || file === 'index.html';
+    if (isDashboardPath && path.indexOf('quick-interview') === -1 && path.indexOf('report.html') === -1) {
+        return;
+    }
+
     // Guard: need Supabase client and network
     if (typeof supabaseClient === 'undefined' || !supabaseClient || !navigator.onLine) return;
 

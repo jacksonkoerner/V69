@@ -4,6 +4,49 @@ All notable changes to FieldVoice Pro. Updated with each deploy.
 
 ---
 
+## v6.9.47 — 2026-02-21
+
+### 🔄 Dashboard Sync Simplification
+Replaced 6 overlapping sync mechanisms on the dashboard with a clean manual-pull + offline-queue architecture. Fixes deleted reports resurrecting on other tabs/devices.
+
+#### Problem
+Deleting reports on one browser tab didn't reflect on another tab. Root cause: conflicting sync mechanisms (Realtime, BroadcastChannel, cloud recovery, blocklist, triple-fire refresh listeners) would race and resurrect deleted reports as "local-only drafts."
+
+#### New Architecture
+- **Supabase is truth when online** — `pullFromSupabase()` queries cloud, overwrites local IDB
+- **IDB is cache for offline** — dashboard renders from IDB immediately, works offline
+- **Manual refresh** — user controls sync via refresh button (no background magic)
+- **Offline queue** — deletes/changes while offline are queued with `_pendingSync` and pushed on reconnect
+
+#### Removed
+- Supabase Realtime subscriptions on dashboard (gated by page path — still active on interview/report pages)
+- BroadcastChannel listener on dashboard
+- `syncReportsFromCloud()` reconciler calls
+- `recoverCloudDrafts()` fallback recovery calls
+- Triple-fire refresh (pageshow + visibilitychange + focus event listeners)
+- Cooldown/debounce queue infrastructure (~100 lines)
+
+#### Added
+- `js/index/sync.js` — `pullFromSupabase()`, `pushLocalChanges()`, `markReportDirty()`
+- `window.manualRefresh` — wired to refresh button and pull-to-refresh gesture
+- `online` event listener → `pushLocalChanges()` for offline replay
+- Offline delete queuing via `_pendingSync: { op, dirtyAt, attempts }`
+
+#### Files Changed
+- `js/index/sync.js` (new)
+- `js/index/main.js` (simplified)
+- `js/shared/realtime-sync.js` (dashboard gate)
+- `js/shared/delete-report.js` (offline queue)
+- `js/shared/pull-to-refresh.js` (manualRefresh integration)
+- `index.html` (sync.js script tag)
+
+#### Not Touched
+- Interview page (quick-interview.html) — unchanged
+- Report editor (report.html) — unchanged
+- Both still have Realtime subscriptions active
+
+---
+
 ## v6.9.46 — 2026-02-21
 
 ### 🖱️ Desktop Swipe-to-Delete Fix

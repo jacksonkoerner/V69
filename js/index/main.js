@@ -7,7 +7,6 @@
 // - data-layer.js: window.dataLayer
 // - index/report-cards.js: renderReportCards, updateReportStatus,
 //                          updateActiveProjectCard
-// - index/cloud-recovery.js: recoverCloudDrafts
 // - index/weather.js: syncWeather
 // ============================================================================
 
@@ -40,6 +39,11 @@ async function pruneCurrentReports() {
     let pruned = 0;
 
     for (const [id, report] of Object.entries(reports)) {
+        // Keep locally-queued sync intents (for example offline deletes)
+        if (report && report._pendingSync && report._pendingSync.op) {
+            continue;
+        }
+
         // Remove malformed entries (no id or no project_id)
         if (!report.id || !report.project_id) {
             delete reports[id];
@@ -298,18 +302,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await refreshDashboard('DOMContentLoaded');
 
     try {
-        // Start Realtime subscriptions for multi-device sync
-        if (typeof initRealtimeSync === 'function') initRealtimeSync();
-
-        if (window.fvpBroadcast && typeof window.fvpBroadcast.listen === 'function') {
-            window.fvpBroadcast.listen(function(message) {
-                if (!message || !message.type) return;
-                if (message.type === 'report-deleted' || message.type === 'report-updated' || message.type === 'reports-recovered') {
-                    refreshDashboard('broadcast');
-                }
-            });
-        }
-
         // Show submitted banner if there are submitted reports today and not dismissed this session
         const bannerDismissedThisSession = sessionStorage.getItem(STORAGE_KEYS.SUBMITTED_BANNER_DISMISSED) === 'true';
         const todaySubmitted = getReportsByUrgency(window.currentReportsCache).todaySubmitted
@@ -333,45 +325,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 });
 
-// ============ BACK-NAVIGATION / BFCACHE FIX ============
-// When returning to the dashboard (bfcache restore, iOS app switch, or back-nav),
-// we must reload ALL data before rendering — projectsCache and localStorage may
-// be stale because other pages (interview, report editor) modified storage while
-// the dashboard was frozen/cached.
-
-var _dashboardRefreshing = false; // debounce flag
-var _lastRefreshTime = 0;         // cooldown timestamp (ms)
-var _lastRefreshSource = '';      // last refresh source (for cooldown scoping)
-var _REFRESH_COOLDOWN = 2000;     // minimum ms between refreshes
-var _pendingRefresh = false;      // coalesced rerun requested
-var _pendingRefreshSource = '';
-var _pendingRefreshBypass = false;
-var _pendingRefreshTimer = null;
-
-function _isBypassRefreshSource(source) {
-    var s = String(source || '').toLowerCase();
-    return s === '__pending_rerun__' || s.indexOf('broadcast') !== -1 || s.indexOf('delete') !== -1;
-}
-
-function _queuePendingRefresh(source, bypassCooldown) {
-    _pendingRefresh = true;
-    if (source) _pendingRefreshSource = source;
-    _pendingRefreshBypass = _pendingRefreshBypass || !!bypassCooldown;
-
-    if (_dashboardRefreshing || _pendingRefreshTimer) return;
-
-    var waitMs = Math.max(0, _REFRESH_COOLDOWN - (Date.now() - _lastRefreshTime));
-    _pendingRefreshTimer = setTimeout(function() {
-        _pendingRefreshTimer = null;
-        if (!_pendingRefresh) return;
-        var rerunBypass = _pendingRefreshBypass;
-        var rerunSource = _pendingRefreshSource || 'pending-rerun';
-        _pendingRefresh = false;
-        _pendingRefreshBypass = false;
-        _pendingRefreshSource = '';
-        refreshDashboard(rerunBypass ? '__pending_rerun__' : rerunSource);
-    }, waitMs);
-}
+var _dashboardRefreshing = false;
 
 /**
  * Race a promise against a timeout. Returns the promise result if it resolves
@@ -417,190 +371,74 @@ async function loadReportsFromIDB() {
 }
 
 /**
- * Full dashboard data refresh — reloads projects + reports, then re-renders.
- * Safe to call multiple times; concurrent calls are debounced and a 2s cooldown
- * prevents rapid-fire from multiple event sources (DOMContentLoaded + pageshow + visibilitychange).
- *
- * All async data loading has timeouts to prevent indefinite hangs (iOS IDB bug).
- * Rendering always happens, even if data loading fails — uses localStorage fallback.
- *
+ * Full dashboard data refresh.
  * @param {string} source - caller label for logging
  */
 async function refreshDashboard(source) {
-    var bypassCooldown = _isBypassRefreshSource(source);
-
-    // Skip if already running
     if (_dashboardRefreshing) {
-        console.log('[INDEX] refreshDashboard already running, queueing rerun (' + source + ')');
-        _queuePendingRefresh(source, bypassCooldown);
+        console.log('[INDEX] refreshDashboard already running, skipping duplicate:', source);
         return;
-    }
-
-    // Cooldown: skip if we just refreshed < 2s ago (prevents triple-fire from
-    // pageshow + visibilitychange + focus which all fire on tab return)
-    var now = Date.now();
-    if (!bypassCooldown && source !== 'DOMContentLoaded' && (now - _lastRefreshTime) < _REFRESH_COOLDOWN) {
-        console.log('[INDEX] refreshDashboard cooldown, queueing rerun (' + source + ', ' + (now - _lastRefreshTime) + 'ms since last)');
-        _queuePendingRefresh(source, false);
-        return;
-    }
-
-    if (_pendingRefreshTimer) {
-        clearTimeout(_pendingRefreshTimer);
-        _pendingRefreshTimer = null;
     }
 
     _dashboardRefreshing = true;
-    _lastRefreshTime = now;
-    _lastRefreshSource = source;
     console.log('[INDEX] refreshDashboard triggered by:', source);
 
-    // Step 0: Render immediately from localStorage (instant, synchronous)
-    _renderFromLocalStorage();
-
     try {
-        // ── PHASE 1: Local data (IDB) — no auth/network needed ──────────
-        // Run IDB hydration and loadProjects in parallel.
-        // These only touch IndexedDB and don't need auth or network.
-        // Timeout: 4s total for both (was 3+4=7s serial before).
-        var _localDataStart = Date.now();
-
-        var _loadReportsPromise = withTimeout(
-            loadReportsFromIDB(),
-            6000, [], 'loadReportsFromIDB'
-        ).catch(function(e) {
-            console.warn('[INDEX] IDB report load failed during refresh:', e);
-            return [];
-        });
-
-        var _loadProjectsPromise = withTimeout(
-            window.dataLayer.loadProjects(),
-            6000, [], 'loadProjects'
-        ).catch(function(e) {
-            console.warn('[INDEX] loadProjects failed:', e);
-            return [];
-        });
-
-        // Wait for both local operations together
-        var _localResults = await Promise.all([_loadReportsPromise, _loadProjectsPromise]);
-        var projects = _localResults[1] || [];
-
-        console.log('[INDEX] Local data loaded in ' + (Date.now() - _localDataStart) + 'ms (' + projects.length + ' projects from IDB)');
-
-        // Re-render after hydration (reports may have been updated from IDB)
+        // Step 0: Immediate render from IDB (instant paint, works offline)
+        await loadReportsFromIDB();
         renderReportCards(window.currentReportsCache);
         updateReportStatus();
 
-        // ── PHASE 2: Network data — runs in parallel, auth gates cloud ──
-        // Cloud project refresh and weather sync run simultaneously.
-        // Weather is fire-and-forget (never blocks dashboard).
-        var _networkStart = Date.now();
-
-        // Weather: fire-and-forget — don't await, don't block anything
-        withTimeout(syncWeather(), 15000, undefined, 'syncWeather').catch(function(e) {
-            console.warn('[INDEX] Weather sync failed:', e);
-        });
-
-        // Cloud project refresh (needs network + auth)
-        if (navigator.onLine) {
+        // Step 1: If online, pull fresh from Supabase
+        if (navigator.onLine && typeof pullFromSupabase === 'function') {
             try {
+                await pullFromSupabase();
+                renderReportCards(window.currentReportsCache);
+                updateReportStatus();
+            } catch (e) {
+                console.warn('[INDEX] Pull from Supabase failed:', e);
+            }
+        }
+
+        // Step 2: Load/refresh projects
+        try {
+            var projects = await window.dataLayer.loadProjects();
+            if (navigator.onLine) {
                 var cloudProjects = await withTimeout(
                     window.dataLayer.refreshProjectsFromCloud(),
                     12000, null, 'refreshProjectsFromCloud'
                 );
-                if (cloudProjects && cloudProjects.length > 0) {
-                    projects = cloudProjects;
-                    console.log('[INDEX] Refreshed', projects.length, 'projects from cloud in ' + (Date.now() - _networkStart) + 'ms');
+                if (cloudProjects && cloudProjects.length > 0) projects = cloudProjects;
+            }
+            projectsCache = projects;
+            if (projectsCache.length === 0) {
+                var lsProjects = getStorageItem(STORAGE_KEYS.PROJECTS);
+                if (lsProjects && typeof lsProjects === 'object') {
+                    projectsCache = Object.values(lsProjects);
                 }
-            } catch (e) {
-                console.warn('[INDEX] Cloud project refresh failed:', e);
             }
+        } catch (e) {
+            console.warn('[INDEX] Project load failed:', e);
         }
 
-        // 3. Update the in-memory cache
-        projectsCache = projects;
-
-        // 3b. If projectsCache is still empty but localStorage has projects,
-        //     fall back to localStorage (defensive for IDB/cloud failures)
-        if (projectsCache.length === 0) {
-            var lsProjects = getStorageItem(STORAGE_KEYS.PROJECTS);
-            if (lsProjects && typeof lsProjects === 'object') {
-                projectsCache = Object.values(lsProjects);
-                console.log('[INDEX] Fell back to localStorage projects:', projectsCache.length);
-            }
-        }
-
-        // 4. Prune stale reports
+        // Step 3: Prune stale reports
         await pruneCurrentReports();
 
-        // 5. Cloud report sync — reconcile IDB with Supabase truth
-        // This ensures cross-device consistency: reports created/deleted
-        // on other devices are reflected here.
-        var _cloudSyncRan = false;
-        if (navigator.onLine && window.dataStore && typeof window.dataStore.syncReportsFromCloud === 'function') {
-            try {
-                var syncResult = await withTimeout(
-                    window.dataStore.syncReportsFromCloud(),
-                    10000, null, 'syncReportsFromCloud'
-                );
-                if (syncResult) {
-                    _cloudSyncRan = true;
-                    if (syncResult.added > 0 || syncResult.updated > 0 || syncResult.removed > 0) {
-                        // Re-read from IDB after sync changed things
-                        var syncedMap = await window.dataStore.getAllReports();
-                        var syncedReports = [];
-                        syncedMap.forEach(function(value) { syncedReports.push(value); });
-                        window.currentReportsCache = syncedReports;
-                        console.log('[INDEX] Reports reconciled with cloud: +' + syncResult.added +
-                            ' ~' + syncResult.updated + ' -' + syncResult.removed +
-                            ' (total: ' + syncResult.total + ')');
-                    }
-                }
-            } catch (e) {
-                console.warn('[INDEX] Cloud report sync failed:', e);
-            }
-        }
-
-        // 5b. Clear stale deleted blocklist — now that cloud sync is the authority,
-        // the blocklist only needs recent entries (last 24h) to prevent race conditions
-        // during active deletion. Old entries just cause phantom removals on other devices.
-        try {
-            var rawBlocklist = localStorage.getItem(STORAGE_KEYS.DELETED_REPORT_IDS);
-            if (rawBlocklist) {
-                var parsedBlocklist = JSON.parse(rawBlocklist);
-                if (Array.isArray(parsedBlocklist) && parsedBlocklist.length > 20) {
-                    // Trim to last 20 entries max
-                    localStorage.setItem(STORAGE_KEYS.DELETED_REPORT_IDS, JSON.stringify(parsedBlocklist.slice(-20)));
-                }
-            }
-        } catch (e) { /* ignore */ }
-
-        // 6. Render — ALWAYS reaches here thanks to timeouts above
-        console.log('[INDEX] Rendering with', projectsCache.length, 'projects,',
-            window.currentReportsCache.length, 'reports');
+        // Step 4: Final render
         renderReportCards(window.currentReportsCache);
         updateReportStatus();
 
-        // 7. Recover any cloud drafts we don't have locally
-        // Skip if cloud sync already ran — it handles the same job more thoroughly
-        if (!_cloudSyncRan) {
-            try { recoverCloudDrafts(); } catch (e) { /* non-critical */ }
+        // Step 5: Weather (fire-and-forget)
+        if (typeof syncWeather === 'function') {
+            syncWeather().catch(function(e) {
+                console.warn('[INDEX] Weather failed:', e);
+            });
         }
-
     } catch (err) {
         console.error('[INDEX] refreshDashboard error:', err);
-        // Best-effort render with whatever data is available
         _renderFromLocalStorage();
     } finally {
         _dashboardRefreshing = false;
-        if (_pendingRefresh) {
-            var rerunBypass = _pendingRefreshBypass;
-            var rerunSource = _pendingRefreshSource || 'pending-rerun';
-            _pendingRefresh = false;
-            _pendingRefreshBypass = false;
-            _pendingRefreshSource = '';
-            refreshDashboard(rerunBypass ? '__pending_rerun__' : rerunSource);
-        }
     }
 }
 
@@ -610,7 +448,7 @@ async function refreshDashboard(source) {
  */
 function _renderFromLocalStorage() {
     try {
-        if (projectsCache.length === 0) {
+        if (!Array.isArray(projectsCache) || projectsCache.length === 0) {
             var fallbackProjects = getStorageItem(STORAGE_KEYS.PROJECTS);
             if (fallbackProjects && typeof fallbackProjects === 'object') {
                 projectsCache = Object.values(fallbackProjects);
@@ -624,47 +462,19 @@ function _renderFromLocalStorage() {
     }
 }
 
-// ---- EVENT LISTENERS: Three layers of coverage for iOS PWA ----
-//
-// iOS standalone PWA does NOT reliably fire pageshow with event.persisted on
-// back-navigation. We use three complementary listeners:
-//   1. pageshow — always (not gated on event.persisted), with cooldown + IDB reset
-//   2. visibilitychange — covers iOS app switch / tab switch
-//   3. focus — belt-and-suspenders for iOS PWA resume
-// The cooldown prevents all three from triggering separate refreshes.
-
-// 1. pageshow — fires on every navigation to this page (forward, back, bfcache)
-//    NOT gated on event.persisted because iOS PWA often doesn't set it.
-//    Resets IDB connection on bfcache restore to prevent stale connection errors.
-window.addEventListener('pageshow', function(event) {
-    console.log('[INDEX] pageshow fired (persisted=' + event.persisted + ')');
-
-    // Reset IDB on bfcache restore — the old connection is likely dead.
-    // We detect bfcache by checking if this pageshow is well after the last
-    // DOMContentLoaded refresh (>2s gap means bfcache, not initial load).
-    // Also trust event.persisted when it's true (some browsers set it correctly).
-    var timeSinceLastRefresh = Date.now() - _lastRefreshTime;
-    if (event.persisted || timeSinceLastRefresh > _REFRESH_COOLDOWN) {
-        if (window.dataStore && window.dataStore.reset) {
-            window.dataStore.reset();
-        }
+window.manualRefresh = async function() {
+    if (!navigator.onLine) {
+        if (typeof showToast === 'function') showToast("You're offline - showing cached data", 'info');
+        return;
     }
+    await refreshDashboard('manual-refresh');
+};
 
-    refreshDashboard('pageshow');
-});
-
-// 2. visibilitychange — covers iOS app switch, tab switch, and PWA resume
-//    from background where pageshow may not fire.
-document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible') {
-        console.log('[INDEX] visibilitychange → visible');
-        refreshDashboard('visibilitychange');
+window.addEventListener('online', function() {
+    console.log('[INDEX] Back online — pushing local changes');
+    if (typeof pushLocalChanges === 'function') {
+        pushLocalChanges().catch(function(e) {
+            console.warn('[INDEX] Push local changes failed:', e);
+        });
     }
-});
-
-// 3. focus — final fallback for iOS standalone PWA which sometimes only fires
-//    a focus event on return without pageshow or visibilitychange.
-window.addEventListener('focus', function() {
-    console.log('[INDEX] window focus');
-    refreshDashboard('focus');
 });

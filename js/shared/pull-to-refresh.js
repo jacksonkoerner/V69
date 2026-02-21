@@ -35,10 +35,21 @@
         pulling = false;
         if (indicator && parseInt(indicator.style.height, 10) >= THRESHOLD * 0.8) {
             indicator.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#f97316;font-size:1.2rem;"></i>';
-            // Flush pending work before reload
+            // Flush pending work before refresh/reload
             if (typeof flushInterviewBackup === 'function') flushInterviewBackup();
             if (typeof flushReportBackup === 'function') flushReportBackup();
-            setTimeout(function() { location.reload(); }, 300);
+            setTimeout(function() {
+                if (typeof window.manualRefresh === 'function') {
+                    Promise.resolve(window.manualRefresh()).finally(function() {
+                        if (indicator) {
+                            indicator.style.height = '0';
+                            indicator.innerHTML = '<i class="fas fa-arrow-down" style="color:#f97316;font-size:1.2rem;"></i>';
+                        }
+                    });
+                } else {
+                    location.reload();
+                }
+            }, 300);
         } else if (indicator) {
             indicator.style.height = '0';
         }
