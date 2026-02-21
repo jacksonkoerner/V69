@@ -8,6 +8,7 @@
 
     // ── Config ──
     const AI_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-ai-chat';
+    const EDGE_AI_CHAT_URL = SUPABASE_URL + '/functions/v1/ai-chat';
     // Namespace conversation per user to prevent cross-user leakage on shared devices
     const _userId = (typeof STORAGE_KEYS !== 'undefined' && localStorage.getItem(STORAGE_KEYS.AUTH_USER_ID)) || '';
     const STORAGE_KEY = typeof aiConversationKey === 'function'
@@ -730,15 +731,21 @@
             }
         };
 
+        const sessionResult = await supabaseClient.auth.getSession();
+        const accessToken = sessionResult?.data?.session?.access_token;
+        if (!accessToken) {
+            return 'Not authenticated — please sign in again.';
+        }
+
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 20000);
 
         try {
-            const res = await fetch(AI_WEBHOOK, {
+            const res = await fetch(EDGE_AI_CHAT_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-API-Key': N8N_WEBHOOK_API_KEY
+                    'Authorization': 'Bearer ' + accessToken
                 },
                 body: JSON.stringify(payload),
                 signal: controller.signal

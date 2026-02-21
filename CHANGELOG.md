@@ -4,6 +4,20 @@ All notable changes to FieldVoice Pro. Updated with each deploy.
 
 ---
 
+## v6.9.40 — 2026-02-21
+
+### 🔒 Edge Function Proxy — Sprint 2: ai-chat
+- **Deployed** `supabase/functions/ai-chat/index.ts` — JWT auth + n8n proxy
+- **Frontend** `js/shared/ai-assistant.js` — `callAIWebhook()` now routes through Edge Function with Bearer JWT
+- Same pattern as Sprint 1: validates user session, forwards to n8n with server-side X-API-Key
+
+### 🐛 Bug Fix: "Leave site?" dialog after report processing
+- **Root cause:** realtime-sync.js detected its own `status='refined'` Supabase write and tried to navigate while the processing overlay's beforeunload guard was still active
+- **Fix:** Added processing overlay visibility check in `realtime-sync.js` before refined redirect — if processing is active, skip (finish-processing.js handles its own redirect)
+- Reverted prior failed flag fix in `ui-flow.js`
+
+---
+
 ## v6.9.39 — 2026-02-21
 
 ### 🔒 Edge Function Proxy — Sprint 1: refine-text
