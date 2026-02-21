@@ -73,13 +73,15 @@ async function handleLogoSelect(event) {
         logoPreviewArea.classList.remove('hidden');
 
         // 2. Upload original to Supabase Storage (async, non-blocking)
-        var logoUrl = await uploadLogoToStorage(file, currentProject.id);
-        if (logoUrl) {
-            currentProject.logoUrl = logoUrl;
+        var logoResult = await uploadLogoToStorage(file, currentProject.id);
+        if (logoResult) {
+            currentProject.logoUrl = logoResult.signedUrl;
+            currentProject.logoPath = logoResult.storagePath;
             showToast('Logo uploaded');
         } else {
             // Upload failed (offline) - still works with thumbnail
             currentProject.logoUrl = null;
+            currentProject.logoPath = null;
             showToast('Logo saved locally (will sync when online)', 'warning');
         }
 
@@ -105,6 +107,7 @@ async function removeLogo() {
     // Clear logo fields
     currentProject.logoThumbnail = null;
     currentProject.logoUrl = null;
+    currentProject.logoPath = null;
     delete currentProject.logo; // Clean up old field if present
 
     var logoUploadZone = document.getElementById('logoUploadZone');

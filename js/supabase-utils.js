@@ -18,7 +18,7 @@
  *             location, engineer, prime_contractor, notice_to_proceed,
  *             contract_duration, expected_completion, default_start_time,
  *             default_end_time, weather_days, logo_thumbnail, logo_url,
- *             logo (legacy), status, created_at, updated_at
+ *             logo_path, logo (legacy), status, created_at, updated_at
  *
  * NOTE: Database migration required to add logo_thumbnail and logo_url columns
  *
@@ -43,9 +43,10 @@ function fromSupabaseProject(row) {
         weatherDays: row.weather_days || null,
         reportDate: row.report_date || null,
         contractDayNo: row.contract_day_no || null,
-        // New logo fields
+        // Logo fields
         logoThumbnail: row.logo_thumbnail || null,
         logoUrl: row.logo_url || null,
+        logoPath: row.logo_path || null,
         // Legacy logo field for backwards compatibility
         logo: row.logo || null,
         status: row.status || 'active',
@@ -87,9 +88,10 @@ function toSupabaseProject(project) {
         weather_days: project.weatherDays || null,
         report_date: project.reportDate || null,
         contract_day_no: project.contractDayNo || null,
-        // New logo fields
+        // Logo fields
         logo_thumbnail: project.logoThumbnail || null,
         logo_url: project.logoUrl || null,
+        logo_path: project.logoPath || null,
         status: project.status || 'active',
         // Contractors + crews as JSONB blob (single table approach)
         contractors: JSON.stringify(project.contractors || [])

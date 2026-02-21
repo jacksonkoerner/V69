@@ -16,6 +16,31 @@
     'use strict';
 
     // ========================================
+    // LOGO RE-SIGN HELPER
+    // ========================================
+
+    /**
+     * Re-sign a project's logo URL from its durable storage path.
+     * If logoPath exists, generates a fresh signed URL (1h) and sets logoUrl.
+     * If no logoPath but logoUrl starts with http, keeps it as-is (legacy).
+     * Non-blocking — fails silently on error.
+     * @param {Object} project - Normalized project object (mutated in place)
+     */
+    async function resignProjectLogo(project) {
+        if (!project || !project.logoPath) return;
+        try {
+            var result = await supabaseClient.storage
+                .from('project-logos')
+                .createSignedUrl(project.logoPath, 3600);
+            if (!result.error && result.data?.signedUrl) {
+                project.logoUrl = result.data.signedUrl;
+            }
+        } catch (e) {
+            console.warn('[DATA] Logo re-sign failed for', project.id, ':', e.message);
+        }
+    }
+
+    // ========================================
     // PROJECTS
     // ========================================
 
@@ -93,6 +118,9 @@
             // Convert to JS format (contractors already parsed from JSONB by fromSupabaseProject)
             const projects = (data || []).map(row => fromSupabaseProject(row));
 
+            // Sprint 14: Re-sign logo URLs from durable paths (non-blocking, parallel)
+            await Promise.allSettled(projects.map(p => resignProjectLogo(p)));
+
             // Clear IndexedDB projects store before caching to remove stale data
             // (e.g. projects from before org filtering)
             try {
@@ -157,6 +185,7 @@
             status: p.status || 'active',
             userId: p.userId || p.user_id || '',
             logoUrl: p.logoUrl || p.logo_url || null,
+            logoPath: p.logoPath || p.logo_path || null,
             logoThumbnail: p.logoThumbnail || p.logo_thumbnail || null,
             orgId: p.orgId || p.org_id || null,
             contractors: p.contractors || []
@@ -302,6 +331,8 @@
                 console.log('[DATA] Loaded project by ID from IndexedDB:', projectId);
                 const project = normalizeProject(localProject);
                 project.contractors = localProject.contractors || [];
+                // Sprint 14: Re-sign logo if online and we have a path
+                if (navigator.onLine) await resignProjectLogo(project);
                 return project;
             }
         } catch (e) {
@@ -329,6 +360,8 @@
             }
 
             const normalized = fromSupabaseProject(data);
+            // Sprint 14: Re-sign logo from durable path
+            await resignProjectLogo(normalized);
             await window.idb.saveProject(normalized);
             console.log('[DATA] Fetched and cached project from Supabase:', projectId);
             return normalized;

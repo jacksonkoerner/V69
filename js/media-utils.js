@@ -127,7 +127,7 @@ async function compressImageToThumbnail(file, maxWidth = 400, quality = 0.7) {
  * Upload logo to Supabase Storage
  * @param {File} file - Logo file to upload
  * @param {string} projectId - Project ID for file naming
- * @returns {Promise<string|null>} Public URL on success, null on failure
+ * @returns {Promise<{signedUrl: string, storagePath: string}|null>} Result on success, null on failure
  */
 async function uploadLogoToStorage(file, projectId) {
     try {
@@ -170,8 +170,8 @@ async function uploadLogoToStorage(file, projectId) {
             return null;
         }
 
-        console.log('[LOGO] Uploaded successfully with signed URL');
-        return urlData.signedUrl;
+        console.log('[LOGO] Uploaded successfully:', filePath);
+        return { signedUrl: urlData.signedUrl, storagePath: filePath };
     } catch (err) {
         console.warn('[LOGO] Upload failed (offline?):', err.message);
         return null;
