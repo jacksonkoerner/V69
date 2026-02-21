@@ -225,6 +225,16 @@ async function loadReport() {
         loadedReport.photos = reportData.originalInput.photos;
     }
 
+    // Sprint 14: Re-sign locally-cached photo URLs that may have expired
+    if (loadedReport.photos && loadedReport.photos.length > 0 && navigator.onLine && typeof resignPhotoUrls === 'function') {
+        try {
+            await resignPhotoUrls(loadedReport.photos);
+            console.log('[LOAD] Re-signed ' + loadedReport.photos.length + ' photo URL(s)');
+        } catch (e) {
+            console.warn('[LOAD] Photo URL re-sign failed:', e);
+        }
+    }
+
     // Sprint 15: If no photos loaded locally, try Supabase photos table (cross-device rehydration)
     if ((!loadedReport.photos || loadedReport.photos.length === 0) && navigator.onLine && typeof fetchCloudPhotos === 'function') {
         try {

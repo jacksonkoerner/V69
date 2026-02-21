@@ -78,6 +78,37 @@ async function fetchCloudPhotos(reportId) {
 }
 
 /**
+ * Re-sign photo URLs from their durable storage paths.
+ * Use when photos are loaded from local cache (IDB/localStorage) and may have
+ * expired signed URLs. Only re-signs photos that have a storagePath.
+ * Photos without storagePath keep their existing url (base64 blobs, etc.).
+ *
+ * @param {Array} photos - Array of photo objects with {url, storagePath, ...}
+ * @returns {Promise<Array>} Same array with refreshed url fields (mutated in place)
+ */
+async function resignPhotoUrls(photos) {
+    if (!photos || photos.length === 0) return photos;
+    if (typeof supabaseClient === 'undefined' || !supabaseClient) return photos;
+    if (!navigator.onLine) return photos;
+
+    await Promise.allSettled(photos.map(async function(photo) {
+        if (!photo.storagePath) return;
+        try {
+            var result = await supabaseClient.storage
+                .from('report-photos')
+                .createSignedUrl(photo.storagePath, 3600);
+            if (!result.error && result.data?.signedUrl) {
+                photo.url = result.data.signedUrl;
+            }
+        } catch (e) {
+            // Keep existing url on failure
+        }
+    }));
+
+    return photos;
+}
+
+/**
  * Fetch photos for multiple report IDs at once (batch).
  * Returns a map of reportId → photo array.
  *
