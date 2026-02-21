@@ -4,6 +4,31 @@ All notable changes to FieldVoice Pro. Updated with each deploy.
 
 ---
 
+## v6.9.39 — 2026-02-21
+
+### 🔒 Edge Function Proxy — Sprint 1: refine-text
+First Supabase Edge Function deployed. The `refine-text` webhook now routes through a server-side proxy instead of calling n8n directly from the browser.
+
+#### Edge Function: `refine-text`
+- **Deployed** `supabase/functions/refine-text/index.ts` to project `bdqfpemylkqnmeqaoere`
+- **Auth:** Validates Supabase JWT (user must be signed in) — rejects with 401 if missing/expired
+- **Proxy:** Forwards JSON payload to `N8N_BASE_URL/webhook/fieldvoice-v69-refine-text` with server-side `X-API-Key`
+- **CORS:** Handles preflight `OPTIONS` requests for browser compatibility
+- **Secrets:** `N8N_BASE_URL` and `N8N_WEBHOOK_SECRET` set via `supabase secrets set`
+
+#### Frontend Changes (`js/report/ai-refine.js`)
+- `refineTextField()` — now calls Edge Function URL instead of n8n directly, sends `Authorization: Bearer <JWT>` instead of `X-API-Key`
+- `refineContractorNarrative()` — same change, same Edge Function
+- Added `EDGE_REFINE_TEXT_URL` constant (derived from `SUPABASE_URL`)
+- Both functions now fetch the session token via `supabaseClient.auth.getSession()` before each call
+
+#### What's NOT changed yet
+- `retryRefineProcessing()` still calls n8n directly (Sprint 3: refine-report)
+- `N8N_WEBHOOK_API_KEY` still in config.js (needed by other webhooks until Sprint 5)
+- Other 3 webhooks (ai-chat, refine-report, project-extractor) unchanged
+
+---
+
 ## v6.9.38 — 2026-02-21
 
 ### 🔒 n8n Webhook Security (Sprint 15 — SEC)

@@ -8,6 +8,7 @@ var RS = window.reportState;
 
 var N8N_PROCESS_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-report';
 var N8N_REFINE_TEXT_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-text';
+var EDGE_REFINE_TEXT_URL = SUPABASE_URL + '/functions/v1/refine-text';
 
 var SECTION_MAP = {
     'issuesText': 'issues',
@@ -120,16 +121,22 @@ async function refineTextField(textareaId) {
             }
         };
 
-        console.log('[REFINE] Sending to refine-text webhook:', { textareaId: textareaId, section: section });
+        console.log('[REFINE] Sending to refine-text edge function:', { textareaId: textareaId, section: section });
+
+        var sessionResult = await supabaseClient.auth.getSession();
+        var accessToken = sessionResult?.data?.session?.access_token;
+        if (!accessToken) {
+            throw new Error('Not authenticated — please sign in again');
+        }
 
         var controller = new AbortController();
         var timeoutId = setTimeout(function() { controller.abort(); }, 20000);
 
-        var response = await fetch(N8N_REFINE_TEXT_WEBHOOK, {
+        var response = await fetch(EDGE_REFINE_TEXT_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-API-Key': N8N_WEBHOOK_API_KEY
+                'Authorization': 'Bearer ' + accessToken
             },
             body: JSON.stringify(payload),
             signal: controller.signal
@@ -212,16 +219,22 @@ async function refineContractorNarrative(contractorId) {
             }
         };
 
-        console.log('[REFINE] Sending contractor narrative to refine-text webhook:', contractorId);
+        console.log('[REFINE] Sending contractor narrative to refine-text edge function:', contractorId);
+
+        var sessionResult = await supabaseClient.auth.getSession();
+        var accessToken = sessionResult?.data?.session?.access_token;
+        if (!accessToken) {
+            throw new Error('Not authenticated — please sign in again');
+        }
 
         var controller = new AbortController();
         var timeoutId = setTimeout(function() { controller.abort(); }, 20000);
 
-        var response = await fetch(N8N_REFINE_TEXT_WEBHOOK, {
+        var response = await fetch(EDGE_REFINE_TEXT_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-API-Key': N8N_WEBHOOK_API_KEY
+                'Authorization': 'Bearer ' + accessToken
             },
             body: JSON.stringify(payload),
             signal: controller.signal

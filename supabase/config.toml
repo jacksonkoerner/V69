@@ -1,0 +1,5 @@
+[functions.refine-text]
+enabled = true
+verify_jwt = true
+import_map = "./functions/refine-text/deno.json"
+entrypoint = "./functions/refine-text/index.ts"

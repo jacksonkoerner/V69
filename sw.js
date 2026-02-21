@@ -5,7 +5,7 @@
 // The canonical version lives in version.json at the project root.
 // Update version.json first, then mirror the value here.
 
-const CACHE_VERSION = 'v6.9.37';
+const CACHE_VERSION = 'v6.9.39';
 const CACHE_NAME = `fieldvoice-pro-${CACHE_VERSION}`;
 
 // Files to cache for offline use
