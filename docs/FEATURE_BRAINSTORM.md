@@ -268,6 +268,89 @@
 
 ---
 
+## 📊 COMPETITOR DEEP DIVE: Raken (Closest Competitor, PE-Acquired Sep 2025)
+
+### Raken's Full Feature Map (from rakenapp.com, Feb 2026)
+
+**Daily Progress Reporting:**
+| Feature | Raken | FieldVoice | Gap? |
+|---|---|---|---|
+| Daily Reports | ✅ Customizable templates | ✅ AI-generated DOT format | FieldVoice WINS (AI) |
+| Collaborator Reports | ✅ Subs submit their own | ❌ | **GAP** — multi-user reporting |
+| Segmented Daily Reports | ✅ Split by area/trade | ❌ | **GAP** — report segmentation |
+| Photos & Videos | ✅ Timestamped | ✅ GPS + timestamp | Parity |
+| Notes | ✅ General notes | ✅ Via freeform mode | Parity |
+| Messaging | ✅ In-app messaging | ❌ Hardcoded demo | **GAP** — real messaging |
+| Tasks | ✅ Assign/track tasks | ❌ | **GAP** — task management |
+
+**Time & Production Tracking:**
+| Feature | Raken | FieldVoice | Gap? |
+|---|---|---|---|
+| Time Tracking | ✅ Time cards + GPS | ❌ | **GAP** — crew time tracking |
+| Production Tracking | ✅ Track quantities installed | ❌ (planned: IMPL-07) | **GAP** — in brainstorm |
+| Material Tracking | ✅ Track material deliveries | ❌ | **GAP** |
+| Equipment Tracking | ✅ Track equipment usage/location | ❌ | **GAP** |
+| Budget Management | ✅ Cost tracking vs budget | ❌ | **GAP** |
+| Production Insights | ✅ Automated dashboard | ❌ | **GAP** |
+| Labor Management | ✅ Certifications, crew mgmt | ❌ | **GAP** |
+
+**Safety & Quality:**
+| Feature | Raken | FieldVoice | Gap? |
+|---|---|---|---|
+| Safety Management | ✅ Checklists + observations | ❌ | **GAP** |
+| Quality Management | ✅ QC checklists | ❌ | **GAP** |
+| Managed Checklists | ✅ 100+ pre-built | ❌ | **GAP** |
+| Observations | ✅ Photo + notes | ❌ | **GAP** |
+| Incidents | ✅ Incident capture | ❌ (planned: Tool 34) | **GAP** — in brainstorm |
+| Toolbox Talks | ✅ 100+ library, EN/ES, scheduling | ❌ (planned: Tool 33) | **GAP** — in brainstorm |
+| Safety Dashboards | ✅ Insights + compliance | ❌ | **GAP** |
+
+**Document Management:**
+| Feature | Raken | FieldVoice | Gap? |
+|---|---|---|---|
+| Forms | ✅ Custom form builder | ❌ | **GAP** |
+| Document Storage | ✅ Cloud storage | ✅ Supabase storage | Parity |
+| Integrations | ✅ Procore, Sage, QuickBooks, Box, Dropbox, Matterport | ❌ | **GAP** — no integrations |
+
+**Where FieldVoice BEATS Raken:**
+| Feature | FieldVoice | Raken |
+|---|---|---|
+| 🏆 AI Report Generation | ✅ Voice → DOT report via AI | ❌ None |
+| 🎤 Voice-First Input | ✅ Dictation → structured capture | ❌ Type only |
+| 📋 DOT-Specific Format | ✅ Built for DOT RPRs | ❌ Generic templates |
+| 🔧 14 Field Tools | ✅ Compass, level, AR, markup, etc. | ❌ None |
+| 🤖 AI Chat Assistant | ✅ Context-aware on every page | ❌ None |
+| 📶 Full Offline Mode | ✅ Three-tier with crash recovery | ✅ Partial (last 5 projects) |
+| 💰 Price | TBD (target $50-80/user) | ~$66/user/month |
+
+### Gap Priority Analysis
+
+**Critical gaps to close (Raken table-stakes features FieldVoice lacks):**
+1. **Time Tracking** — Raken's #2 feature after daily reports. Simple crew time cards with cost codes.
+2. **Toolbox Talks** — 100+ library in Raken. We need at least a basic template system.
+3. **Safety Observations** — Photo + description + follow-up. Simple but essential.
+4. **Collaborator/Sub Reports** — Subs submit their own daily logs. Multi-user reporting.
+
+**Important but not urgent (differentiation over parity):**
+5. Production/Quantity Tracking (already planned as IMPL-07)
+6. Equipment Tracking
+7. Material Tracking
+8. Integrations (Procore, accounting)
+
+**Lower priority (enterprise features):**
+9. Budget Management
+10. Forms Builder
+11. Safety Dashboards
+12. Labor/Certification Management
+
+### Raken's Integrations (what FieldVoice should eventually connect to)
+- **Accounting:** Sage 100/300, QuickBooks, Viewpoint Vista/Spectrum, Foundation, ComputerEase, CMiC
+- **Project Management:** Procore, Oracle Aconex, Autodesk Build, Microsoft Project
+- **Cloud Storage:** Box, Dropbox, Google Drive, OneDrive, Procore Drive
+- **Reality Capture:** Matterport, DroneDeploy, OxBlue, TrueLook, Reconstruct
+
+---
+
 ## 🔩 IMPLEMENTATION DETAILS (Deep Dives)
 
 ### IMPL-01: Concrete Calculator (extend calc.js)
@@ -516,6 +599,168 @@ CREATE TABLE daily_quantities (
 - In project config: define pay items (or import from CSV/spreadsheet)
 - In interview: "Log Quantities" section → select pay item → enter quantity → auto-calculates running total and % complete
 - In daily report AI: auto-include "Materials installed today: 45 CY Type A Concrete (Station 45+20 to 52+80)"
+
+---
+
+### IMPL-08: Crew Time Tracking (Critical Gap — Raken's #2 Feature)
+**Effort:** Medium-High (4–5 days) | **Dependencies:** Supabase tables, interview integration
+
+**Why critical:** Raken's time tracking is their second most-used feature. Every GC and sub needs time cards. Not having this is an immediate "nope" for many buyers.
+
+**Supabase schema:**
+```sql
+CREATE TABLE time_entries (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  project_id UUID REFERENCES projects(id),
+  report_id UUID REFERENCES reports(id),  -- link to daily report
+  
+  worker_name TEXT NOT NULL,
+  trade TEXT,                    -- e.g., "Carpenter", "Laborer", "Iron Worker"
+  classification TEXT,           -- e.g., "Journeyman", "Apprentice", "Foreman"
+  cost_code TEXT,                -- project cost code
+  
+  clock_in TIMESTAMPTZ,
+  clock_out TIMESTAMPTZ,
+  break_minutes INTEGER DEFAULT 30,
+  total_hours NUMERIC,           -- auto-calculated
+  overtime_hours NUMERIC DEFAULT 0,
+  
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE crew_members (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID REFERENCES projects(id),
+  name TEXT NOT NULL,
+  trade TEXT,
+  classification TEXT,
+  company TEXT,                   -- contractor/sub name
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+**UI flow:**
+1. **Crew roster** in project config — add workers with name, trade, company
+2. **Daily time entry** during interview or as standalone tool:
+   - Select workers present today (checkbox list from roster)
+   - Bulk set times (most crews have same hours)
+   - Individual overrides for overtime, half days, etc.
+   - Cost code assignment (optional, from project config)
+3. **Time summary** auto-generated for daily report:
+   - "12 workers on site: 4 carpenters (32 hrs), 3 laborers (24 hrs), 5 iron workers (40 hrs)"
+   - Total man-hours for the day
+4. **Export** — CSV for payroll integration
+
+**Integration with existing code:**
+- `js/interview/contractors-personnel.js` already handles contractor/personnel management
+- Add a "Time Cards" section to the guided interview or as a separate tool overlay
+- Personnel data structure in `interviewState` already has `name`, `trade` fields — extend with hours
+
+**Key difference from Raken:** FieldVoice can auto-summarize time data via AI into the daily report narrative. Raken just shows raw data. Our AI can write: "A crew of 12 worked 96 total man-hours today, including 8 hours of overtime for the concrete pour."
+
+---
+
+### IMPL-09: Toolbox Talk System (Critical Gap)
+**Effort:** Medium (3–4 days) | **Dependencies:** Supabase storage for talk library
+
+**Implementation:**
+
+**Talk Library (bundled + custom):**
+- Bundle 30–50 common construction safety talks as JSON/HTML:
+  - Fall Protection, Scaffold Safety, Excavation Safety, Electrical Safety
+  - PPE Requirements, Heat Stress, Cold Stress, Confined Spaces
+  - Crane Safety, Rigging, Trenching, Fire Prevention
+  - Hand/Power Tools, Silica Exposure, Noise Exposure, Back Safety
+  - Ladder Safety, Housekeeping, Struck-By Hazards, Caught-In/Between
+- Each talk: title, content (HTML), duration (5-15 min), category, language (EN/ES)
+- Store in `public/talks/` as static JSON files (no API needed, works offline)
+- Custom talks: user uploads PDF or types content → stored in Supabase storage
+
+**Open source talk content:** OSHA publishes free safety fact sheets and toolbox talk outlines. Not copyrighted (federal government work = public domain). Available at:
+- `https://www.osha.gov/publications` — free PDFs
+- Many state DOTs publish toolbox talks for construction projects
+
+**Supabase schema:**
+```sql
+CREATE TABLE toolbox_talks (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID REFERENCES projects(id),
+  report_id UUID REFERENCES reports(id),  -- link to daily report
+  
+  talk_title TEXT NOT NULL,
+  talk_content TEXT,              -- HTML content or reference to bundled talk
+  talk_source TEXT,               -- "library", "custom", "uploaded"
+  language TEXT DEFAULT 'en',
+  
+  presented_by TEXT,
+  presented_at TIMESTAMPTZ,
+  duration_minutes INTEGER,
+  
+  attendees JSONB,               -- [{ name, signature_data, company }]
+  photo_ids TEXT[],              -- photos of the meeting
+  
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+**UI flow:**
+1. **Select talk** — browse library by category, or pick custom
+2. **Present** — full-screen view of talk content (readable on phone at arm's length)
+3. **Attendance** — crew members sign on phone screen (canvas signature capture — reuse pattern from photo-markup.js!) or just check names from crew roster
+4. **Complete** — saves record, auto-includes in daily report: "Toolbox talk: Fall Protection presented to 8 workers at 7:00 AM"
+5. **Compliance view** — which projects have talks this week, which are overdue
+
+**Signature capture:** The photo-markup.js already has canvas drawing with touch support. Extracting the signature-capture pattern is straightforward — same canvas setup, just save the drawn strokes as a PNG blob.
+
+---
+
+### IMPL-10: Safety Observations (Quick Win)
+**Effort:** Low-Medium (2 days) | **Dependencies:** Supabase table
+
+**Concept:** "See something, snap it, note it" — simplest possible safety documentation.
+
+**UI:** Single-screen form:
+1. Take photo (use existing camera/media-utils.js)
+2. Select type: Positive / Hazard / Near Miss
+3. Category dropdown: Fall, Electrical, Housekeeping, PPE, Trenching, Traffic Control, Other
+4. Description (text or voice dictation — reuse interview dictation!)
+5. Severity: Low / Medium / High / Critical
+6. Assigned to (select contractor from roster)
+7. Due date for correction
+8. Save → stored in Supabase, auto-included in daily report
+
+**Supabase schema:**
+```sql
+CREATE TABLE safety_observations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  project_id UUID REFERENCES projects(id),
+  report_id UUID REFERENCES reports(id),
+  
+  type TEXT CHECK (type IN ('positive', 'hazard', 'near_miss')),
+  category TEXT,
+  description TEXT,
+  severity TEXT CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+  
+  photo_ids TEXT[],
+  location_lat DOUBLE PRECISION,
+  location_lng DOUBLE PRECISION,
+  
+  assigned_to TEXT,              -- contractor name
+  due_date DATE,
+  status TEXT DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved', 'closed')),
+  resolved_at TIMESTAMPTZ,
+  resolution_notes TEXT,
+  
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+**AI integration:** The daily report AI can auto-summarize: "2 safety observations documented: 1 positive observation (proper fall protection on scaffold), 1 hazard (missing barricade at excavation, assigned to ABC Contractors, due 2/22)."
 
 ---
 
