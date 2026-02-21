@@ -75,13 +75,13 @@ async function handleSubmit() {
 
         // Upload PDF
         showSubmitLoadingOverlay(true, 'Uploading PDF...');
-        var pdfUrl = await uploadPDFToStorage(pdf);
-        console.log('[SUBMIT] PDF uploaded:', pdfUrl);
+        var pdfResult = await uploadPDFToStorage(pdf);
+        console.log('[SUBMIT] PDF uploaded:', pdfResult.storagePath);
 
-        // Save report with PDF URL, inspector name, and submitted status
+        // Save report with PDF path, URL, inspector name, and submitted status
         showSubmitLoadingOverlay(true, 'Saving report...');
         await ensureReportExists();
-        await saveSubmittedReportData(pdfUrl);
+        await saveSubmittedReportData(pdfResult.signedUrl, pdfResult.storagePath);
         await updateReportStatus('submitted');
 
         // Cleanup
@@ -100,6 +100,7 @@ async function handleSubmit() {
 
 /**
  * Upload PDF to Supabase Storage
+ * Returns { signedUrl, storagePath } so caller can persist the durable path.
  */
 async function uploadPDFToStorage(pdf) {
     var storagePath = RS.currentReportId + '/' + pdf.filename;
@@ -122,7 +123,7 @@ async function uploadPDFToStorage(pdf) {
 
     if (urlResult.error) throw new Error('Failed to create signed PDF URL: ' + urlResult.error.message);
 
-    return urlResult.data.signedUrl;
+    return { signedUrl: urlResult.data.signedUrl, storagePath: storagePath };
 }
 
 /**
@@ -156,20 +157,28 @@ async function ensureReportExists() {
 }
 
 /**
- * Sprint 13: Save pdf_url + inspector_name + submitted_at directly on reports table.
+ * Sprint 13: Save pdf_url + pdf_path + inspector_name + submitted_at on reports table.
+ * Sprint 14: Added pdf_path for durable storage path (signed URLs expire).
  * Replaces saveToFinalReports() — final_reports table is deprecated.
  */
-async function saveSubmittedReportData(pdfUrl) {
+async function saveSubmittedReportData(pdfUrl, pdfPath) {
     var submittedAt = new Date().toISOString();
     var inspectorName = RS.report.overview?.completedBy || RS.userSettings?.fullName || '';
 
+    var updateData = {
+        pdf_url: pdfUrl,
+        inspector_name: inspectorName,
+        submitted_at: submittedAt
+    };
+
+    // Store durable path if available (Sprint 14)
+    if (pdfPath) {
+        updateData.pdf_path = pdfPath;
+    }
+
     var result = await supabaseClient
         .from('reports')
-        .update({
-            pdf_url: pdfUrl,
-            inspector_name: inspectorName,
-            submitted_at: submittedAt
-        })
+        .update(updateData)
         .eq('id', RS.currentReportId);
 
     if (result.error) throw new Error('Failed to save report data: ' + result.error.message);

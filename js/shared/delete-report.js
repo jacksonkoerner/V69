@@ -58,18 +58,20 @@ async function deleteReportCascade(reportId) {
         }
     }
 
-    // 4. Look up PDF url from reports table (Sprint 13) and legacy final_reports, remove from storage
+    // 4. Look up PDF path/url from reports table and remove from storage
     try {
-        // New: pdf_url on reports table
+        // Sprint 14: prefer pdf_path (durable); fall back to parsing pdf_url
         var reportResult = await client
             .from('reports')
-            .select('pdf_url')
+            .select('pdf_path, pdf_url')
             .eq('id', reportId)
             .maybeSingle();
+
+        var pdfPath = reportResult.data && reportResult.data.pdf_path;
         var pdfUrl = reportResult.data && reportResult.data.pdf_url;
 
-        // Legacy fallback: check final_reports if reports.pdf_url is null
-        if (!pdfUrl) {
+        // Legacy fallback: check final_reports if neither path nor url on reports
+        if (!pdfPath && !pdfUrl) {
             var finalResult = await client
                 .from('final_reports')
                 .select('pdf_url')
@@ -78,11 +80,17 @@ async function deleteReportCascade(reportId) {
             pdfUrl = finalResult.data && finalResult.data.pdf_url;
         }
 
-        if (pdfUrl) {
-            var pdfPath = pdfUrl.split('/report-pdfs/')[1];
-            if (pdfPath) {
-                await client.storage.from('report-pdfs').remove([decodeURIComponent(pdfPath)]);
+        // Resolve storage path: use pdf_path directly, or parse from signed URL
+        var storagePath = pdfPath || null;
+        if (!storagePath && pdfUrl) {
+            var urlParts = pdfUrl.split('/report-pdfs/')[1];
+            if (urlParts) {
+                storagePath = decodeURIComponent(urlParts.split('?')[0]);
             }
+        }
+
+        if (storagePath) {
+            await client.storage.from('report-pdfs').remove([storagePath]);
         }
     } catch (e) {
         errors.push('pdf cleanup: ' + e.message);

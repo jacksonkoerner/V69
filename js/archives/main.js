@@ -112,6 +112,7 @@ async function loadReports(projectId = null) {
                 status,
                 submitted_at,
                 pdf_url,
+                pdf_path,
                 inspector_name,
                 created_at,
                 projects (project_name)
@@ -136,14 +137,16 @@ async function loadReports(projectId = null) {
             return;
         }
 
-        // Map data — pdf_url is now directly on reports
+        // Map data — pdf_path is the durable source of truth; pdf_url is legacy fallback
         allReports = reports.map(r => ({
             id: r.id,
             projectId: r.project_id,
             projectName: r.projects?.project_name || 'Unknown Project',
             reportDate: r.report_date,
             submittedAt: r.submitted_at,
-            pdfUrl: r.pdf_url || null
+            pdfPath: r.pdf_path || null,
+            pdfUrl: r.pdf_url || null,
+            hasPdf: !!(r.pdf_path || r.pdf_url)
         }));
 
         renderReports();
@@ -201,7 +204,7 @@ function renderReports() {
                         <p class="text-xs text-gray-500">${formatDate(report.reportDate, 'long')}</p>
                     </div>
                     <div class="flex-shrink-0">
-                        ${report.pdfUrl
+                        ${report.hasPdf
                             ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">View PDF</span>'
                             : '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">No PDF</span>'
                         }
@@ -224,7 +227,7 @@ function renderReports() {
                     ${report.submittedAt ? `<p class="text-xs text-gray-400 mt-2">Submitted ${formatDateTime(report.submittedAt)}</p>` : ''}
                 </div>
                 <div class="flex-shrink-0">
-                    ${report.pdfUrl
+                    ${report.hasPdf
                         ? '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">PDF Ready</span>'
                         : '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">No PDF</span>'
                     }
@@ -238,17 +241,46 @@ function renderReports() {
 
 // ============ PDF Viewer ============
 
-function viewPdf(reportId) {
+/**
+ * Open PDF for a report. Generates a fresh signed URL from the durable
+ * storage path (pdf_path) so links never expire. Falls back to legacy
+ * pdf_url for older reports that haven't been backfilled yet.
+ */
+async function viewPdf(reportId) {
     const report = allReports.find(r => r.id === reportId);
     if (!report) return;
 
-    if (!report.pdfUrl) {
+    if (!report.hasPdf) {
         alert('PDF not available for this report.');
         return;
     }
 
-    // Open PDF directly in a new tab — works in both browser and WebView
-    window.open(report.pdfUrl, '_blank');
+    // Prefer durable path — generate a fresh signed URL on demand
+    if (report.pdfPath) {
+        try {
+            const { data, error } = await supabaseClient
+                .storage
+                .from('report-pdfs')
+                .createSignedUrl(report.pdfPath, 300); // 5 min — just-in-time
+
+            if (!error && data?.signedUrl) {
+                window.open(data.signedUrl, '_blank');
+                return;
+            }
+            console.warn('[Archives] Failed to sign pdf_path:', error?.message);
+        } catch (e) {
+            console.warn('[Archives] Sign error:', e.message);
+        }
+    }
+
+    // Legacy fallback: use stored signed URL (may be expired)
+    if (report.pdfUrl) {
+        // Check if it looks like a non-expired URL (best effort)
+        window.open(report.pdfUrl, '_blank');
+        return;
+    }
+
+    alert('PDF could not be loaded. Please try again.');
 }
 
 // ============ UI State Management ============
