@@ -4,6 +4,32 @@ All notable changes to FieldVoice Pro. Updated with each deploy.
 
 ---
 
+## v6.9.38 — 2026-02-21
+
+### 🔒 n8n Webhook Security (Sprint 15 — SEC)
+Audit and lockdown of all 4 n8n webhook endpoints. Previously all webhooks were wide open (auth=none on n8n side, weak static key in client JS).
+
+#### Webhook Security Audit
+- **Full audit of all 4 webhooks** — documented files, functions, payloads, responses, timeouts, and error handling for each
+- **n8n-side audit** — confirmed all 4 workflow webhook nodes had `authentication: none` (X-API-Key header was sent by app but never validated by n8n)
+- **Identified project-extractor had zero auth** — no X-API-Key header, no AbortController timeout
+- **Audit reports:** `memory/webhook-security-audit.md`, `memory/n8n-webhook-audit.md`, `memory/frontend-webhook-audit.md`
+
+#### Header Auth Implementation
+- **n8n side:** All 4 webhook nodes updated to enforce Header Auth (`X-API-Key`) — unauthorized requests now return 403
+- **config.js** — Replaced weak static key (`fvp-n8n-webhook-key-2026`) with strong 48-byte random key
+- **document-import.js** — Added `X-API-Key` header to project-extractor fetch call (was completely missing)
+- **document-import.js** — Added 60s AbortController timeout to project-extractor (had none)
+- **All 4 webhooks tested** — wrong key → 403, correct key → 200 on all endpoints
+
+#### Edge Function Exploration (Planning Only)
+- Researched Supabase Edge Functions as proxy layer (JWT validation, file forwarding, timeout limits, secrets management)
+- Evaluated 6 alternative approaches (Header Auth, Edge Functions, Cloudflare Workers, CF Zero Trust, DB triggers, direct AI calls)
+- Architecture designed for future implementation: Browser → Edge Function (JWT) → n8n (server secret)
+- Rollout plan: 4 sprints (refine-text → ai-chat → refine-report → project-extractor) + cleanup sprint
+
+---
+
 ## v6.9.37 — 2026-02-20
 
 ### 🔒 Storage Bucket Privatization (Sprint 14)
