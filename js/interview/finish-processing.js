@@ -230,7 +230,7 @@ function hideNetworkErrorModal() {
  * Sprint 15 (OFF-02): Removed dead sync queue — reports are saved as drafts only.
  * User must manually retry when back online.
  */
-function handleOfflineProcessing(payload, redirectToDrafts = false) {
+function handleOfflineProcessing(_payload, redirectToDrafts = false) {
     // Save report as draft in localStorage (primary offline storage)
     IS.report.meta.status = 'pending_refine';
     saveReport();

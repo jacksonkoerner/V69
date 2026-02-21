@@ -324,7 +324,6 @@ function restoreFromLocalStorage(localData) {
 
 /**
  * Clear localStorage draft (called after successful FINISH)
- * Also removes from offline queue if present
  */
 function clearLocalStorageDraft() {
     if (!IS.currentReportId) {

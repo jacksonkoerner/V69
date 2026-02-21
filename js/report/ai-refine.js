@@ -6,9 +6,8 @@
 
 var RS = window.reportState;
 
-// Edge Function proxy URLs
+// Edge Function proxy URL
 var EDGE_REFINE_TEXT_URL = SUPABASE_URL + '/functions/v1/refine-text';
-var EDGE_PROCESS_REPORT_URL = SUPABASE_URL + '/functions/v1/process-report';
 
 var SECTION_MAP = {
     'issuesText': 'issues',
@@ -26,73 +25,18 @@ function checkPendingRefineStatus() {
     }
 }
 
-async function retryRefineProcessing() {
-    if (!navigator.onLine) {
-        alert('Still offline - please connect to the internet and try again.');
+/**
+ * Redirect to interview page to retry AI processing.
+ * The old offlineQueue replay was removed (Sprint 15 OFF-02) —
+ * the interview flow is the correct place to reprocess.
+ */
+function retryRefineProcessing() {
+    var reportId = RS.currentReportId;
+    if (!reportId) {
+        alert('No report ID found.');
         return;
     }
-
-    var queued = RS.report?.meta?.offlineQueue?.find(function(q) { return q.type === 'refine'; });
-    if (!queued) {
-        alert('No pending processing found.');
-        return;
-    }
-
-    var retryBtn = document.getElementById('retryRefine');
-    var originalBtnHtml = retryBtn.innerHTML;
-    retryBtn.disabled = true;
-    retryBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Processing...';
-
-    try {
-        var sessionResult = await supabaseClient.auth.getSession();
-        var accessToken = sessionResult?.data?.session?.access_token;
-        if (!accessToken) {
-            throw new Error('Not authenticated — please sign in again');
-        }
-
-        var controller = new AbortController();
-        var timeoutId = setTimeout(function() { controller.abort(); }, 30000);
-
-        var response = await fetch(EDGE_PROCESS_REPORT_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + accessToken
-            },
-            body: JSON.stringify(queued.payload),
-            signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            throw new Error('Webhook failed: ' + response.status);
-        }
-
-        var result = await response.json();
-
-        if (result.refinedReport) {
-            RS.report.aiGenerated = result.refinedReport;
-            RS.report.originalInput = result.originalInput || null;
-            RS.report.aiCaptureMode = result.captureMode || null;
-        } else if (result.aiGenerated) {
-            RS.report.aiGenerated = result.aiGenerated;
-        }
-        RS.report.meta.status = 'refined';
-
-        RS.report.meta.offlineQueue = RS.report.meta.offlineQueue.filter(function(q) { return q.type !== 'refine'; });
-        saveReport();
-
-        document.getElementById('pendingRefineBanner').classList.add('hidden');
-        alert('AI processing complete! Refreshing data...');
-        location.reload();
-
-    } catch (error) {
-        console.error('Retry failed:', error);
-        retryBtn.disabled = false;
-        retryBtn.innerHTML = originalBtnHtml;
-        alert('Processing failed. Please try again later.');
-    }
+    window.location.href = 'quick-interview.html?reportId=' + encodeURIComponent(reportId);
 }
 
 async function refineTextField(textareaId) {
