@@ -65,10 +65,10 @@ First Supabase Edge Function deployed. The `refine-text` webhook now routes thro
 - Added `EDGE_REFINE_TEXT_URL` constant (derived from `SUPABASE_URL`)
 - Both functions now fetch the session token via `supabaseClient.auth.getSession()` before each call
 
-#### What's NOT changed yet
-- `retryRefineProcessing()` still calls n8n directly (Sprint 3: refine-report)
-- `N8N_WEBHOOK_API_KEY` still in config.js (needed by other webhooks until Sprint 5)
-- Other 3 webhooks (ai-chat, refine-report, project-extractor) unchanged
+#### What's NOT changed yet (at time of this sprint — resolved in Sprints 2-4)
+- ~~`retryRefineProcessing()` still calls n8n directly~~ → migrated in Sprint 3 (v6.9.41)
+- `N8N_WEBHOOK_API_KEY` still in config.js (cleanup sprint pending)
+- ~~Other 3 webhooks unchanged~~ → all migrated by Sprint 4 (v6.9.42)
 
 ---
 
