@@ -4,6 +4,47 @@ All notable changes to FieldVoice Pro. Updated with each deploy.
 
 ---
 
+## v6.9.37 — 2026-02-20
+
+### 🔒 Storage Bucket Privatization (Sprint 14)
+Complete security overhaul of Supabase Storage — all 3 buckets switched from public (anon CRUD) to private with org-scoped RLS.
+
+#### PDF Path Privatization (v6.9.34)
+- **New `reports.pdf_path` column** — stores durable storage path (e.g., `{reportId}/{filename}.pdf`)
+- **Migration 012** — adds column + backfills from existing `pdf_url` signed URLs
+- **submit.js** — now persists both `pdf_path` (durable) and `pdf_url` (signed, 1h cache)
+- **archives/main.js** — `viewPdf()` re-signs from `pdf_path` on click (5-min TTL); legacy fallback for old rows
+- **delete-report.js** — uses `pdf_path` directly for storage deletion (no more URL string parsing)
+
+#### Logo Path Privatization (v6.9.35)
+- **New `projects.logo_path` column** — stores durable storage path (e.g., `{projectId}.png`)
+- **Migration 013** — adds column + backfills from existing `logo_url` signed URLs
+- **media-utils.js** — `uploadLogoToStorage()` returns `{signedUrl, storagePath}` instead of just URL
+- **project-config/form.js** — stores `logoPath` on project alongside `logoUrl`; clears both on remove
+- **supabase-utils.js** — maps `logo_path ↔ logoPath` in both converter directions
+- **data-layer.js** — new `resignProjectLogo()` helper re-signs logos on every project load (both batch and single). Report headers, previews, and PDF generator always get fresh URLs.
+
+#### Photo URL Hardening (v6.9.36)
+- **cloud-photos.js** — new `resignPhotoUrls()` utility re-signs locally-cached photos from their durable `storagePath` (parallel, non-blocking via `Promise.allSettled`)
+- **data-loading.js** — calls `resignPhotoUrls()` after loading photos from local cache, so all report tabs (form, original-notes, preview, PDF generator) get fresh signed URLs
+- Photos already had `storage_path` as source of truth — this closes the stale-URL gap for locally-cached photos
+
+#### Private Buckets + Org-Scoped RLS (v6.9.37)
+- **Migration 014** — drops all 12 old anon CRUD policies, flips all 3 buckets to `public = false`, adds 12 new authenticated + org-scoped policies
+- **report-photos** & **report-pdfs** — extract `reportId` from storage path → join `reports.org_id` → verify `get_user_org_id()`
+- **project-logos** — extract `projectId` from filename → join `projects.org_id` → verify `get_user_org_id()`
+- Old public URLs now return HTTP 400 — signed URLs are the only access method
+- Only authenticated users in the same org can upload, modify, or delete storage objects
+
+### Security Audit
+- **Codex 5.3 storage privatization audit** — full lifecycle trace of all 3 buckets with file:line evidence → `docs/CODEX_STORAGE_PRIVATIZATION_AUDIT.md`
+
+### RLS Auth Hardening (v6.9.33)
+- **auth.js** — fixed race condition where pages could load before auth session resolves, causing RLS-protected queries to fail silently
+- **Service worker cache bump** to clear stale cached JS
+
+---
+
 ## v6.9.32 — 2026-02-20
 
 ### Crew Extraction & Report Editor
