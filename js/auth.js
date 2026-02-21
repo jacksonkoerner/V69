@@ -324,15 +324,26 @@
     if (currentPage !== 'login.html' && currentPage !== 'landing.html') {
         document.addEventListener('DOMContentLoaded', async () => {
             const session = await requireAuth();
-            // Signal auth ready (even if null — callers handle that)
-            _authReadyResolve(session);
 
             if (session) {
                 // Inject sign-out button into header if it has a nav area
                 injectSignOutButton();
 
-                // Ensure org_id is cached (for org-scoped queries)
-                ensureOrgIdCached(session.user.id);
+                // Ensure org_id is cached BEFORE resolving auth.ready
+                // This prevents race conditions where modules start writing
+                // to Supabase before org_id is available (RLS would reject)
+                // Timeout after 3s to avoid blocking page load on slow networks
+                try {
+                    await Promise.race([
+                        ensureOrgIdCached(session.user.id),
+                        new Promise(resolve => setTimeout(resolve, 3000))
+                    ]);
+                } catch (e) {
+                    console.warn('[AUTH] ensureOrgIdCached failed, continuing:', e);
+                }
+
+                // Now signal auth ready — org_id is cached (or we timed out)
+                _authReadyResolve(session);
 
                 // Start session monitoring
                 startAuthStateListener();
@@ -345,6 +356,9 @@
                         console.log(`[STORAGE] Persistent storage ${granted ? 'granted' : 'denied'}`);
                     });
                 }
+            } else {
+                // No session — resolve with null (auth.js will redirect to login)
+                _authReadyResolve(null);
             }
         });
     } else {
