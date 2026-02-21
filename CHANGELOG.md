@@ -4,6 +4,32 @@ All notable changes to FieldVoice Pro. Updated with each deploy.
 
 ---
 
+## v6.9.44 — 2026-02-21
+
+### 🧹 Sprint 6 Part 2: Dead offline retry cleanup
+- **Replaced** broken `retryRefineProcessing()` — was reading from dead `offlineQueue` (always showed "No pending processing found")
+- **New behavior:** "Open Draft to Retry" button redirects to `quick-interview.html?reportId=...` where processing actually works
+- **Removed** unused `EDGE_PROCESS_REPORT_URL` from `js/report/ai-refine.js` (was only used by old queue-based retry)
+- **Fixed** unused `payload` param in `handleOfflineProcessing()` (`_payload`)
+- **Removed** stale comment in `persistence.js` referencing offline queue removal
+- Net: -74 lines, +17 lines
+
+---
+
+## v6.9.43 — 2026-02-21
+
+### 🔒 Sprint 6: Remove exposed credentials & dead webhook constants
+- **Removed** `N8N_WEBHOOK_API_KEY` from `js/config.js` — API key no longer exposed in client-side JavaScript
+- **Removed** 5 dead n8n URL constants (replaced by Edge Function proxies in Sprints 1-4):
+  - `N8N_PROCESS_WEBHOOK` from `finish-processing.js` and `ai-refine.js`
+  - `N8N_REFINE_TEXT_WEBHOOK` from `ai-refine.js`
+  - `AI_WEBHOOK` from `ai-assistant.js`
+  - `EXTRACT_WEBHOOK_URL` from `document-import.js`
+- **Updated** stale comments: "webhook" → "Edge Function proxy"
+- **Codex audit** confirmed zero remaining references to all removed constants
+
+---
+
 ## v6.9.42 — 2026-02-21
 
 ### 🔒 Edge Function Proxy — Sprint 4: extract-project (file uploads)
