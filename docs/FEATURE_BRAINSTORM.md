@@ -266,6 +266,259 @@
 
 ---
 
+---
+
+## 🔩 IMPLEMENTATION DETAILS (Deep Dives)
+
+### IMPL-01: Concrete Calculator (extend calc.js)
+**Effort:** Low (1–2 days) | **Dependencies:** None — pure math
+
+**Current state:** `calc.js` has 3 tabs (Feet-Inch, Area/Volume, Converter) with a `switchCalcTab()` and `renderCalcUI()` pattern. Adding a 4th tab is straightforward.
+
+**New tab: "Concrete"**
+Sub-modes (like Area/Volume toggle):
+1. **Slab** — L × W × D, with configurable waste factor (5-10%)
+   - Formula: `volume_cy = (length_ft × width_ft × depth_in / 12) / 27`
+   - Output: cubic yards + bags (80lb bags = 0.6 cu ft each)
+2. **Column/Pier** — circular (πr²h) or rectangular
+3. **Footing** — continuous or spread
+4. **Stairs** — rise, run, width, number of steps
+5. **Rebar** — slab dimensions + spacing → bar count, total length, weight
+   - Rebar weight table: #3=0.376 lb/ft, #4=0.668, #5=1.043, #6=1.502, #7=2.044, #8=2.670
+
+**Integration:**
+- Add `{ id: 'concrete', label: 'Concrete' }` to tabs array in `renderCalcUI()`
+- New function `renderConcreteCalc()` with mode toggle
+- Results can be saved to localStorage and referenced in daily report
+- Optional: "Add to Report" button that appends quantity to current report's material section
+
+**No external libraries needed.** All formulas are basic geometry.
+
+---
+
+### IMPL-02: GPS Photo Map (replace placeholder)
+**Effort:** Medium (2–3 days) | **Dependencies:** Leaflet (already loaded)
+
+**Current state:** Dashboard has a "Photo Log Map" card that's a marketing placeholder with an "IN DEVELOPMENT" badge. Photos already capture GPS metadata (lat/lng) via `media-utils.js` → stored in IDB `photos` store with `latitude`, `longitude` fields.
+
+**Implementation:**
+1. New file: `js/tools/photo-map.js`
+2. Use existing Leaflet instance pattern from `maps.js`
+3. Query `window.dataStore.getAllPhotos()` → filter to current project
+4. For each photo with GPS: add a Leaflet marker with thumbnail popup
+5. Cluster markers with `Leaflet.markercluster` plugin (7KB gzipped, MIT license)
+   - CDN: `https://unpkg.com/leaflet.markercluster@1.5.3/dist/`
+6. Click marker → show full photo in existing photo viewer modal
+7. Filter controls: by report, by date range
+8. Optional: draw a polyline connecting photos in chronological order (shows inspection path)
+
+**Data flow:**
+```
+IDB photos store → filter by project_id → extract lat/lng → Leaflet markers → cluster
+```
+
+**Bonus:** Export as KML/KMZ for GIS integration — `tokml` library (2KB, MIT) converts GeoJSON → KML
+
+---
+
+### IMPL-03: Drone Pre-Flight Checklist
+**Effort:** Low (1 day) | **Dependencies:** None
+
+**Implementation:**
+1. New tool overlay (same pattern as other tools: `openDroneChecklist()`, overlay div)
+2. Checklist items stored as a JSON template:
+```json
+{
+  "sections": [
+    {
+      "title": "Aircraft",
+      "items": [
+        { "id": "props", "label": "Propellers — inspected, no damage", "required": true },
+        { "id": "battery", "label": "Battery charged above 80%", "required": true },
+        { "id": "firmware", "label": "Firmware up to date", "required": false },
+        { "id": "memory", "label": "SD card inserted, sufficient space", "required": true },
+        { "id": "gimbal", "label": "Gimbal and camera functional", "required": true }
+      ]
+    },
+    {
+      "title": "Environment",
+      "items": [
+        { "id": "wind", "label": "Wind speed acceptable (<20mph)", "required": true },
+        { "id": "visibility", "label": "Visibility >3 statute miles", "required": true },
+        { "id": "clouds", "label": "Cloud ceiling >400ft AGL", "required": true },
+        { "id": "airspace", "label": "Airspace authorization confirmed", "required": true },
+        { "id": "tfr", "label": "No active TFRs in area", "required": true }
+      ]
+    },
+    {
+      "title": "Operations",
+      "items": [
+        { "id": "vlos", "label": "Visual line of sight maintained", "required": true },
+        { "id": "vo", "label": "Visual observer present (if required)", "required": false },
+        { "id": "people", "label": "No people under flight path", "required": true },
+        { "id": "remote_id", "label": "Remote ID broadcasting", "required": true }
+      ]
+    }
+  ]
+}
+```
+3. Auto-populate weather fields from existing weather data
+4. Save completed checklists to IDB → link to drone flight log entry
+5. "Sign Off" button captures timestamp + user name → generates PDF-embeddable record
+
+**Supabase:** New `drone_flights` table with checklist JSON, or embed in existing report data
+
+---
+
+### IMPL-04: Airspace Checker Enhancement
+**Effort:** Medium (2–3 days) | **Dependencies:** FAA data API
+
+**Current state:** `maps.js` already has an "airspace" tab that loads an FAA UAS Facility Map via iframe from `faa.maps.arcgis.com`. It has a Leaflet fallback with ArcGIS tile layers if the iframe fails.
+
+**Enhancement path:**
+1. **Replace iframe with native Leaflet layers** (more control, better UX):
+   - FAA UDDS (UAS Data Delivery System): `https://udds-faa.opendata.arcgis.com/` — free, open data
+   - ArcGIS Feature Service URLs for: UAS Facility Maps, Controlled Airspace, Airports, TFRs
+   - Load as GeoJSON or via Esri Leaflet plugin (`esri-leaflet`, 30KB, Apache-2.0)
+2. **Color-coded zones:** Green (clear), Yellow (caution/LAANC needed), Red (restricted)
+3. **Tap for details:** Show ceiling altitude, authorization requirements, nearest airport
+4. **TFR overlay:** Pull active TFRs from FAA NOTAM API
+5. **"Can I Fly Here?" summary:** Single-screen answer based on GPS location
+
+**API:** FAA UAS data is FREE and public via ArcGIS REST services. No API key needed.
+- Facility Maps: `https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/`
+- Supports GeoJSON output format
+
+---
+
+### IMPL-05: Drone Flight Log
+**Effort:** Medium (3–4 days) | **Dependencies:** Supabase table
+
+**Supabase schema:**
+```sql
+CREATE TABLE drone_flight_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  project_id UUID REFERENCES projects(id),
+  report_id UUID REFERENCES reports(id),  -- link to daily report
+  
+  -- Flight details
+  flight_date DATE NOT NULL,
+  pilot_name TEXT,
+  drone_model TEXT,
+  drone_serial TEXT,
+  
+  -- GPS
+  takeoff_lat DOUBLE PRECISION,
+  takeoff_lng DOUBLE PRECISION,
+  landing_lat DOUBLE PRECISION,
+  landing_lng DOUBLE PRECISION,
+  max_altitude_ft INTEGER,
+  
+  -- Duration
+  takeoff_time TIMESTAMPTZ,
+  landing_time TIMESTAMPTZ,
+  flight_duration_min INTEGER,
+  
+  -- Conditions
+  wind_speed_mph INTEGER,
+  temperature_f INTEGER,
+  visibility TEXT,
+  weather_conditions TEXT,
+  
+  -- Compliance
+  part107_compliant BOOLEAN DEFAULT true,
+  airspace_auth TEXT,  -- LAANC auth number if applicable
+  remote_id_active BOOLEAN DEFAULT true,
+  preflight_checklist JSONB,  -- completed checklist
+  
+  -- Media
+  photo_count INTEGER DEFAULT 0,
+  video_count INTEGER DEFAULT 0,
+  notes TEXT,
+  
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+**UI:** Form overlay (same pattern as project-config). Auto-fill:
+- Date/time from device
+- Weather from existing weather integration
+- GPS from device location
+- Pilot name from user profile
+
+**Integration with daily report:** "Attach Flight Log" button in interview/report that references the flight log entry and auto-generates a summary paragraph for the AI to include.
+
+---
+
+### IMPL-06: Document Scanner
+**Effort:** Medium-High (4–5 days) | **Dependencies:** Tesseract.js, OpenCV.js (optional)
+
+**Libraries:**
+- **Tesseract.js** v5 — 34K ⭐, Apache-2.0, pure JS OCR
+  - CDN: `https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js`
+  - Size: ~170KB JS + downloads ~15MB language data on first use (cached after)
+  - Supports 100+ languages, runs in web worker (non-blocking)
+- **OpenCV.js** — Apache-2.0, image processing
+  - Used for: perspective correction, auto-crop, contrast enhancement
+  - Size: ~8MB WASM (heavy — consider loading on-demand only when scanner is opened)
+  - Alternative: skip OpenCV, use simpler canvas-based crop/contrast
+
+**Implementation (without OpenCV for v1):**
+1. Open camera → capture photo
+2. Manual crop with drag handles (use existing canvas patterns from photo-markup.js)
+3. Apply contrast/brightness via canvas filters
+4. Run Tesseract.js OCR → extract text
+5. Display text preview → user edits if needed
+6. Save: original image + extracted text to IDB/Supabase
+7. "Attach to Report" → links scan to current daily report
+
+**v2 enhancements (with OpenCV):**
+- Auto-detect document edges
+- Perspective warp to flatten
+- Auto-enhance contrast for better OCR
+
+---
+
+### IMPL-07: Quantity Tracking
+**Effort:** Medium (3–4 days) | **Dependencies:** Supabase table, integration with interview flow
+
+**Concept:** Define pay items per project → log daily installed quantities → running totals
+
+**Supabase schema:**
+```sql
+CREATE TABLE pay_items (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID REFERENCES projects(id),
+  item_number TEXT,           -- e.g., "401-1"
+  description TEXT,           -- e.g., "Type A Asphalt"
+  unit TEXT,                  -- e.g., "tons", "LF", "CY", "EA"
+  contract_quantity NUMERIC,  -- total contract amount
+  unit_price NUMERIC,         -- price per unit
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE daily_quantities (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  pay_item_id UUID REFERENCES pay_items(id),
+  report_id UUID REFERENCES reports(id),
+  quantity_installed NUMERIC,
+  station_from TEXT,          -- e.g., "45+20"
+  station_to TEXT,            -- e.g., "52+80"
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+**UI:** 
+- In project config: define pay items (or import from CSV/spreadsheet)
+- In interview: "Log Quantities" section → select pay item → enter quantity → auto-calculates running total and % complete
+- In daily report AI: auto-include "Materials installed today: 45 CY Type A Concrete (Station 45+20 to 52+80)"
+
+---
+
 ## 💡 WILD IDEAS (Long-Term / Exploratory)
 
 - **AI Safety Observer** — use device camera + AI to detect PPE violations in real-time
