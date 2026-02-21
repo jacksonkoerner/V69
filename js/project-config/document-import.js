@@ -136,10 +136,19 @@ async function extractProjectData() {
             formData.append('documents', file);
         });
 
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() { controller.abort(); }, 60000); // 60s timeout
+
         var response = await fetch(EXTRACT_WEBHOOK_URL, {
             method: 'POST',
-            body: formData
+            headers: {
+                'X-API-Key': N8N_WEBHOOK_API_KEY
+            },
+            body: formData,
+            signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         var result = await response.json();
 
