@@ -5,8 +5,7 @@
 
 var IS = window.interviewState;
 
-// ============ AI PROCESSING WEBHOOK ============
-var N8N_PROCESS_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-report';
+// ============ AI PROCESSING (Edge Function proxy) ============
 var EDGE_PROCESS_REPORT_URL = SUPABASE_URL + '/functions/v1/process-report';
 
 /**
@@ -79,7 +78,7 @@ function buildProcessPayload() {
 }
 
 /**
- * Call the AI processing webhook
+ * Call the AI processing Edge Function
  */
 async function callProcessWebhook(payload) {
     const sessionResult = await supabaseClient.auth.getSession();

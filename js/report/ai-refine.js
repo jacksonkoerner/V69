@@ -6,8 +6,7 @@
 
 var RS = window.reportState;
 
-var N8N_PROCESS_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-report';
-var N8N_REFINE_TEXT_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-text';
+// Edge Function proxy URLs
 var EDGE_REFINE_TEXT_URL = SUPABASE_URL + '/functions/v1/refine-text';
 var EDGE_PROCESS_REPORT_URL = SUPABASE_URL + '/functions/v1/process-report';
 

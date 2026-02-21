@@ -2,7 +2,7 @@
 // Dependencies: ui-utils.js (escapeHtml, showToast, generateId)
 // Shared state: selectedFiles (from main.js)
 
-var EXTRACT_WEBHOOK_URL = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-project-extractor';
+// Edge Function proxy URL
 var EDGE_EXTRACT_PROJECT_URL = SUPABASE_URL + '/functions/v1/extract-project';
 
 function setupDropZone() {

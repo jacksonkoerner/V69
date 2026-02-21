@@ -1,13 +1,12 @@
 /**
  * ai-assistant.js — Global AI Assistant (floating button + chat overlay)
  * Auto-injects into any page that loads this script.
- * Persists conversation in localStorage. Will connect to n8n webhook.
+ * Persists conversation in localStorage. Calls AI via Edge Function proxy.
  */
 (function () {
     'use strict';
 
     // ── Config ──
-    const AI_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-ai-chat';
     const EDGE_AI_CHAT_URL = SUPABASE_URL + '/functions/v1/ai-chat';
     // Namespace conversation per user to prevent cross-user leakage on shared devices
     const _userId = (typeof STORAGE_KEYS !== 'undefined' && localStorage.getItem(STORAGE_KEYS.AUTH_USER_ID)) || '';
