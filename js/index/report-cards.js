@@ -480,15 +480,32 @@ function initSwipeToDelete() {
         content.addEventListener('touchend', onEnd);
         content.addEventListener('touchcancel', onEnd);
 
+        // Track whether a real swipe happened (for click suppression)
+        let didSwipe = false;
+
+        // Suppress <a> click after a real horizontal drag (desktop only)
+        content.addEventListener('click', (e) => {
+            if (didSwipe) {
+                e.preventDefault();
+                e.stopPropagation();
+                didSwipe = false;
+            }
+        }, true); // capture phase so it fires before the <a> navigation
+
         // Mouse events (desktop)
         content.addEventListener('mousedown', (e) => {
-            // Don't interfere with buttons/links
-            if (e.target.closest('button, a')) return;
+            // Only skip actual interactive controls, NOT the <a> card wrapper
+            if (e.target.closest('button, input, select, textarea')) return;
             e.preventDefault();
+            didSwipe = false;
             onStart(e.clientX, e.clientY);
 
             const onMouseMove = (e2) => {
                 onMove(e2.clientX, e2.clientY);
+                // Mark as a real swipe if dragged more than 10px horizontally
+                if (Math.abs(e2.clientX - startX) > 10) {
+                    didSwipe = true;
+                }
             };
             const onMouseUp = () => {
                 onEnd();

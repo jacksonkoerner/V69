@@ -4,6 +4,26 @@ All notable changes to FieldVoice Pro. Updated with each deploy.
 
 ---
 
+## v6.9.46 — 2026-02-21
+
+### 🖱️ Desktop Swipe-to-Delete Fix
+Fixed report cards not being swipeable on desktop/mouse — swipe-to-delete now works with click-and-drag on computers.
+
+#### Root Cause
+- `mousedown` handler (line 486) had `if (e.target.closest('button, a')) return;` which blocked swipe initiation because the entire card content is wrapped in an `<a>` tag
+- Touch events (mobile) didn't have this guard, so phones worked fine
+
+#### Fix (2 parts, mouse-only — zero touch changes)
+- **Relaxed mousedown guard** — now only skips actual interactive controls (`button, input, select, textarea`), not the `<a>` card wrapper
+- **Added click suppression** — after a real horizontal drag (>10px), prevents the `<a>` from navigating so swipe-left doesn't accidentally open the report. Uses capture-phase click listener with a `didSwipe` flag, reset on each mousedown.
+
+#### What's NOT changed
+- Touch event handlers (`touchstart`, `touchmove`, `touchend`) — completely untouched
+- Mobile swipe behavior — identical to before
+- Swipe threshold remains `-80px` (no change)
+
+---
+
 ## v6.9.45 — 2026-02-21
 
 ### 🔒 Edge Function Auth Overhaul + Sprint 5 Testing
