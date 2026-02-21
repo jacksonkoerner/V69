@@ -9,6 +9,7 @@ var RS = window.reportState;
 var N8N_PROCESS_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-report';
 var N8N_REFINE_TEXT_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-text';
 var EDGE_REFINE_TEXT_URL = SUPABASE_URL + '/functions/v1/refine-text';
+var EDGE_PROCESS_REPORT_URL = SUPABASE_URL + '/functions/v1/process-report';
 
 var SECTION_MAP = {
     'issuesText': 'issues',
@@ -44,14 +45,20 @@ async function retryRefineProcessing() {
     retryBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Processing...';
 
     try {
+        var sessionResult = await supabaseClient.auth.getSession();
+        var accessToken = sessionResult?.data?.session?.access_token;
+        if (!accessToken) {
+            throw new Error('Not authenticated — please sign in again');
+        }
+
         var controller = new AbortController();
         var timeoutId = setTimeout(function() { controller.abort(); }, 30000);
 
-        var response = await fetch(N8N_PROCESS_WEBHOOK, {
+        var response = await fetch(EDGE_PROCESS_REPORT_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-API-Key': N8N_WEBHOOK_API_KEY
+                'Authorization': 'Bearer ' + accessToken
             },
             body: JSON.stringify(queued.payload),
             signal: controller.signal

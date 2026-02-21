@@ -7,6 +7,7 @@ var IS = window.interviewState;
 
 // ============ AI PROCESSING WEBHOOK ============
 var N8N_PROCESS_WEBHOOK = 'https://advidere.app.n8n.cloud/webhook/fieldvoice-v69-refine-report';
+var EDGE_PROCESS_REPORT_URL = SUPABASE_URL + '/functions/v1/process-report';
 
 /**
  * Build the payload for AI processing
@@ -81,15 +82,21 @@ function buildProcessPayload() {
  * Call the AI processing webhook
  */
 async function callProcessWebhook(payload) {
+    const sessionResult = await supabaseClient.auth.getSession();
+    const accessToken = sessionResult?.data?.session?.access_token;
+    if (!accessToken) {
+        throw new Error('Not authenticated — please sign in again');
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-        const response = await fetch(N8N_PROCESS_WEBHOOK, {
+        const response = await fetch(EDGE_PROCESS_REPORT_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-API-Key': N8N_WEBHOOK_API_KEY
+                'Authorization': 'Bearer ' + accessToken
             },
             body: JSON.stringify(payload),
             signal: controller.signal

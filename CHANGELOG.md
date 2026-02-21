@@ -4,6 +4,17 @@ All notable changes to FieldVoice Pro. Updated with each deploy.
 
 ---
 
+## v6.9.41 — 2026-02-21
+
+### 🔒 Edge Function Proxy — Sprint 3: process-report (critical path)
+- **Deployed** `supabase/functions/process-report/index.ts` — JWT auth + n8n proxy
+- **Frontend** `js/interview/finish-processing.js` — `callProcessWebhook()` now routes through Edge Function
+- **Frontend** `js/report/ai-refine.js` — `retryRefineProcessing()` now routes through Edge Function
+- Client 60s timeout well within Edge Function 150s idle limit
+- Same pattern: validates user session, forwards full payload to n8n with server-side X-API-Key
+
+---
+
 ## v6.9.40 — 2026-02-21
 
 ### 🔒 Edge Function Proxy — Sprint 2: ai-chat
