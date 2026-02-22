@@ -1,5 +1,49 @@
 # FieldVoice Pro — Feature & Tool Brainstorm
-**Author:** Thomas | **Date:** 2026-02-21
+**Authors:** Thomas, George | **Updated:** 2026-02-22
+
+---
+
+## 📸 AI PHOTO CAPTIONING (Priority — Implement First)
+**Added by:** George | **Date:** 2026-02-22 | **Status:** Brainstorm
+
+### Concept
+When a user takes or uploads a photo in the app, they can tap an "✨ AI Caption" button to generate a construction-specific, DOT-compliant photo caption using AI vision. Optional voice/text notes give the AI extra context for better results.
+
+### UX Flow
+1. User takes/uploads a photo on the interview page (guided or freeform mode)
+2. "✨ AI Caption" button appears on the photo card (next to the caption field)
+3. User taps it — optionally adds voice or text notes first (e.g., "rebar placement on the north retaining wall")
+4. Photo + notes sent to AI vision model
+5. AI returns a technical, construction-specific caption (e.g., "Rebar placement inspection on north retaining wall. #4 bars at 12" spacing visible, ties appear complete. Formwork not yet installed.")
+6. Caption auto-fills in the caption field — user can edit before saving
+
+### Why This Matters for RPRs
+- DOT-compliant reports need specific, technical photo descriptions
+- Most inspectors write lazy captions ("wall", "rebar") — AI generates proper descriptions with trade terminology
+- Optional notes give context AI can't see from the image alone (location, work stage, what's being inspected)
+- Voice notes are natural on a job site — speak while looking at it, AI combines what it sees + what you said
+
+### Photo Markup Integration
+- If a photo has been annotated/marked up, the AI could describe both the photo AND the annotations
+- Example: "Arrow indicates crack in concrete header, approximately 3ft from east joint"
+- Marked-up photos with AI captions = professional documentation with minimal effort
+
+### Technical Approach
+- **Frontend:** Button on photo card in `js/interview/photos.js` (guided) and `js/interview/freeform.js` (minimal)
+- **Backend:** New Supabase Edge Function (`caption-photo`) or n8n workflow
+- **Input:** Base64 image + optional text/voice notes + project context (project name, contractor names, work type)
+- **Model:** Vision-capable model (GPT-4o, Claude, Gemini) — test for best construction-specific output vs cost
+- **Response:** JSON with generated caption string
+- **Offline:** Button disabled or hidden when offline (requires API call)
+
+### Open Questions
+- On-demand only (button tap) vs auto-caption every photo?
+- Voice notes: reuse existing dictation system or separate quick recording?
+- Cost management: vision API calls add up with 20+ photos per report — batch pricing? Cheaper model for captions?
+- Should the AI receive project context (contractor names, location, type of work) for smarter captions?
+- Caption style: terse/technical ("Rebar #4 @ 12" OC, N wall") vs descriptive ("Inspection of rebar placement on the north retaining wall...")?
+
+---
 
 ## Current Tool Inventory (14 tools)
 1. Photo Markup (⭐⭐⭐⭐)
