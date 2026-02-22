@@ -5,7 +5,7 @@
 // The canonical version lives in version.json at the project root.
 // Update version.json first, then mirror the value here.
 
-const CACHE_VERSION = 'v6.9.46';
+const CACHE_VERSION = 'v6.9.48';
 const CACHE_NAME = `fieldvoice-pro-${CACHE_VERSION}`;
 
 // Files to cache for offline use
@@ -133,11 +133,10 @@ const CDN_ASSETS = [
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 ];
 
-// API endpoints that need special offline handling
+// API endpoints and Supabase traffic that need network-first handling
 const API_PATTERNS = [
     'api.open-meteo.com',
-    'n8n',
-    'webhook'
+    'bdqfpemylkqnmeqaoere.supabase.co'
 ];
 
 // Install event - cache static assets
@@ -211,6 +210,12 @@ self.addEventListener('fetch', (event) => {
 
     if (isApiCall) {
         // Network-first for API calls, with offline fallback
+        event.respondWith(handleApiRequest(event.request));
+        return;
+    }
+
+    // Non-GET requests (POST, PUT, DELETE) should never be cached — route as API
+    if (event.request.method !== 'GET') {
         event.respondWith(handleApiRequest(event.request));
         return;
     }
